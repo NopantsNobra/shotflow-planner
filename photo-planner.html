@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>光影策划台 · 独立摄影师项目工作台</title>
+<title>瞬刻摄影工作台 · 独立摄影师项目工作台</title>
 <style>
 :root{
   --bg:#faf8f5; --card:#ffffff; --ink:#2b2620; --ink2:#6f675c; --line:#e8e2d9;
@@ -146,7 +146,7 @@ svg{display:inline-block;vertical-align:middle}
   <!-- PC 侧边栏 -->
   <aside class="sidebar">
     <div class="brand">
-      <h1>光影策划台</h1>
+      <h1>瞬刻摄影工作台</h1>
       <p>独立摄影师 · 项目策划工作台</p>
     </div>
     <div id="pcNav"></div>
@@ -493,7 +493,7 @@ function openDoc(){
   const li=(arr,fn)=>arr.length?arr.map(fn).join(''):'<tr><td colspan="4" style="color:#999">（未填写）</td></tr>';
   document.getElementById('docBody').innerHTML =
     '<h1>'+esc(c.theme||'摄影项目策划案')+'</h1>'
-    +'<p class="doc-sub">生成于 '+todayStr()+' · 光影策划台</p>'
+    +'<p class="doc-sub">生成于 '+todayStr()+' · 瞬刻摄影工作台</p>'
     +'<h2>一、主题概念</h2><dl class="kv">'
     +'<dt>拍摄主题</dt><dd>'+esc(c.theme||'—')+'</dd><dt>风格调性</dt><dd>'+esc(c.style||'—')+'</dd>'
     +'<dt>目标受众</dt><dd>'+esc(c.audience||'—')+'</dd><dt>成片用途</dt><dd>'+esc(c.usage||'—')+'</dd>'
@@ -522,7 +522,7 @@ function exportJSON(){
   const data={app:'photo-planner',version:1,exportedAt:new Date().toISOString(),mood:getMood(),concept:getConcept(),exec:getExec(),budget:getBudget()};
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
-  a.download='光影策划台备份_'+todayStr()+'.json'; a.click();
+  a.download='瞬刻摄影工作台备份_'+todayStr()+'.json'; a.click();
 }
 function importJSON(e){
   const f=e.target.files[0]; if(!f) return;

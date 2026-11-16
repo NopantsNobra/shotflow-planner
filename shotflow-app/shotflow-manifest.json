@@ -1,7 +1,7 @@
 {
-  "name": "ShotFlow · 摄影师片场工作台",
-  "short_name": "ShotFlow",
-  "description": "分镜驱动的摄影策划与片场执行工作台",
+  "name": "瞬刻摄影工作台 · Stillmark",
+  "short_name": "瞬刻",
+  "description": "瞬刻摄影工作台 Stillmark —— 给独立摄影师和小团队用的轻量摄影策划小工具。从灵感、分镜到提案与实拍，把一瞬间刻成永恒画面。",
   "id": "shotflow-planner",
   "start_url": "./shotflow.html",
   "scope": "./",

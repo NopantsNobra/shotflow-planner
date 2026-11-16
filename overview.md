@@ -1,4 +1,4 @@
-# ShotFlow 功能索引（开发视角）
+# 瞬刻摄影工作台 · Stillmark 功能索引（开发视角）
 
 ## 版本
 - 当前：v3（`shotflow.html`，单文件全内联零依赖，node --check 通过）

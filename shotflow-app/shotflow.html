@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>ShotFlow · 摄影师片场工作台</title>
+<title>瞬刻摄影工作台 · Stillmark｜灵感·分镜·提案·实拍</title>
 <meta name="theme-color" content="#9c6b30">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="ShotFlow">
+<meta name="apple-mobile-web-app-title" content="瞬刻摄影工作台">
+<meta name="description" content="瞬刻摄影工作台，给独立摄影师和小团队用的轻量策划小工具。从情绪板上的一缕灵感，到分镜表里的每一格画面，再到提案与拍摄日程，最后走进实拍现场——把一瞬间，刻成永恒画面。零散想法、参考图和执行细节稳稳收在一处；小项目一个接一个，慢慢沉淀成属于你的策划档案。">
 <link rel="manifest" href="shotflow-manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
@@ -357,7 +358,7 @@ function seed(){
 /* ================= 看板 ================= */
 function renderBoard(){
   const ps=loadP();
-  let h='<div class="topbar"><h1>ShotFlow</h1><span class="muted">分镜驱动的片场工作台</span><div class="sp"></div>'
+  let h='<div class="topbar"><h1>瞬刻摄影工作台</h1><span class="muted">STILLMARK · 定格一瞬，刻下永恒。</span><div class="sp"></div>'
     +'<button class="btn btn-primary btn-sm" id="installBtn" style="display:none" onclick="installApp()">安装到桌面</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="exportJSON()">导出备份</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'importFile\').click()">导入</button>'
@@ -943,7 +944,7 @@ function exportProposalFile(){
     +'<h2>服务报价</h2><table><tr><th>项目</th><th>金额</th></tr>'
     +'<tr><td>拍摄服务套餐（'+esc(p.name)+'）</td><td>¥'+total.toLocaleString()+'</td></tr></table>'
     +'<p class="muted">* 报价基于成本核算，最终价格以双方确认合同为准。</p>'
-    +'<p class="ft">由 ShotFlow 生成 · '+todayStr()+'</p></div></body></html>';
+    +'<p class="ft">瞬刻摄影工作台 · Stillmark｜定格一瞬，刻下永恒。 · '+todayStr()+'</p></div></body></html>';
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([html],{type:'text/html'}));
   a.download='摄影提案_'+esc(p.name).replace(/[\\/:*?"<>|]/g,'')+'.html'; a.click();
@@ -957,7 +958,7 @@ async function exportJSON(){
   const data={app:'shotflow',version:3,exportedAt:new Date().toISOString(),projects:loadP(),images};
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));
-  a.download='shotflow备份_'+todayStr()+'.json'; a.click();
+  a.download='瞬刻摄影工作台备份_'+todayStr()+'.json'; a.click();
 }
 function importJSON(e){
   const f=e.target.files[0]; if(!f) return;
