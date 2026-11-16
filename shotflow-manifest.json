@@ -1,0 +1,16 @@
+{
+  "name": "ShotFlow · 摄影师片场工作台",
+  "short_name": "ShotFlow",
+  "description": "分镜驱动的摄影策划与片场执行工作台",
+  "id": "shotflow-planner",
+  "start_url": "./shotflow.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f5f1",
+  "theme_color": "#9c6b30",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

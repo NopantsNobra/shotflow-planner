@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ShotFlow · 摄影师片场工作台</title>
+<meta name="theme-color" content="#9c6b30">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ShotFlow">
+<link rel="manifest" href="shotflow-manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{
+  --bg:#f7f5f1; --card:#fff; --ink:#28241e; --ink2:#746c5f; --line:#e6e0d6;
+  --accent:#9c6b30; --accent-soft:#f2e7d8; --red:#c0392b; --green:#2e7d4f;
+  --blue:#2b6cb0; --purple:#7b4b94;
+  --radius:14px; --shadow:0 2px 10px rgba(60,45,25,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;font-size:15px}
+h1,h2,h3{font-family:Georgia,"Songti SC",serif}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+input,select,textarea{font-family:inherit;font-size:16px;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+svg{display:inline-block;vertical-align:middle}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 22px 90px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:16px}
+.card h2{font-size:17px;margin-bottom:12px}
+.muted{color:var(--ink2);font-size:13px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:9px 16px;border-radius:10px;font-size:14px;transition:.15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{filter:brightness(1.08)}
+.btn-ghost{border:1px solid var(--line);color:var(--ink2);background:#fff}
+.btn-ghost:hover{background:var(--accent-soft);color:var(--accent)}
+.btn-danger{border:1px solid #ecc;color:var(--red);background:#fff}
+.btn-sm{min-height:36px;padding:5px 12px;font-size:13px;border-radius:8px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grow{flex:1;min-width:140px}
+.tag{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);white-space:nowrap;display:inline-block}
+.tag.red{background:#fbe4e0;color:var(--red)} .tag.green{background:#e2f0e7;color:var(--green)}
+.tag.blue{background:#e3edf7;color:var(--blue)} .tag.gray{background:#eeece6;color:var(--ink2)} .tag.purple{background:#efe6f5;color:var(--purple)}
+.iconbtn{color:#b0a693;padding:4px;border-radius:6px}
+.iconbtn:hover{color:var(--red)}
+.chip{border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--ink2);background:#fff;min-height:34px}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* 顶栏 / 看板 */
+.topbar{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.topbar h1{font-size:22px;letter-spacing:1px}
+.topbar .sp{flex:1}
+.board{display:flex;gap:14px;overflow-x:auto;padding-bottom:10px;align-items:flex-start}
+.bcol{min-width:230px;flex:1;background:#f0ede6;border-radius:12px;padding:10px}
+.bcol h3{font-size:13px;color:var(--ink2);padding:4px 6px 10px;display:flex;justify-content:space-between}
+.pcard{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;cursor:pointer;transition:.15s}
+.pcard:hover{border-color:var(--accent);box-shadow:var(--shadow)}
+.pcard .pname{font-weight:600;font-size:15px}
+.pcard .pmeta{font-size:12px;color:var(--ink2);margin-top:4px}
+.pbar{height:5px;background:var(--accent-soft);border-radius:99px;margin-top:8px}
+.pbar i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.stats-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px}
+.stat-pill{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:10px}
+.stat-pill .sv{width:34px;height:34px;border-radius:10px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0}
+.stat-pill .num{font-size:17px;font-weight:600;font-family:Georgia,serif}
+.stat-pill .lbl{font-size:11px;color:var(--ink2)}
+
+/* 项目页 */
+.ptabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.ptab{padding:9px 16px;border-radius:999px;font-size:14px;border:1px solid var(--line);color:var(--ink2);background:#fff;min-height:40px}
+.ptab.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.tab-group{font-size:11px;color:#b0a693;letter-spacing:2px;margin:0 4px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.form-grid .full{grid-column:1/-1}
+.fld label{display:block;font-size:13px;color:var(--ink2);margin-bottom:5px}
+
+/* 情绪板 */
+.mood-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-top:12px}
+.mood-item{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;position:relative}
+.mood-item img{width:100%;height:110px;object-fit:cover;display:block}
+.mood-item .mtext{padding:12px;font-size:13px;min-height:72px;color:var(--ink2)}
+.mood-item .mcolor{height:80px}
+.mood-item .mfoot{padding:6px 10px;font-size:11px;color:var(--ink2);border-top:1px solid var(--line)}
+.mood-item .del{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.45);color:#fff;border-radius:8px;width:26px;height:26px;font-size:13px}
+
+/* 参考图选择器 */
+.ref-picker{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.ref-opt{width:56px;height:56px;border-radius:10px;border:2px solid var(--line);overflow:hidden;cursor:pointer;position:relative;flex-shrink:0}
+.ref-opt img{width:100%;height:100%;object-fit:cover;display:block}
+.ref-opt.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.ref-opt .ord{position:absolute;top:2px;left:4px;background:var(--accent);color:#fff;font-size:10px;border-radius:6px;padding:0 4px}
+
+/* 分镜表 */
+.shot{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start;background:#fff}
+.shot.done{background:#f6f4ef}
+.shot .refs{display:flex;flex-shrink:0}
+.shot .refs img,.shot .refs .noref{width:56px;height:56px;border-radius:8px;object-fit:cover;border:1px solid var(--line)}
+.shot .refs img+img,.shot .refs .noref{margin-left:-14px}
+.shot .refs .more{width:56px;height:56px;border-radius:8px;background:var(--accent-soft);color:var(--accent);font-size:11px;display:flex;align-items:center;justify-content:center;margin-left:-14px;border:1px solid var(--line)}
+.shot .noref-single{width:56px;height:56px;border-radius:8px;background:var(--accent-soft);color:var(--accent);font-size:11px;display:flex;align-items:center;justify-content:center}
+.chk{width:26px;height:26px;border:2px solid #cfc5b3;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#fff;margin-top:2px}
+.chk.on{background:var(--accent);border-color:var(--accent);color:#fff;font-size:15px}
+.done-text{text-decoration:line-through;color:#b3a996}
+.drag-handle{cursor:grab;color:#c9bfae;padding:8px 4px;touch-action:none;flex-shrink:0;border-radius:6px}
+.drag-handle:active{cursor:grabbing;color:var(--accent)}
+.shot.dragging{opacity:.45;border-color:var(--accent)}
+.shot.drop-before{box-shadow:0 -3px 0 0 var(--accent)}
+.shot.drop-after{box-shadow:0 3px 0 0 var(--accent)}
+
+/* 日程时间轴 */
+.sun-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.sun-pill{background:linear-gradient(180deg,#fdf6e8,#f7ecd6);border:1px solid #ecd9a8;border-radius:12px;padding:8px 14px;font-size:13px;color:#7a5c14}
+.sun-pill b{font-family:Georgia,serif;font-size:16px;margin-left:4px}
+.tl-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px dashed var(--line);align-items:flex-start}
+.tl-item:last-child{border-bottom:none}
+.tl-time{width:96px;flex-shrink:0;font-family:Georgia,serif;font-size:14px;color:var(--ink2);padding-top:2px}
+.tl-dot{width:10px;height:10px;border-radius:50%;margin-top:8px;flex-shrink:0}
+.tl-body{flex:1;min-width:0}
+.tl-title{font-weight:600;font-size:14px}
+.tl-note{font-size:12px;color:var(--ink2);margin-top:2px}
+.tl-item.shot-row .tl-title{color:var(--accent)}
+
+/* 预算 */
+.stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:14px}
+.stat-card{background:var(--accent-soft);border-radius:12px;padding:12px 16px}
+.stat-card .num{font-size:20px;font-weight:700;font-family:Georgia,serif}
+.stat-card .lbl{font-size:12px;color:var(--ink2)}
+.amount-red{color:var(--red);font-weight:600;white-space:nowrap}
+.brow{display:flex;gap:8px;align-items:center;padding:9px 4px;border-bottom:1px dashed var(--line);font-size:14px;flex-wrap:wrap}
+
+/* 协作 */
+.note-item{padding:10px 0;border-bottom:1px dashed var(--line);display:flex;gap:10px;align-items:flex-start}
+.note-item:last-child{border-bottom:none}
+.note-kind{font-size:11px;padding:2px 8px;border-radius:999px;flex-shrink:0;margin-top:2px}
+.note-time{font-size:11px;color:#b0a693;white-space:nowrap;margin-top:2px}
+
+/* 拍摄日模式 */
+.sd-overlay{position:fixed;inset:0;background:#14110d;color:#f0ebe2;z-index:200;display:none;overflow-y:auto}
+.sd-overlay.show{display:block}
+.sd-inner{max-width:640px;margin:0 auto;padding:16px 16px calc(40px + env(safe-area-inset-bottom))}
+.sd-head{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap}
+.sd-head h2{font-size:19px;flex:1;min-width:120px}
+.sd-nav{width:44px;height:44px;border-radius:12px;border:1px solid #3a342b;color:#d8c9ac;font-size:18px}
+.sd-progress{height:6px;background:#3a342b;border-radius:99px;margin:10px 0 6px}
+.sd-progress i{display:block;height:100%;background:#d8a45c;border-radius:99px;transition:width .3s}
+.sd-sun{display:flex;gap:6px;flex-wrap:wrap;font-size:11px;color:#a99e8c;margin-bottom:14px}
+.sd-sun span{background:#221e18;border:1px solid #3a342b;border-radius:99px;padding:3px 10px}
+.sd-slot{font-size:12px;color:#a99e8c;letter-spacing:2px;margin:18px 0 8px;display:flex;align-items:center;gap:8px}
+.sd-slot .now{background:#d8a45c;color:#14110d;padding:2px 10px;border-radius:99px;font-weight:700;letter-spacing:1px}
+.sd-shot{background:#221e18;border:1px solid #3a342b;border-radius:14px;padding:16px;margin-bottom:10px;display:flex;gap:14px;align-items:center}
+.sd-shot.now{border-color:#d8a45c;background:#2a2317}
+.sd-shot.done{opacity:.45}
+.sd-shot.node{border-style:dashed}
+.sd-shot img{width:72px;height:72px;border-radius:10px;object-fit:cover;flex-shrink:0}
+.sd-shot .sd-name{font-size:18px;font-weight:600}
+.sd-shot .sd-meta{font-size:13px;color:#a99e8c;margin-top:3px}
+.sd-chk{width:52px;height:52px;border-radius:14px;border:2.5px solid #6b5f4b;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px;color:transparent;background:#14110d}
+.sd-chk.on{background:#d8a45c;border-color:#d8a45c;color:#14110d}
+.sd-chk.sm{width:44px;height:44px;font-size:20px;border-radius:12px}
+.sd-btn{border:1px solid #6b5f4b;color:#d8c9ac;border-radius:10px;padding:8px 14px;font-size:13px;min-height:40px}
+.sd-empty{text-align:center;color:#a99e8c;padding:60px 0}
+
+/* 弹窗 & 文档 */
+.modal-mask{position:fixed;inset:0;background:rgba(30,24,16,.5);display:none;align-items:center;justify-content:center;z-index:300;padding:16px}
+.modal-mask.show{display:flex}
+.modal{background:#fff;border-radius:16px;max-width:760px;width:100%;max-height:88vh;overflow:auto;padding:24px;color:var(--ink)}
+.confirm-box{max-width:400px;text-align:center}
+.doc{font-family:Georgia,"Songti SC",serif}
+.doc h1{font-size:24px;text-align:center;margin-bottom:4px;letter-spacing:3px}
+.doc .doc-sub{text-align:center;color:var(--ink2);font-size:13px;margin-bottom:20px}
+.doc h2{font-size:17px;border-left:4px solid var(--accent);padding-left:10px;margin:20px 0 10px}
+.doc table{width:100%;border-collapse:collapse;font-size:13px}
+.doc td,.doc th{border:1px solid var(--line);padding:7px 9px;text-align:left}
+.doc .kv{display:grid;grid-template-columns:110px 1fr;gap:6px 12px;font-size:14px}
+.doc .kv dt{color:var(--ink2)}
+.doc img{max-width:110px;border-radius:8px;margin:4px}
+.doc .swatch{display:inline-block;width:38px;height:38px;border-radius:8px;margin:4px;vertical-align:middle;border:1px solid var(--line)}
+
+.backup-tip{background:#fff8e6;border:1px solid #ecd9a8;color:#8a6d1f;padding:10px 16px;border-radius:10px;font-size:13px;margin-bottom:14px;display:none;align-items:center;gap:8px}
+.backup-tip.show{display:flex}
+
+/* Toast */
+.toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:#28241e;color:#f5f1e8;padding:12px 20px;border-radius:12px;font-size:14px;z-index:400;opacity:0;pointer-events:none;transition:.25s;max-width:86vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast button{color:#d8a45c;margin-left:10px;font-weight:600}
+
+@media (max-width:768px){
+  .wrap{padding:14px 12px 90px}
+  .form-grid{grid-template-columns:1fr}
+  .bcol{min-width:200px}
+  .tl-time{width:78px;font-size:13px}
+}
+@media print{
+  body *{visibility:hidden}
+  #docModal,#docModal *{visibility:visible}
+  #docModal{position:fixed;inset:0;background:#fff;max-height:none;display:block}
+  #docModal .modal{max-height:none;box-shadow:none}
+  .no-print{display:none!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<!-- 拍摄日模式 -->
+<div class="sd-overlay" id="sdOverlay"><div class="sd-inner" id="sdBody"></div></div>
+
+<!-- 文档弹窗 -->
+<div class="modal-mask" id="docModal">
+  <div class="modal">
+    <div class="row no-print" style="justify-content:flex-end;margin-bottom:10px">
+      <button class="btn btn-primary btn-sm" onclick="window.print()">打印 / 存为 PDF</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeDoc()">关闭</button>
+    </div>
+    <div class="doc" id="docBody"></div>
+  </div>
+</div>
+
+<!-- 确认弹窗 -->
+<div class="modal-mask" id="confirmModal">
+  <div class="modal confirm-box">
+    <h3 style="margin-bottom:10px" id="confirmTitle">确认操作？</h3>
+    <p class="muted" id="confirmDesc" style="margin-bottom:18px"></p>
+    <div class="row" style="justify-content:center">
+      <button class="btn btn-ghost" onclick="closeConfirm()">取消</button>
+      <button class="btn btn-danger" style="background:var(--red);color:#fff" id="confirmOk">确认</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= 数据层 ================= */
+const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded';
+const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const STATUSES=['灵感期','策划中','待拍摄','后期中','已交付'];
+const STATUS_TAG=['gray','blue','red','purple','green'];
+const CITIES=[['北京',39.90,116.40],['上海',31.23,121.47],['广州',23.13,113.26],['深圳',22.54,114.06],['南京',32.06,118.78],['杭州',30.27,120.16],['成都',30.57,104.07],['西安',34.34,108.94]];
+
+/* IndexedDB 图片仓库 */
+const idb={db:null,
+  open(){return new Promise((res,rej)=>{const r=indexedDB.open('shotflow',1);
+    r.onupgradeneeded=e=>{e.target.result.createObjectStore('images');};
+    r.onsuccess=e=>{idb.db=e.target.result;res();};r.onerror=rej;});},
+  put(k,v){return new Promise((res,rej)=>{const t=idb.db.transaction('images','readwrite');t.objectStore('images').put(v,k);t.oncomplete=res;t.onerror=rej;});},
+  get(k){return new Promise((res,rej)=>{const r=idb.db.transaction('images').objectStore('images').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
+  del(k){return new Promise((res,rej)=>{const t=idb.db.transaction('images','readwrite');t.objectStore('images').delete(k);t.oncomplete=res;t.onerror=rej;});},
+  keys(){return new Promise((res,rej)=>{const r=idb.db.transaction('images').objectStore('images').getAllKeys();r.onsuccess=()=>res(r.result);r.onerror=rej;});}
+};
+const imgCache={};
+async function cacheProjectImages(p){
+  const ids=(p.mood||[]).filter(m=>m.type==='image').map(m=>m.content);
+  for(const id of ids){ if(!imgCache[id]){ const v=await idb.get(id); if(v) imgCache[id]=v; } }
+}
+
+/* ================= 状态 ================= */
+let view={mode:'board',pid:null,tab:'shots',shotFilter:''};
+const cur=()=>loadP().find(p=>p.id===view.pid);
+function updateCur(fn){ const a=loadP(); const p=a.find(x=>x.id===view.pid); if(p){fn(p); p.updatedAt=Date.now(); saveP(a);} }
+
+/* v3 数据迁移：旧项目补齐新字段 */
+function migrate(p){
+  p.mood=p.mood||[]; p.scenes=p.scenes||[]; p.shots=p.shots||[]; p.items=p.items||[]; p.budget=p.budget||[];
+  p.schedule=p.schedule||[]; p.notes=p.notes||[]; p.todos=p.todos||[];
+  p.concept=p.concept||{theme:'',style:'',audience:'',usage:'',note:''};
+  p.shots.forEach(s=>{
+    if(s.refId!==undefined&&!s.refIds) s.refIds=s.refId?[s.refId]:[];
+    s.refIds=s.refIds||[]; delete s.refId;
+    if(s.duration==null) s.duration=20;
+    if(s.ord==null) s.ord=0;
+  });
+  p.schedule.forEach(n=>{ n.done=!!n.done; });
+  return p;
+}
+function loadP(){
+  let arr; try{ arr=JSON.parse(localStorage.getItem(LS_PROJ))||[]; }catch(e){ arr=[]; }
+  const dirty=arr.some(p=>!p.v3);
+  if(dirty){ arr=arr.map(p=>{ migrate(p); p.v3=1; return p; }); saveP(arr); }
+  return arr;
+}
+function saveP(a){ localStorage.setItem(LS_PROJ,JSON.stringify(a)); }
+
+/* ================= 太阳时间（NOAA 近似算法） ================= */
+function sunTimes(dateStr,lat,lng){
+  if(!dateStr||lat==null||lng==null||lat===''||lng==='') return null;
+  const latN=parseFloat(lat), lngN=parseFloat(lng);
+  if(isNaN(latN)||isNaN(lngN)) return null;
+  const d=new Date(dateStr+'T12:00:00');
+  const N=Math.floor((d-new Date(d.getFullYear(),0,0))/864e5);
+  const g=2*Math.PI/365*(N-1+0.5);
+  const eq=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));
+  const dec=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g);
+  const latR=latN*Math.PI/180;
+  const cosHa=Math.cos(90.833*Math.PI/180)/(Math.cos(latR)*Math.cos(dec))-Math.tan(latR)*Math.tan(dec);
+  if(cosHa>1||cosHa<-1) return null;
+  const ha=Math.acos(cosHa)*180/Math.PI;
+  const tzOff=-new Date().getTimezoneOffset();
+  const fmt=m=>{ m=((m+tzOff)%1440+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(Math.round(m%60)).padStart(2,'0'); };
+  const sunrise=720-4*(lngN+ha)-eq, sunset=720-4*(lngN-ha)-eq, noon=720-4*lngN-eq;
+  return {sunrise:fmt(sunrise),noon:fmt(noon),sunset:fmt(sunset),goldenStart:fmt(sunset-75),goldenEnd:fmt(sunset)};
+}
+
+/* ================= 预置示例 ================= */
+function seed(){
+  if(localStorage.getItem(LS_SEED)) return;
+  const t=todayStr();
+  const scene1=uid(),scene2=uid();
+  const demo=migrate({id:uid(),v3:1,name:'城市漫游者 · 人像写真',client:'示例客户',status:'待拍摄',shootDate:t,
+    location:'南京 · 老门东片区',lat:32.06,lng:118.78,createdAt:Date.now(),updatedAt:Date.now(),
+    concept:{theme:'城市漫游者',style:'胶片感 / 暖调 / 生活流抓拍',audience:'25-35 岁都市女性',usage:'客片 20 张精修 + 作品集 + 小红书宣发',note:'突出“一个人在城市里自洽漫游”的状态。'},
+    mood:[
+      {id:uid(),type:'text',content:'午后四点侧逆光，尘埃在光束里浮动',tag:'光线'},
+      {id:uid(),type:'color',content:'#c8a97e',tag:'主色'},
+      {id:uid(),type:'color',content:'#5d6b5a',tag:'辅色'},
+      {id:uid(),type:'text',content:'关键词：松弛感、胶片颗粒、不摆拍',tag:'调性'}
+    ],
+    scenes:[
+      {id:scene1,name:'五道营胡同',note:'15:00-17:00 光线最佳，避开周末',done:true},
+      {id:scene2,name:'Metal Hands 咖啡馆',note:'已沟通拍摄许可，点单即可',done:false}
+    ],
+    shots:[
+      {id:uid(),name:'巷口逆光回眸（中景）',date:t,slot:'15:00',duration:20,sceneId:scene1,refIds:[],note:'等一束侧逆光',done:false,ord:0},
+      {id:uid(),name:'胡同行走背影（远景）',date:t,slot:'15:40',duration:20,sceneId:scene1,refIds:[],note:'',done:true,ord:1},
+      {id:uid(),name:'咖啡馆窗边侧脸（特写）',date:t,slot:'16:30',duration:30,sceneId:scene2,refIds:[],note:'85mm 大光圈',done:false,ord:2},
+      {id:uid(),name:'天台黄昏剪影（全景）',date:t,slot:'18:10',duration:40,sceneId:'',refIds:[],note:'看日落时间调整',done:false,ord:3}
+    ],
+    schedule:[
+      {id:uid(),type:'集合',title:'地铁口集合，检查器材',start:'14:30',end:'14:50',note:'带备用电池 ×2',done:true},
+      {id:uid(),type:'化妆造型',title:'化妆师到场，妆造 45 分钟',start:'14:50',end:'15:00',note:'妆造在胡同口阴凉处',done:false},
+      {id:uid(),type:'转场',title:'胡同 → 咖啡馆（步行 10 分钟）',start:'16:20',end:'16:30',note:'',done:false},
+      {id:uid(),type:'收工',title:'复盘当日素材，确认交片时间',start:'19:00',end:'19:30',note:'',done:false}
+    ],
+    items:[
+      {id:uid(),kind:'服装',name:'燕麦色廓形风衣',note:'客户自备',done:true},
+      {id:uid(),kind:'道具',name:'旧胶片机道具',note:'器材架第二层',done:false},
+      {id:uid(),kind:'器材',name:'Sony A7M4 + 35mm F1.4',note:'主机位',done:true},
+      {id:uid(),kind:'器材',name:'反光板（金面）',note:'补面光',done:false}
+    ],
+    budget:[
+      {id:uid(),item:'化妆师',cat:'人员',amount:800,paid:true},
+      {id:uid(),item:'场地低消',cat:'场地',amount:200,paid:false}
+    ],
+    notes:[
+      {id:uid(),kind:'微信',content:'客户确认服装为燕麦色风衣，不喜欢大面积红色',ts:Date.now()-864e5*2},
+      {id:uid(),kind:'电话',content:'咖啡馆确认周末可拍，建议避开 11-13 点高峰',ts:Date.now()-864e5}
+    ],
+    todos:[
+      {id:uid(),title:'给客户发提案确认报价',owner:'我',due:todayStr(),done:false},
+      {id:uid(),title:'检查 SD 卡并格式化',owner:'我',due:todayStr(),done:true},
+      {id:uid(),title:'预约精修排期（交片 10 月 30 日前）',owner:'',due:'',done:false}
+    ]});
+  saveP([demo]);
+  localStorage.setItem(LS_SEED,'1');
+}
+
+/* ================= 看板 ================= */
+function renderBoard(){
+  const ps=loadP();
+  let h='<div class="topbar"><h1>ShotFlow</h1><span class="muted">分镜驱动的片场工作台</span><div class="sp"></div>'
+    +'<button class="btn btn-primary btn-sm" id="installBtn" style="display:none" onclick="installApp()">安装到桌面</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="exportJSON()">导出备份</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'importFile\').click()">导入</button>'
+    +'<button class="btn btn-danger btn-sm" onclick="clearAll()">清空</button>'
+    +'<button class="btn btn-primary" onclick="newProject()">+ 新建项目</button>'
+    +'<input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)"></div>'
+    +'<div class="backup-tip" id="backupTip"><span>数据较多，建议「导出备份」留档。</span></div>';
+  const t=todayStr();
+  const active=ps.filter(p=>['灵感期','策划中','待拍摄','后期中'].includes(p.status)).length;
+  const todayShoots=ps.filter(p=>p.shootDate===t&&p.status!=='已交付').length;
+  const overdueTodos=ps.reduce((s,p)=>s+p.todos.filter(x=>!x.done&&x.due&&x.due<t).length,0);
+  const totalBudget=ps.reduce((s,p)=>s+p.budget.reduce((x,b)=>x+(+b.amount||0),0),0);
+  h+='<div class="stats-bar">'
+    +statPill('M3 7h13v10H3z M16 10h3l2 2v3h-5',active,'进行中项目')
+    +statPill('M12 6v6l4 2 M12 3a9 9 0 1 0 .01 0',todayShoots,'今日拍摄')
+    +statPill('M9 11l3 3 8-8 M21 12v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11',overdueTodos,'逾期待办')
+    +statPill('M12 2v20 M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6','¥'+totalBudget.toLocaleString(),'总预算')
+    +'</div>';
+  if(!ps.length){ h+='<div class="card" style="text-align:center;padding:50px"><p class="muted">还没有项目，点击右上角「新建项目」开始第一个策划。</p></div>'; }
+  h+='<div class="board">'+STATUSES.map((s,i)=>{
+    const col=ps.filter(p=>p.status===s);
+    return '<div class="bcol"><h3>'+s+'<span>'+col.length+'</span></h3>'
+      +col.map(p=>{
+        const total=p.shots.length, done=p.shots.filter(x=>x.done).length;
+        const pct=total?Math.round(done/total*100):0;
+        const openT=p.todos.filter(x=>!x.done).length;
+        const overdue=p.todos.filter(x=>!x.done&&x.due&&x.due<t).length;
+        let cd='';
+        if(p.shootDate&&p.status!=='已交付'){
+          const diff=Math.round((new Date(p.shootDate)-new Date(t))/864e5);
+          cd=diff>0?' · 还有 '+diff+' 天':(diff===0?' · 就是今天':'');
+        }
+        return '<div class="pcard" onclick="openProject(\''+p.id+'\')">'
+          +'<div class="pname">'+esc(p.name)+(overdue?' <span class="tag red">待办逾期</span>':'')+'</div>'
+          +'<div class="pmeta">'+(p.client?'客户：'+esc(p.client)+' · ':'')+(p.shootDate?'拍摄日 '+p.shootDate+cd:'未定拍摄日')+'</div>'
+          +'<div class="pmeta">分镜 '+done+'/'+total+(openT?' · 待办 '+openT:'')+'</div>'
+          +'<div class="pbar"><i style="width:'+pct+'%"></i></div></div>';
+      }).join('')+'</div>';
+  }).join('')+'</div>';
+  document.getElementById('app').innerHTML=h;
+  const count=ps.reduce((s,p)=>s+p.shots.length+p.mood.length+p.items.length+p.budget.length+p.todos.length+p.notes.length,0);
+  document.getElementById('backupTip').classList.toggle('show',count>=30);
+  if(deferredPrompt) document.getElementById('installBtn').style.display='';
+}
+function statPill(icon,num,lbl){
+  return '<div class="stat-pill"><div class="sv"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="'+icon+'"/></svg></div><div><div class="num">'+num+'</div><div class="lbl">'+lbl+'</div></div></div>';
+}
+function newProject(){
+  const name=prompt('项目名称：','未命名拍摄项目'); if(name===null) return;
+  const a=loadP();
+  a.push(migrate({id:uid(),v3:1,name:name.trim()||'未命名拍摄项目',client:'',status:'灵感期',shootDate:'',location:'',lat:'',lng:'',createdAt:Date.now(),updatedAt:Date.now()}));
+  saveP(a); openProject(a[a.length-1].id);
+}
+async function openProject(pid){ view={mode:'project',pid,tab:'shots',shotFilter:''}; await cacheProjectImages(cur()); renderProject(); }
+
+/* ================= 项目页 ================= */
+const TABS=[['concept','概念','策划'],['mood','情绪板','策划'],['shots','分镜','执行'],['schedule','日程','执行'],['stuff','清单','执行'],['budget','预算','落地'],['notes','协作','落地']];
+function renderProject(){
+  const p=cur(); if(!p){view.mode='board';renderBoard();return;}
+  const t=todayStr();
+  let cd='';
+  if(p.shootDate&&p.status!=='已交付'){
+    const diff=Math.round((new Date(p.shootDate)-new Date(t))/864e5);
+    cd=diff>0?'<span class="tag blue">还有 '+diff+' 天</span> ':(diff===0?'<span class="tag red">今天拍摄</span> ':'');
+  }
+  const openTodos=p.todos.filter(x=>!x.done).length;
+  let h='<div class="topbar">'
+    +'<button class="btn btn-ghost btn-sm" onclick="view.mode=\'board\';renderBoard()">← 看板</button>'
+    +'<h1 style="font-size:20px">'+esc(p.name)+'</h1>'+cd+'<span class="tag '+STATUS_TAG[STATUSES.indexOf(p.status)]+'">'+p.status+'</span>'
+    +(openTodos?'<span class="tag purple" onclick="view.tab=\'notes\';renderProject()" style="cursor:pointer">待办 '+openTodos+'</span> ':'')
+    +'<div class="sp"></div>'
+    +'<button class="btn btn-primary btn-sm" onclick="openShootDay()">进入拍摄日模式</button></div>'
+    +'<div class="card"><div class="form-grid">'
+    +'<div class="fld"><label>客户</label><input value="'+esc(p.client)+'" onchange="setP(\'client\',this.value)"></div>'
+    +'<div class="fld"><label>拍摄日期</label><input type="date" value="'+esc(p.shootDate)+'" onchange="setP(\'shootDate\',this.value)"></div>'
+    +'<div class="fld"><label>项目阶段</label><select onchange="setP(\'status\',this.value)">'+STATUSES.map(s=>'<option '+(p.status===s?'selected':'')+'>'+s+'</option>').join('')+'</select></div>'
+    +'<div class="fld"><label>拍摄地点</label><input value="'+esc(p.location||'')+'" onchange="setP(\'location\',this.value)" placeholder="如：南京 · 老门东"></div>'
+    +'<div class="fld"><label>纬度（日落计算用）</label><input value="'+esc(p.lat==null?'':p.lat)+'" onchange="setP(\'lat\',this.value)" placeholder="32.06"></div>'
+    +'<div class="fld"><label>经度</label><input value="'+esc(p.lng==null?'':p.lng)+'" onchange="setP(\'lng\',this.value)" placeholder="118.78"></div>'
+    +'<div class="full"><div class="row">'+CITIES.map(c=>'<button class="chip" onclick="setLL(\''+c[1]+'\',\''+c[2]+'\')">'+c[0]+'</button>').join('')+'<span class="muted">← 快速填入城市坐标（市中心，可再微调）</span></div></div>'
+    +'</div></div>'
+    +'<div class="ptabs">'+TABS.map((tb,i)=>{
+        const prev=i>0?TABS[i-1][2]:'';
+        return (tb[2]!==prev?'<span class="tab-group">'+tb[2]+'</span>':'')
+          +'<button class="ptab '+(view.tab===tb[0]?'active':'')+'" onclick="view.tab=\''+tb[0]+'\';renderProject()">'+tb[1]+'</button>';
+      }).join('')
+    +'<div style="flex:1"></div>'
+    +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'proposal\')">客户提案</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="exportProposalFile()">发送提案文件</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'manual\')">执行手册</button></div>'
+    +'<div id="tabBody"></div>';
+  document.getElementById('app').innerHTML=h;
+  ({concept:renderConcept,mood:renderMood,shots:renderShots,schedule:renderSchedule,stuff:renderStuff,budget:renderBudget,notes:renderNotes})[view.tab](p);
+}
+function setP(k,v){ updateCur(p=>p[k]=v); }
+function setLL(lat,lng){ updateCur(p=>{p.lat=lat;p.lng=lng;}); renderProject(); }
+function fld(l,id,v,ph){return '<div class="fld"><label>'+l+'</label><input id="'+id+'" value="'+esc(v)+'" placeholder="'+ph+'"></div>';}
+function gv(id){return document.getElementById(id).value;}
+
+/* ---- 概念 ---- */
+function renderConcept(p){
+  const c=p.concept;
+  document.getElementById('tabBody').innerHTML='<div class="card"><h2>主题概念</h2><div class="form-grid">'
+    +fld('拍摄主题','ct',c.theme,'如：城市漫游者')+fld('风格调性','cs',c.style,'如：胶片感 / 暖调')
+    +fld('目标受众','ca',c.audience,'')
+    +'<div class="full"></div>'
+    +fld('成片用途','cu',c.usage,'')+'<div class="full"></div>'
+    +'<div class="fld full"><label>创意阐述</label><textarea id="cn" rows="3">'+esc(c.note)+'</textarea></div></div></div>';
+  const save=()=>updateCur(pp=>pp.concept={theme:gv('ct'),style:gv('cs'),audience:gv('ca'),usage:gv('cu'),note:gv('cn')});
+  ['ct','cs','ca','cu','cn'].forEach(id=>document.getElementById(id).addEventListener('input',save));
+}
+
+/* ---- 情绪板 ---- */
+function renderMood(p){
+  document.getElementById('tabBody').innerHTML='<div class="card"><h2>情绪板</h2>'
+    +'<p class="muted" style="margin-bottom:10px">图片存于本地 IndexedDB，自动压缩至 800px。图片可在分镜里引用为参考图（每条分镜最多 3 张）。</p>'
+    +'<div class="row"><input id="m_text" class="grow" placeholder="文字灵感…"><input id="m_tag" style="max-width:110px" placeholder="标签">'
+    +'<input type="color" id="m_color" value="#c8a97e" style="width:54px;height:44px;padding:4px">'
+    +'<button class="btn btn-ghost" onclick="addMood(\'text\')">加文字</button>'
+    +'<button class="btn btn-ghost" onclick="addMood(\'color\')">加色彩</button>'
+    +'<button class="btn btn-primary" onclick="document.getElementById(\'m_img\').click()">上传图片</button>'
+    +'<input type="file" id="m_img" accept="image/*" style="display:none" onchange="addMoodImg(event)"></div>'
+    +'<div class="mood-grid">'+p.mood.map(m=>{
+      let body='';
+      if(m.type==='image') body='<img src="'+(imgCache[m.content]||'')+'">';
+      else if(m.type==='color') body='<div class="mcolor" style="background:'+esc(m.content)+'"></div>';
+      else body='<div class="mtext">'+esc(m.content)+'</div>';
+      return '<div class="mood-item">'+body+'<button class="del" onclick="delMood(\''+m.id+'\')">×</button>'
+        +'<div class="mfoot">'+(m.type==='color'?esc(m.content)+' ':'')+(m.tag?esc(m.tag):'')+'</div></div>';
+    }).join('')+'</div></div>';
+}
+function addMood(type){
+  const tag=document.getElementById('m_tag').value.trim();
+  let content=type==='text'?document.getElementById('m_text').value.trim():document.getElementById('m_color').value;
+  if(type==='text'&&!content){toast('先写点灵感内容');return;}
+  updateCur(p=>p.mood.push({id:uid(),type,content,tag})); renderProject();
+}
+function addMoodImg(e){
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=ev=>{ const img=new Image();
+    img.onload=async()=>{
+      const c=document.createElement('canvas'); const s=Math.min(1,800/img.width);
+      c.width=img.width*s; c.height=img.height*s;
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      const imgId=uid(); const data=c.toDataURL('image/jpeg',.72);
+      await idb.put(imgId,data); imgCache[imgId]=data;
+      updateCur(p=>p.mood.push({id:uid(),type:'image',content:imgId,tag:document.getElementById('m_tag').value.trim()}));
+      renderProject();
+    }; img.src=ev.target.result; };
+  rd.readAsDataURL(f); e.target.value='';
+}
+function delMood(id){ updateCur(p=>p.mood=p.mood.filter(m=>m.id!==id)); renderProject(); }
+
+/* ---- 分镜（中枢） ---- */
+let selRefs=[];
+function shotSortKey(s){ return (s.date||'9999')+'|'+(s.ord!=null?'o'+String(s.ord).padStart(6,'0'):'s'+(s.slot||'99:99')); }
+function renderShots(p){
+  const moodImgs=p.mood.filter(m=>m.type==='image');
+  const kw=(view.shotFilter||'').trim().toLowerCase();
+  const sorted=[...p.shots].sort((a,b)=>shotSortKey(a)<shotSortKey(b)?-1:1)
+    .filter(s=>!kw||(s.name||'').toLowerCase().includes(kw)||(s.note||'').toLowerCase().includes(kw)||(p.scenes.find(x=>x.id===s.sceneId)||{}).name&&(p.scenes.find(x=>x.id===s.sceneId)||{}).name.toLowerCase().includes(kw));
+  document.getElementById('tabBody').innerHTML='<div class="card"><h2>分镜表 · 数据中枢</h2>'
+    +'<p class="muted" style="margin-bottom:12px">每条分镜可挂 1-3 张参考图（来自情绪板）+ 场景 + 日期时段。拖动左侧手柄排序，拖到另一日期分组会自动改期。</p>'
+    +'<div class="row" style="margin-bottom:6px">'
+    +'<input id="s_name" class="grow" placeholder="分镜内容，如：巷口逆光回眸（中景）">'
+    +'<input type="date" id="s_date" style="max-width:150px" value="'+(p.shootDate||todayStr())+'">'
+    +'<input type="time" id="s_slot" style="max-width:105px" value="15:00">'
+    +'<select id="s_dur" style="max-width:105px">'+[10,15,20,30,45,60,90].map(d=>'<option '+(d===20?'selected':'')+'>'+d+' 分钟</option>').join('')+'</select>'
+    +'<select id="s_scene" style="max-width:150px"><option value="">— 场景 —</option>'+p.scenes.map(s=>'<option value="'+s.id+'">'+esc(s.name)+'</option>').join('')+'</select>'
+    +'<input id="s_note" class="grow" placeholder="备注（机位 / 光线 / 姿势…）">'
+    +'<button class="btn btn-primary" onclick="addShot()">添加分镜</button></div>'
+    +(moodImgs.length?'<div class="ref-picker" id="refPicker">'+moodImgs.map(m=>
+        '<div class="ref-opt '+(selRefs.includes(m.content)?'on':'')+'" onclick="toggleRef(\''+m.content+'\')"><img src="'+(imgCache[m.content]||'')+'">'
+        +(selRefs.includes(m.content)?'<span class="ord">'+(selRefs.indexOf(m.content)+1)+'</span>':'')+'</div>').join('')
+      +'<span class="muted" style="align-self:center">点击选参考图（最多 3 张）</span></div>':'<p class="muted" style="margin-bottom:10px">情绪板还没有图片素材，可先去上传。</p>')
+    +'<div class="row" style="margin-bottom:12px"><input id="s_filter" class="grow" placeholder="搜索分镜 / 场景 / 备注…" value="'+esc(view.shotFilter)+'" oninput="view.shotFilter=this.value;renderShots(cur())"></div>'
+    +(sorted.length? '<div id="shotList">'+sorted.map(s=>{
+        const scene=p.scenes.find(x=>x.id===s.sceneId);
+        const refs=s.refIds.filter(r=>imgCache[r]);
+        const refHtml=refs.length? refs.map(r=>'<img src="'+imgCache[r]+'">').join('')+(refs.length>2?'<div class="more">+'+(refs.length-2)+'</div>':'')
+          :'<div class="noref-single">无参考图</div>';
+        return '<div class="shot '+(s.done?'done':'')+'" data-id="'+s.id+'">'
+          +'<span class="drag-handle" title="拖拽排序"><svg width="12" height="18" viewBox="0 0 12 18" fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></svg></span>'
+          +'<button class="chk '+(s.done?'on':'')+'" onclick="toggleShot(\''+s.id+'\')">'+(s.done?'✓':'')+'</button>'
+          +'<div class="refs">'+refHtml+'</div>'
+          +'<div class="grow" style="min-width:150px"><div class="'+(s.done?'done-text':'')+'" style="font-weight:600">'+esc(s.name)+'</div>'
+          +'<div class="muted" style="font-size:12px;margin-top:2px">'+esc(s.date||'未定')+' '+(s.slot||'')+' · 约 '+s.duration+' 分钟'+(scene?' · '+esc(scene.name):'')+(s.note?' · '+esc(s.note):'')+'</div></div>'
+          +'<button class="iconbtn" onclick="delShot(\''+s.id+'\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
+      }).join('')+'</div>' : '<p class="muted">'+(kw?'没有匹配的分镜。':'还没有分镜。添加第一条，把素材挂上来。')+'</p>')
+    +'</div>';
+  attachDrag();
+}
+function toggleRef(id){
+  const i=selRefs.indexOf(id);
+  if(i>=0) selRefs.splice(i,1);
+  else { if(selRefs.length>=3){toast('每条分镜最多选 3 张参考图');return;} selRefs.push(id); }
+  renderShots(cur());
+}
+function addShot(){
+  const name=gv('s_name').trim(); if(!name){toast('分镜内容不能为空');return;}
+  const d=gv('s_date');
+  updateCur(p=>{
+    const sameDay=p.shots.filter(x=>(x.date||'')===d);
+    const ord=sameDay.length?Math.max(...sameDay.map(x=>x.ord||0))+1:0;
+    p.shots.push({id:uid(),name,date:d,slot:gv('s_slot'),duration:parseInt(gv('s_dur'))||20,sceneId:gv('s_scene'),refIds:[...selRefs],note:gv('s_note').trim(),done:false,ord});
+  });
+  selRefs=[]; renderProject();
+}
+
+/* 拖拽排序（桌面 + 触屏，Pointer Events） */
+function attachDrag(){
+  const list=document.getElementById('shotList'); if(!list) return;
+  list.querySelectorAll('.drag-handle').forEach(h=>{
+    h.addEventListener('pointerdown',e=>{
+      const dragEl=h.closest('.shot'); const startY=e.clientY; let active=false;
+      h.setPointerCapture(e.pointerId);
+      const move=ev=>{
+        if(!active && Math.abs(ev.clientY-startY)>6){ active=true; dragEl.classList.add('dragging'); }
+        if(!active) return;
+        list.querySelectorAll('.shot').forEach(s=>s.classList.remove('drop-before','drop-after'));
+        const t=document.elementFromPoint(ev.clientX,ev.clientY);
+        const target=t&&t.closest?t.closest('.shot'):null;
+        if(target&&target!==dragEl){
+          const r=target.getBoundingClientRect();
+          const after=(ev.clientY-r.top)>r.height/2;
+          target.classList.add(after?'drop-after':'drop-before');
+          dragEl._drop={el:target,after};
+        } else dragEl._drop=null;
+      };
+      const up=()=>{
+        h.removeEventListener('pointermove',move);
+        h.removeEventListener('pointerup',up);
+        h.removeEventListener('pointercancel',up);
+        const info=dragEl._drop;
+        if(active&&info){
+          if(info.after) info.el.after(dragEl); else info.el.before(dragEl);
+          persistOrder(list,dragEl.dataset.id);
+        } else {
+          list.querySelectorAll('.shot').forEach(s=>s.classList.remove('dragging','drop-before','drop-after'));
+        }
+      };
+      h.addEventListener('pointermove',move);
+      h.addEventListener('pointerup',up);
+      h.addEventListener('pointercancel',up);
+    });
+  });
+}
+function persistOrder(list,draggedId){
+  const ids=[...list.querySelectorAll('.shot')].map(el=>el.dataset.id);
+  updateCur(p=>{
+    const byId={}; p.shots.forEach(s=>byId[s.id]=s);
+    const i=ids.indexOf(draggedId);
+    let adopt=null;
+    if(i<ids.length-1) adopt=byId[ids[i+1]].date;
+    else if(i>0) adopt=byId[ids[i-1]].date;
+    if(adopt!=null&&adopt!=='') byId[draggedId].date=adopt;
+    const counters={};
+    ids.forEach(id=>{ const s=byId[id]; const d=s.date||''; counters[d]=(counters[d]||0); s.ord=counters[d]++; });
+  });
+  renderProject();
+}
+function toggleShot(id){ updateCur(p=>{const s=p.shots.find(x=>x.id===id); if(s) s.done=!s.done;}); renderProject(); }
+function delShot(id){ updateCur(p=>p.shots=p.shots.filter(x=>x.id!==id)); renderProject(); }
+
+/* ---- 日程（时间与流程安排） ---- */
+const NODE_TYPES=['集合','化妆造型','拍摄','转场','休息','收工','其他'];
+const NODE_COLORS=['gray','purple','accent','blue','green','ink','gray'];
+let schedDate=null;
+function nodeTag(t){ const i=NODE_TYPES.indexOf(t); return '<span class="tag '+(NODE_COLORS[i]||'gray')+'">'+esc(t)+'</span>'; }
+function renderSchedule(p){
+  if(!schedDate) schedDate=p.shootDate||todayStr();
+  const sun=sunTimes(schedDate,p.lat,p.lng);
+  const nodes=[...p.schedule].filter(n=>(n.date||schedDate)===schedDate).sort((a,b)=>(a.start||'99')<(b.start||'99')?-1:1);
+  const shots=p.shots.filter(s=>s.date===schedDate).sort((a,b)=>(a.slot||'99')<(b.slot||'99')?-1:1);
+  let sunHtml='';
+  if(sun){
+    sunHtml='<div class="sun-bar">'
+      +'<div class="sun-pill">日出<b>'+sun.sunrise+'</b></div>'
+      +'<div class="sun-pill">正午<b>'+sun.noon+'</b></div>'
+      +'<div class="sun-pill">黄金时刻起<b>'+sun.goldenStart+'</b></div>'
+      +'<div class="sun-pill">日落<b>'+sun.sunset+'</b></div>'
+      +'<div class="sun-pill" style="background:#fdf3f1;border-color:#ecc;color:#8a3a2e">民用暮光≈<b>'+addMin(sun.sunset,30)+'</b></div>'
+      +'</div><p class="muted" style="margin-top:-8px;margin-bottom:12px">按 NOAA 近似算法 + 项目坐标估算，误差几分钟，仅作排期参考。</p>';
+  } else {
+    sunHtml='<p class="muted" style="margin-bottom:12px">填写项目信息卡里的「纬度 / 经度」（或点城市快捷键），这里会显示当日日出、黄金时刻与日落时间。</p>';
+  }
+  document.getElementById('tabBody').innerHTML='<div class="card"><h2>拍摄日流程 · 时间轴</h2>'
+    +sunHtml
+    +'<div class="row" style="margin-bottom:14px"><input type="date" id="sc_date" style="max-width:170px" value="'+schedDate+'" onchange="schedDate=this.value;renderSchedule(cur())">'
+    +'<span class="muted">切换日期查看 / 编辑当天流程</span></div>'
+    +'<div class="row" style="margin-bottom:6px">'
+    +'<select id="n_type" style="max-width:120px">'+NODE_TYPES.map(t=>'<option>'+t+'</option>').join('')+'</select>'
+    +'<input id="n_title" class="grow" placeholder="环节内容，如：化妆师到场妆造">'
+    +'<input type="time" id="n_start" style="max-width:105px" value="14:30">'
+    +'<input type="time" id="n_end" style="max-width:105px" value="15:00">'
+    +'<input id="n_note" class="grow" placeholder="备注…">'
+    +'<button class="btn btn-primary" onclick="addNode()">添加环节</button></div>'
+    +timelineHtml(p,nodes,shots)
+    +'</div>';
+}
+function addMin(hhmm,m){ const [h,mi]=hhmm.split(':').map(Number); const t=(h*60+mi+m+1440)%1440; return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0'); }
+function timelineHtml(p,nodes,shots){
+  const items=[...nodes.map(n=>({...n,_t:'node'})),...shots.map(s=>({...s,_t:'shot'}))]
+    .sort((a,b)=>(a._t==='shot'?(a.slot||'99'):(a.start||'99'))<(b._t==='shot'?(b.slot||'99'):(b.start||'99'))?-1:1);
+  if(!items.length) return '<p class="muted">这一天还没有安排。添加流程环节，或在分镜表里给分镜定日期。</p>';
+  return items.map(it=>{
+    const time=it._t==='shot'?(it.slot||'未排时'):(it.start||'')+(it.end?' – '+it.end:'');
+    if(it._t==='shot'){
+      const sc=p.scenes.find(x=>x.id===it.sceneId);
+      return '<div class="tl-item shot-row"><div class="tl-time">'+esc(time)+'</div><div class="tl-dot" style="background:var(--accent)"></div>'
+        +'<div class="tl-body"><div class="tl-title">'+esc(it.name)+' <span class="muted" style="font-weight:400">· 约 '+it.duration+' 分钟</span></div>'
+        +'<div class="tl-note">'+(sc?esc(sc.name)+' · ':'')+esc(it.note||'')+'</div></div>'
+        +'<button class="chk '+(it.done?'on':'')+'" onclick="toggleShot(\''+it.id+'\')">'+(it.done?'✓':'')+'</button></div>';
+    }
+    return '<div class="tl-item"><div class="tl-time">'+esc(time)+'</div><div class="tl-dot" style="background:'+(it.type==='拍摄'?'var(--accent)':'#b4b2a9')+'"></div>'
+      +'<div class="tl-body"><div class="tl-title '+(it.done?'done-text':'')+'">'+nodeTag(it.type)+' '+esc(it.title)+'</div>'
+      +(it.note?'<div class="tl-note">'+esc(it.note)+'</div>':'')+'</div>'
+      +'<button class="chk '+(it.done?'on':'')+'" onclick="toggleNode(\''+it.id+'\')">'+(it.done?'✓':'')+'</button>'
+      +'<button class="iconbtn" onclick="delNode(\''+it.id+'\')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
+  }).join('');
+}
+function addNode(){
+  const title=gv('n_title').trim(); if(!title){toast('环节内容不能为空');return;}
+  updateCur(p=>p.schedule.push({id:uid(),type:gv('n_type'),title,start:gv('n_start'),end:gv('n_end'),note:gv('n_note').trim(),date:schedDate,done:false}));
+  renderProject();
+}
+function toggleNode(id){ updateCur(p=>{const n=p.schedule.find(x=>x.id===id); if(n) n.done=!n.done;}); renderProject(); }
+function delNode(id){ updateCur(p=>p.schedule=p.schedule.filter(x=>x.id!==id)); renderProject(); }
+
+/* ---- 清单（场景/服化道/器材） ---- */
+function renderStuff(p){
+  const section=(title,key,arr,ph)=>{
+    return '<div class="card"><h2>'+title+'</h2>'
+      +'<div class="row" style="margin-bottom:10px"><input id="f_'+key+'" class="grow" placeholder="'+ph+'"><input id="fn_'+key+'" class="grow" placeholder="备注…"><button class="btn btn-primary btn-sm" onclick="addStuff(\''+key+'\')">添加</button></div>'
+      +(arr.length?arr.map(it=>'<div class="row" style="padding:8px 0;border-bottom:1px dashed var(--line)">'
+        +'<button class="chk '+(it.done?'on':'')+'" style="width:22px;height:22px" onclick="toggleStuff(\''+key+'\',\''+it.id+'\')">'+(it.done?'✓':'')+'</button>'
+        +'<span class="grow '+(it.done?'done-text':'')+'">'+esc(it.name)+'</span><span class="muted">'+esc(it.note||'')+'</span>'
+        +'<button class="iconbtn" onclick="delStuff(\''+key+'\',\''+it.id+'\')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>').join(''):'<p class="muted">暂无</p>')+'</div>';
+  };
+  document.getElementById('tabBody').innerHTML=
+    section('场景选址','scenes',p.scenes,'地点名称…')
+    +section('服装 / 造型 / 道具','items_s',p.items.filter(i=>i.kind!=='器材'),'物品名称（可注明类别）…')
+    +section('器材需求','items_g',p.items.filter(i=>i.kind==='器材'),'器材名称…');
+}
+function addStuff(key){
+  const name=gv('f_'+key).trim(); if(!name){toast('名称不能为空');return;}
+  const note=gv('fn_'+key).trim();
+  updateCur(p=>{
+    if(key==='scenes') p.scenes.push({id:uid(),name,note,done:false});
+    else p.items.push({id:uid(),kind:key==='items_g'?'器材':'服装道具',name,note,done:false});
+  }); renderProject();
+}
+function toggleStuff(key,id){ updateCur(p=>{const arr=key==='scenes'?p.scenes:p.items; const it=arr.find(x=>x.id===id); if(it) it.done=!it.done;}); renderProject(); }
+function delStuff(key,id){ updateCur(p=>{ if(key==='scenes') p.scenes=p.scenes.filter(x=>x.id!==id); else p.items=p.items.filter(x=>x.id!==id);}); renderProject(); }
+
+/* ---- 预算 ---- */
+const CATS=['场地','人员','服装道具','器材','交通餐饮','后期','其他'];
+function renderBudget(p){
+  const total=p.budget.reduce((s,b)=>s+(+b.amount||0),0), paid=p.budget.filter(b=>b.paid).reduce((s,b)=>s+(+b.amount||0),0);
+  document.getElementById('tabBody').innerHTML='<div class="card"><h2>预算管理</h2>'
+    +'<div class="stat-cards">'
+    +'<div class="stat-card"><div class="num amount-red">¥'+total.toLocaleString()+'</div><div class="lbl">总预算</div></div>'
+    +'<div class="stat-card"><div class="num" style="color:var(--green)">¥'+paid.toLocaleString()+'</div><div class="lbl">已支付</div></div>'
+    +'<div class="stat-card"><div class="num">¥'+(total-paid).toLocaleString()+'</div><div class="lbl">待支付</div></div></div>'
+    +'<div class="row" style="margin-bottom:10px"><input id="b_item" class="grow" placeholder="费用项目…">'
+    +'<select id="b_cat" style="max-width:120px">'+CATS.map(c=>'<option>'+c+'</option>').join('')+'</select>'
+    +'<input type="number" id="b_amt" style="max-width:120px" placeholder="金额 ¥" min="0">'
+    +'<button class="btn btn-primary btn-sm" onclick="addBudget()">添加</button></div>'
+    +p.budget.map(b=>'<div class="brow"><span class="grow">'+esc(b.item)+'</span><span class="tag">'+esc(b.cat)+'</span>'
+      +'<span class="amount-red">¥'+(+b.amount).toLocaleString()+'</span>'
+      +'<button class="tag '+(b.paid?'green':'red')+'" style="border:none;min-height:32px" onclick="togglePaid(\''+b.id+'\')">'+(b.paid?'已支付':'待支付')+'</button>'
+      +'<button class="iconbtn" onclick="delBudget(\''+b.id+'\')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>').join('')
+    +'</div>';
+}
+function addBudget(){
+  const item=gv('b_item').trim(), amt=parseFloat(gv('b_amt'));
+  if(!item||!(amt>0)){toast('请填写项目和有效金额');return;}
+  updateCur(p=>p.budget.push({id:uid(),item,cat:gv('b_cat'),amount:amt,paid:false})); renderProject();
+}
+function togglePaid(id){ updateCur(p=>{const b=p.budget.find(x=>x.id===id); if(b) b.paid=!b.paid;}); renderProject(); }
+function delBudget(id){ updateCur(p=>p.budget=p.budget.filter(x=>x.id!==id)); renderProject(); }
+
+/* ---- 备注与协作 ---- */
+const NOTE_KINDS=['电话','微信','见面','其他'];
+const NOTE_TAG={电话:'blue',微信:'green',见面:'purple',其他:'gray'};
+function renderNotes(p){
+  const t=todayStr();
+  const open=p.todos.filter(x=>!x.done).length;
+  const overdue=p.todos.filter(x=>!x.done&&x.due&&x.due<t).length;
+  document.getElementById('tabBody').innerHTML=
+    '<div class="card"><h2>待办事项 <span class="muted" style="font-weight:400">· 未完成 '+open+(overdue?'（<span style="color:var(--red)">逾期 '+overdue+'</span>）':'')+'</span></h2>'
+    +'<div class="row" style="margin-bottom:12px"><input id="td_title" class="grow" placeholder="待办内容，如：给客户发提案确认报价">'
+    +'<input id="td_owner" style="max-width:110px" placeholder="负责人">'
+    +'<input type="date" id="td_due" style="max-width:150px">'
+    +'<button class="btn btn-primary" onclick="addTodo()">添加</button></div>'
+    +p.todos.map(x=>{
+        const od=!x.done&&x.due&&x.due<t;
+        return '<div class="row" style="padding:8px 0;border-bottom:1px dashed var(--line)">'
+          +'<button class="chk '+(x.done?'on':'')+'" onclick="toggleTodo(\''+x.id+'\')">'+(x.done?'✓':'')+'</button>'
+          +'<span class="grow '+(x.done?'done-text':'')+'">'+esc(x.title)+'</span>'
+          +(x.owner?'<span class="tag gray">'+esc(x.owner)+'</span>':'')
+          +(x.due?'<span class="tag '+(od?'red':'gray')+'">'+(od?'逾期 ':'')+x.due+'</span>':'')
+          +'<button class="iconbtn" onclick="delTodo(\''+x.id+'\')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
+      }).join('')
+    +(!p.todos.length?'<p class="muted">暂无待办。把「给客户发提案」「检查 SD 卡」这类事记进来，看板会汇总逾期项。</p>':'')
+    +'</div>'
+    +'<div class="card"><h2>沟通记录</h2>'
+    +'<p class="muted" style="margin-bottom:10px">记录与客户、化妆师、场地等各方的沟通要点，按时间倒序排列。</p>'
+    +'<div class="row" style="margin-bottom:12px">'
+    +'<select id="nt_kind" style="max-width:100px">'+NOTE_KINDS.map(k=>'<option>'+k+'</option>').join('')+'</select>'
+    +'<input id="nt_text" class="grow" placeholder="沟通要点…" onkeydown="if(event.key===\'Enter\')addNote()">'
+    +'<button class="btn btn-primary" onclick="addNote()">记录</button></div>'
+    +[...p.notes].sort((a,b)=>(b.ts||0)-(a.ts||0)).map(n=>{
+        const d=new Date(n.ts||Date.now());
+        const ds=(d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+        return '<div class="note-item"><span class="note-kind tag '+(NOTE_TAG[n.kind]||'gray')+'">'+esc(n.kind)+'</span>'
+          +'<div class="grow" style="min-width:0">'+esc(n.content)+'</div>'
+          +'<span class="note-time">'+ds+'</span>'
+          +'<button class="iconbtn" onclick="delNote(\''+n.id+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
+      }).join('')
+    +(!p.notes.length?'<p class="muted">暂无记录。</p>':'')
+    +'</div>';
+}
+function addTodo(){
+  const title=gv('td_title').trim(); if(!title){toast('待办内容不能为空');return;}
+  updateCur(p=>p.todos.push({id:uid(),title,owner:gv('td_owner').trim(),due:gv('td_due'),done:false}));
+  renderProject();
+}
+function toggleTodo(id){ updateCur(p=>{const x=p.todos.find(y=>y.id===id); if(x) x.done=!x.done;}); renderProject(); }
+function delTodo(id){ updateCur(p=>p.todos=p.todos.filter(x=>x.id!==id)); renderProject(); }
+function addNote(){
+  const content=gv('nt_text').trim(); if(!content){toast('先写点内容');return;}
+  updateCur(p=>p.notes.push({id:uid(),kind:gv('nt_kind'),content,ts:Date.now()}));
+  renderProject();
+}
+function delNote(id){ updateCur(p=>p.notes=p.notes.filter(n=>n.id!==id)); renderProject(); }
+
+/* ================= 拍摄日模式 ================= */
+let sdDate=null;
+function openShootDay(){ const p=cur(); sdDate=p.shootDate||todayStr(); renderShootDay(); document.getElementById('sdOverlay').classList.add('show'); }
+function closeShootDay(){ document.getElementById('sdOverlay').classList.remove('show'); renderProject(); }
+function sdSetDate(d){ sdDate=d; renderShootDay(); }
+function renderShootDay(){
+  const p=cur(); if(!p) return;
+  const shots=p.shots.filter(s=>s.date===sdDate);
+  const nodes=p.schedule.filter(n=>(n.date||sdDate)===sdDate);
+  const items=[...nodes.map(n=>({...n,_t:'node'})),...shots.map(s=>({...s,_t:'shot'}))]
+    .sort((a,b)=>(a._t==='shot'?(a.slot||'99'):(a.start||'99'))<(b._t==='shot'?(b.slot||'99'):(b.start||'99'))?-1:1);
+  const done=items.filter(x=>x.done).length;
+  const now=new Date(); const nowT=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  const isToday=sdDate===todayStr();
+  let currentId=null;
+  if(isToday){ items.forEach(x=>{ if(!x.done&&(x._t==='shot'?x.slot:x.start||'00:00')<=nowT) currentId=x.id; }); if(!currentId){ const nxt=items.find(x=>!x.done); if(nxt) currentId=nxt.id; } }
+  const sun=sunTimes(sdDate,p.lat,p.lng);
+  let h='<div class="sd-head"><h2>'+esc(p.name)+'</h2>'
+    +'<button class="sd-nav" onclick="sdShift(-1)" title="前一天">‹</button>'
+    +'<input type="date" value="'+sdDate+'" onchange="sdSetDate(this.value)" style="background:#221e18;color:#f0ebe2;border-color:#3a342b;max-width:150px">'
+    +'<button class="sd-nav" onclick="sdShift(1)" title="后一天">›</button>'
+    +'<button class="sd-btn" onclick="closeShootDay()">退出</button></div>'
+    +'<div class="muted" style="color:#a99e8c">拍摄日模式 · 完成 '+done+'/'+items.length+'</div>'
+    +'<div class="sd-progress"><i style="width:'+(items.length?done/items.length*100:0)+'%"></i></div>';
+  if(sun) h+='<div class="sd-sun"><span>日出 '+sun.sunrise+'</span><span>黄金 '+sun.goldenStart+'</span><span>日落 '+sun.sunset+'</span><span>暮光 '+addMin(sun.sunset,30)+'</span></div>';
+  if(!items.length){ h+='<div class="sd-empty">这一天没有安排。<br>回日程页添加流程，或切换上方日期。</div>'; }
+  else{
+    let lastT='';
+    items.forEach(x=>{
+      const time=x._t==='shot'?(x.slot||'未排时'):(x.start||'未排时');
+      if(time!==lastT){ lastT=time;
+        h+='<div class="sd-slot">◷ '+time+(x.id===currentId?' <span class="now">当前</span>':'')+'</div>'; }
+      const overdue=isToday&&!x.done&&time<nowT&&x.id!==currentId&&time!=='未排时';
+      if(x._t==='shot'){
+        const scene=p.scenes.find(s=>s.id===x.sceneId);
+        const refs=(x.refIds||[]).filter(r=>imgCache[r]);
+        h+='<div class="sd-shot '+(x.done?'done':'')+' '+(x.id===currentId?'now':'')+'">'
+          +(refs.length?refs.map(r=>'<img src="'+imgCache[r]+'">').join(''):'')
+          +'<div style="flex:1;min-width:120px"><div class="sd-name">'+esc(x.name)+'</div>'
+          +'<div class="sd-meta">'+(scene?esc(scene.name)+' · ':'')+'约 '+x.duration+' 分钟'+(x.note?' · '+esc(x.note):'')+'</div>'
+          +(overdue?'<button class="sd-btn" style="margin-top:8px" onclick="sdPostpone(\''+x.id+'\')">顺延 1 小时</button>':'')
+          +'</div>'
+          +'<button class="sd-chk '+(x.done?'on':'')+'" onclick="sdToggle(\''+x.id+'\')">✓</button></div>';
+      } else {
+        h+='<div class="sd-shot node '+(x.done?'done':'')+' '+(x.id===currentId?'now':'')+'">'
+          +'<div style="flex:1;min-width:120px"><div class="sd-name" style="font-size:16px">'+esc(x.title)+'</div>'
+          +'<div class="sd-meta">'+esc(x.type)+(x.end?' · 至 '+x.end:'')+(x.note?' · '+esc(x.note):'')+'</div></div>'
+          +'<button class="sd-chk sm '+(x.done?'on':'')+'" onclick="sdToggleNode(\''+x.id+'\')">✓</button></div>';
+      }
+    });
+  }
+  document.getElementById('sdBody').innerHTML=h;
+}
+function sdShift(d){ const dt=new Date(sdDate+'T12:00:00'); dt.setDate(dt.getDate()+d); sdDate=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0'); renderShootDay(); }
+function sdToggle(id){ updateCur(p=>{const s=p.shots.find(x=>x.id===id); if(s) s.done=!s.done;}); renderShootDay(); }
+function sdToggleNode(id){ updateCur(p=>{const n=p.schedule.find(x=>x.id===id); if(n) n.done=!n.done;}); renderShootDay(); }
+function sdPostpone(id){
+  updateCur(p=>{const s=p.shots.find(x=>x.id===id); if(s&&s.slot){
+    const [hh,mm]=s.slot.split(':').map(Number);
+    s.slot=String(Math.min(23,hh+1)).padStart(2,'0')+':'+String(mm).padStart(2,'0'); }});
+  renderShootDay();
+}
+
+/* ================= 文档输出 ================= */
+function openDoc(kind){
+  const p=cur(); const c=p.concept;
+  const moodColors=p.mood.filter(m=>m.type==='color'), moodTexts=p.mood.filter(m=>m.type==='text'), moodImgs=p.mood.filter(m=>m.type==='image');
+  const total=p.budget.reduce((s,b)=>s+(+b.amount||0),0);
+  const sun=sunTimes(p.shootDate,p.lat,p.lng);
+  const li=(arr,fn,cols)=>arr.length?arr.map(fn).join(''):'<tr><td colspan="'+(cols||4)+'" style="color:#999">（未填写）</td></tr>';
+  let h='<h1>'+esc(c.theme||p.name)+'</h1><p class="doc-sub">'+(kind==='proposal'?'摄影策划提案':'拍摄执行手册')+' · '+esc(p.name)+' · '+todayStr()+'</p>'
+    +'<h2>一、主题概念</h2><dl class="kv">'
+    +'<dt>拍摄主题</dt><dd>'+esc(c.theme||'—')+'</dd><dt>风格调性</dt><dd>'+esc(c.style||'—')+'</dd>'
+    +'<dt>目标受众</dt><dd>'+esc(c.audience||'—')+'</dd><dt>成片用途</dt><dd>'+esc(c.usage||'—')+'</dd>'
+    +'<dt>创意阐述</dt><dd>'+esc(c.note||'—')+'</dd></dl>'
+    +'<h2>二、情绪板</h2>'
+    +(moodColors.length?'<p>'+moodColors.map(m=>'<span class="swatch" style="background:'+esc(m.content)+'"></span>').join('')+'</p>':'')
+    +(moodImgs.length?'<p>'+moodImgs.map(m=>'<img src="'+(imgCache[m.content]||'')+'">').join('')+'</p>':'')
+    +(moodTexts.length?'<ul>'+moodTexts.map(m=>'<li>'+esc(m.content)+(m.tag?' <b>#'+esc(m.tag)+'</b>':'')+'</li>').join('')+'</ul>':'');
+  if(kind==='proposal'){
+    h+='<h2>三、拍摄安排</h2><dl class="kv"><dt>拍摄日期</dt><dd>'+esc(p.shootDate||'待定')+'</dd>'
+      +'<dt>拍摄地点</dt><dd>'+esc(p.location||'待定')+'</dd></dl>'
+      +(sun?'<p class="muted">当日日照参考：日出 '+sun.sunrise+' · 黄金时刻 '+sun.goldenStart+' · 日落 '+sun.sunset+'</p>':'')
+      +'<h2>四、报价</h2><table><tr><th>项目</th><th>金额</th></tr>'
+      +'<tr><td>拍摄服务套餐（'+esc(p.name)+'）</td><td>¥'+total.toLocaleString()+'</td></tr></table>'
+      +'<p class="muted" style="margin-top:6px">* 报价基于成本核算，最终价格以双方确认合同为准。</p>';
+  } else {
+    h+='<h2>三、分镜头清单</h2><table><tr><th>时间</th><th>分镜</th><th>场景</th><th>时长</th><th>备注</th></tr>'
+      +li([...p.shots].sort((a,b)=>shotSortKey(a)<shotSortKey(b)?-1:1),
+        s=>{const sc=p.scenes.find(x=>x.id===s.sceneId);return '<tr><td>'+esc(s.date||'')+' '+esc(s.slot||'')+'</td><td>'+esc(s.name)+'</td><td>'+esc(sc?sc.name:'—')+'</td><td>'+s.duration+' 分钟</td><td>'+esc(s.note||'—')+'</td></tr>';},5)+'</table>'
+      +'<h2>四、拍摄日流程</h2><table><tr><th>时间</th><th>环节</th><th>内容</th><th>备注</th></tr>'
+      +li([...p.schedule].sort((a,b)=>(a.start||'99')<(b.start||'99')?-1:1),
+        n=>'<tr><td>'+esc(n.start||'')+(n.end?' – '+esc(n.end):'')+'</td><td>'+esc(n.type)+'</td><td>'+esc(n.title)+'</td><td>'+esc(n.note||'—')+'</td></tr>',4)+'</table>'
+      +(sun?'<p class="muted">当日日照：日出 '+sun.sunrise+' · 黄金 '+sun.goldenStart+' · 日落 '+sun.sunset+'</p>':'')
+      +'<h2>五、场景选址</h2><table><tr><th>地点</th><th>备注</th></tr>'
+      +li(p.scenes,s=>'<tr><td>'+esc(s.name)+'</td><td>'+esc(s.note||'—')+'</td></tr>',2)+'</table>'
+      +'<h2>六、服装造型道具 / 器材</h2><table><tr><th>类别</th><th>物品</th><th>备注</th></tr>'
+      +li(p.items,s=>'<tr><td>'+esc(s.kind)+'</td><td>'+esc(s.name)+'</td><td>'+esc(s.note||'—')+'</td></tr>',3)+'</table>'
+      +'<h2>七、待办事项</h2><table><tr><th>事项</th><th>负责人</th><th>截止</th><th>状态</th></tr>'
+      +li(p.todos,x=>'<tr><td>'+esc(x.title)+'</td><td>'+esc(x.owner||'—')+'</td><td>'+esc(x.due||'—')+'</td><td>'+(x.done?'已完成':'待办')+'</td></tr>')
+      +'</table>'
+      +'<h2>八、预算明细</h2><table><tr><th>项目</th><th>类别</th><th>金额</th><th>状态</th></tr>'
+      +li(p.budget,b=>'<tr><td>'+esc(b.item)+'</td><td>'+esc(b.cat)+'</td><td>¥'+(+b.amount).toLocaleString()+'</td><td>'+(b.paid?'已支付':'待支付')+'</td></tr>')
+      +'</table><p style="text-align:right;margin-top:8px"><b>总预算：¥'+total.toLocaleString()+'</b></p>';
+  }
+  document.getElementById('docBody').innerHTML=h;
+  document.getElementById('docModal').classList.add('show');
+}
+function closeDoc(){ document.getElementById('docModal').classList.remove('show'); }
+
+/* 导出可发送的提案 HTML 文件（图片内嵌，微信可直接发） */
+function exportProposalFile(){
+  const p=cur(); const c=p.concept;
+  const moodImgs=p.mood.filter(m=>m.type==='image'), moodTexts=p.mood.filter(m=>m.type==='text'), moodColors=p.mood.filter(m=>m.type==='color');
+  const total=p.budget.reduce((s,b)=>s+(+b.amount||0),0);
+  const sun=sunTimes(p.shootDate,p.lat,p.lng);
+  const html='<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
+    +'<meta name="viewport" content="width=device-width,initial-scale=1">'
+    +'<title>'+esc(c.theme||p.name)+' · 摄影提案</title>'
+    +'<style>body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f7f5f1;color:#28241e;margin:0;padding:24px}'
+    +'.page{max-width:680px;margin:0 auto;background:#fff;border-radius:16px;padding:36px 32px;box-shadow:0 2px 14px rgba(60,45,25,.08)}'
+    +'h1{font-family:Georgia,"Songti SC",serif;text-align:center;letter-spacing:3px;font-size:26px}'
+    +'.sub{text-align:center;color:#746c5f;font-size:13px;margin:6px 0 24px}'
+    +'h2{font-family:Georgia,"Songti SC",serif;font-size:17px;border-left:4px solid #9c6b30;padding-left:10px;margin:26px 0 12px}'
+    +'.kv{display:grid;grid-template-columns:90px 1fr;gap:8px 14px;font-size:14px}.kv dt{color:#746c5f}'
+    +'.imgs{display:flex;flex-wrap:wrap;gap:10px}.imgs img{width:150px;height:110px;object-fit:cover;border-radius:10px}'
+    +'.sw{display:inline-block;width:40px;height:40px;border-radius:8px;margin:4px;border:1px solid #e6e0d6}'
+    +'table{width:100%;border-collapse:collapse;font-size:13px}td,th{border:1px solid #e6e0d6;padding:8px 10px;text-align:left}'
+    +'.muted{color:#746c5f;font-size:12px}.ft{text-align:center;color:#b0a693;font-size:11px;margin-top:28px}'
+    +'@media(max-width:520px){.page{padding:24px 18px}.imgs img{width:calc(50% - 5px)}}</style></head><body><div class="page">'
+    +'<h1>'+esc(c.theme||p.name)+'</h1><p class="sub">摄影策划提案 · '+esc(p.name)+' · '+todayStr()+'</p>'
+    +'<h2>拍摄概念</h2><dl class="kv">'
+    +'<dt>风格调性</dt><dd>'+esc(c.style||'—')+'</dd>'
+    +'<dt>目标受众</dt><dd>'+esc(c.audience||'—')+'</dd>'
+    +'<dt>成片用途</dt><dd>'+esc(c.usage||'—')+'</dd>'
+    +'<dt>创意阐述</dt><dd>'+esc(c.note||'—')+'</dd></dl>'
+    +'<h2>情绪参考</h2>'
+    +(moodImgs.length?'<div class="imgs">'+moodImgs.map(m=>'<img src="'+(imgCache[m.content]||'')+'">').join('')+'</div>':'')
+    +(moodColors.length?'<div>'+moodColors.map(m=>'<span class="sw" style="background:'+esc(m.content)+'"></span>').join('')+'</div>':'')
+    +(moodTexts.length?'<ul>'+moodTexts.map(m=>'<li>'+esc(m.content)+'</li>').join('')+'</ul>':'')
+    +'<h2>拍摄安排</h2><dl class="kv">'
+    +'<dt>拍摄日期</dt><dd>'+esc(p.shootDate||'待定')+'</dd>'
+    +'<dt>拍摄地点</dt><dd>'+esc(p.location||'待定')+'</dd></dl>'
+    +(sun?'<p class="muted">日照参考：日出 '+sun.sunrise+' · 黄金时刻 '+sun.goldenStart+' · 日落 '+sun.sunset+'</p>':'')
+    +'<h2>服务报价</h2><table><tr><th>项目</th><th>金额</th></tr>'
+    +'<tr><td>拍摄服务套餐（'+esc(p.name)+'）</td><td>¥'+total.toLocaleString()+'</td></tr></table>'
+    +'<p class="muted">* 报价基于成本核算，最终价格以双方确认合同为准。</p>'
+    +'<p class="ft">由 ShotFlow 生成 · '+todayStr()+'</p></div></body></html>';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([html],{type:'text/html'}));
+  a.download='摄影提案_'+esc(p.name).replace(/[\\/:*?"<>|]/g,'')+'.html'; a.click();
+  toast('提案文件已生成，微信可直接发送给客户');
+}
+
+/* ================= 备份 / 恢复 / 清空 ================= */
+async function exportJSON(){
+  const keys=await idb.keys(); const images={};
+  for(const k of keys){ images[k]=await idb.get(k); }
+  const data={app:'shotflow',version:3,exportedAt:new Date().toISOString(),projects:loadP(),images};
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));
+  a.download='shotflow备份_'+todayStr()+'.json'; a.click();
+}
+function importJSON(e){
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=async ev=>{ try{
+      const d=JSON.parse(ev.target.result);
+      if(d.projects){ const arr=d.projects.map(p=>{migrate(p);p.v3=1;return p;}); saveP(arr); }
+      if(d.images){ for(const k of Object.keys(d.images)){ await idb.put(k,d.images[k]); imgCache[k]=d.images[k]; } }
+      view={mode:'board',pid:null,tab:'shots'}; renderBoard(); toast('导入成功，数据已恢复');
+    }catch(err){ toast('文件格式不正确，导入失败'); } };
+  rd.readAsText(f); e.target.value='';
+}
+let confirmCb=null;
+function askConfirm(t,d,cb){ document.getElementById('confirmTitle').textContent=t; document.getElementById('confirmDesc').textContent=d; confirmCb=cb; document.getElementById('confirmModal').classList.add('show'); }
+function closeConfirm(){ document.getElementById('confirmModal').classList.remove('show'); confirmCb=null; }
+document.getElementById('confirmOk').onclick=()=>{ if(confirmCb) confirmCb(); closeConfirm(); };
+function clearAll(){
+  askConfirm('清空全部数据？','不可恢复！将删除所有项目、分镜与图片，建议先导出备份。',async()=>{
+    localStorage.removeItem(LS_PROJ);
+    const keys=await idb.keys(); for(const k of keys) await idb.del(k);
+    Object.keys(imgCache).forEach(k=>delete imgCache[k]);
+    view={mode:'board',pid:null,tab:'shots'}; renderBoard(); toast('已清空');
+  });
+}
+
+/* ================= Toast ================= */
+let toastTimer=null;
+function toast(msg,ms){
+  let t=document.getElementById('toast');
+  if(!t){ t=document.createElement('div'); t.id='toast'; t.className='toast'; document.body.appendChild(t); }
+  t.innerHTML=esc(msg)+(msg==='发现新版本'?'<button onclick="location.reload()">刷新</button>':'');
+  requestAnimationFrame(()=>t.classList.add('show'));
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),ms||2800);
+}
+
+/* ================= PWA ================= */
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault(); deferredPrompt=e;
+  const b=document.getElementById('installBtn'); if(b) b.style.display='';
+});
+window.addEventListener('appinstalled',()=>{ deferredPrompt=null; const b=document.getElementById('installBtn'); if(b) b.style.display='none'; });
+function installApp(){ if(deferredPrompt){ deferredPrompt.prompt(); deferredPrompt.userChoice.then(()=>{ deferredPrompt=null; }); } }
+if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
+  navigator.serviceWorker.register('shotflow-sw.js').then(reg=>{
+    reg.addEventListener('updatefound',()=>{
+      const nw=reg.installing;
+      if(nw) nw.addEventListener('statechange',()=>{
+        if(nw.state==='installed'&&navigator.serviceWorker.controller) toast('发现新版本',8000);
+      });
+    });
+  }).catch(()=>{});
+}
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){ closeDoc(); closeConfirm(); closeShootDay(); }
+});
+
+/* ================= 启动 ================= */
+(async()=>{ await idb.open(); seed(); renderBoard(); })();
+</script>
+</body>
+</html>

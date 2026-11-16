@@ -1,0 +1,8 @@
+.workbuddy/
+node_modules/
+.env
+.env.*
+*.genie
+.DS_Store
+Thumbs.db
+*.log

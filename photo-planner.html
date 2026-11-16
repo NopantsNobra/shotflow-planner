@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>光影策划台 · 独立摄影师项目工作台</title>
+<style>
+:root{
+  --bg:#faf8f5; --card:#ffffff; --ink:#2b2620; --ink2:#6f675c; --line:#e8e2d9;
+  --accent:#a6783f; --accent-soft:#f3e9db; --red:#c0392b; --green:#2e7d4f;
+  --radius:14px; --shadow:0 2px 10px rgba(60,45,25,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;font-size:15px}
+h1,h2,h3,.serif{font-family:Georgia,"Songti SC","SimSun",serif}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+input,select,textarea{font-family:inherit;font-size:16px;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+svg{display:inline-block;vertical-align:middle}
+
+/* 布局 */
+.layout{display:flex;min-height:100vh}
+.sidebar{width:220px;flex-shrink:0;background:var(--card);border-right:1px solid var(--line);padding:24px 14px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column}
+.brand{padding:0 10px 18px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.brand h1{font-size:20px;letter-spacing:2px}
+.brand p{font-size:12px;color:var(--ink2);margin-top:2px}
+.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;border-radius:10px;color:var(--ink2);font-size:15px;margin-bottom:4px;text-align:left;transition:.15s}
+.nav-btn:hover{background:var(--accent-soft)}
+.nav-btn.active{background:var(--accent);color:#fff}
+.nav-btn .stepno{font-size:11px;opacity:.7;margin-left:auto}
+.sidebar-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.main{flex:1;padding:24px 28px 90px;max-width:1080px;margin:0 auto;width:100%}
+
+/* 流程条 */
+.flow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.flow .fstep{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);background:var(--card);border:1px solid var(--line);padding:6px 12px;border-radius:999px}
+.flow .fstep.done{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.flow .farrow{color:#c9bfae;font-size:12px}
+
+/* 卡片通用 */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:16px}
+.card h2{font-size:17px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.muted{color:var(--ink2);font-size:13px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:9px 16px;border-radius:10px;font-size:14px;transition:.15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{filter:brightness(1.08)}
+.btn-ghost{border:1px solid var(--line);color:var(--ink2);background:#fff}
+.btn-ghost:hover{background:var(--accent-soft);color:var(--accent)}
+.btn-danger{border:1px solid #ecc;color:var(--red);background:#fff}
+.btn-sm{min-height:36px;padding:5px 12px;font-size:13px;border-radius:8px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.grow{flex:1;min-width:140px}
+
+/* 今天要处理 */
+.today-card{border-left:4px solid var(--accent)}
+.today-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:#fffdf9}
+.today-item.overdue{border-color:#e5b8b0;background:#fdf3f1}
+.tag{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.tag.red{background:#fbe4e0;color:var(--red)}
+.tag.green{background:#e2f0e7;color:var(--green)}
+
+/* 灵感墙 */
+.mood-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:12px}
+.mood-item{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;position:relative}
+.mood-item img{width:100%;height:120px;object-fit:cover;display:block}
+.mood-item .mtext{padding:14px;font-size:13px;min-height:80px;color:var(--ink2)}
+.mood-item .mcolor{height:90px}
+.mood-item .mfoot{padding:8px 10px;font-size:12px;color:var(--ink2);border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:6px}
+.mood-item .del{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.45);color:#fff;border-radius:8px;width:28px;height:28px;font-size:14px;line-height:1}
+.iconbtn{color:#b0a693;padding:4px;border-radius:6px}
+.iconbtn:hover{color:var(--red)}
+
+/* 执行清单 */
+.subtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.subtab{padding:8px 14px;border-radius:999px;font-size:13px;border:1px solid var(--line);color:var(--ink2);background:#fff;min-height:38px}
+.subtab.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.checklist{list-style:none}
+.checklist li{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px dashed var(--line)}
+.checklist li:last-child{border-bottom:none}
+.chk{width:22px;height:22px;border:2px solid #cfc5b3;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#fff}
+.chk.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.done-text{text-decoration:line-through;color:#b3a996}
+
+/* 预算 */
+.budget-table{width:100%;border-collapse:collapse;font-size:14px}
+.budget-table th,.budget-table td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left}
+.budget-table th{font-size:12px;color:var(--ink2);font-weight:600}
+.amount-red{color:var(--red);font-weight:600;white-space:nowrap}
+.stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px}
+.stat-card{background:var(--accent-soft);border-radius:12px;padding:14px 16px}
+.stat-card .num{font-size:22px;font-weight:700;font-family:Georgia,serif}
+.stat-card .lbl{font-size:12px;color:var(--ink2)}
+
+/* 表单网格 */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-grid .full{grid-column:1/-1}
+.fld label{display:block;font-size:13px;color:var(--ink2);margin-bottom:5px}
+
+/* 弹窗 */
+.modal-mask{position:fixed;inset:0;background:rgba(30,24,16,.5);display:none;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal-mask.show{display:flex}
+.modal{background:#fff;border-radius:16px;max-width:760px;width:100%;max-height:88vh;overflow:auto;padding:24px}
+.confirm-box{max-width:400px;text-align:center}
+
+/* 策划案文档 */
+.doc{font-family:Georgia,"Songti SC",serif}
+.doc h1{font-size:24px;text-align:center;margin-bottom:4px;letter-spacing:3px}
+.doc .doc-sub{text-align:center;color:var(--ink2);font-size:13px;margin-bottom:20px}
+.doc h2{font-size:17px;border-left:4px solid var(--accent);padding-left:10px;margin:20px 0 10px}
+.doc table{width:100%;border-collapse:collapse;font-size:13px}
+.doc td,.doc th{border:1px solid var(--line);padding:7px 9px;text-align:left}
+.doc .kv{display:grid;grid-template-columns:110px 1fr;gap:6px 12px;font-size:14px}
+.doc .kv dt{color:var(--ink2)}
+.doc img{max-width:110px;border-radius:8px;margin:4px}
+.doc .swatch{display:inline-block;width:38px;height:38px;border-radius:8px;margin:4px;vertical-align:middle;border:1px solid var(--line)}
+
+/* 备份提示条 */
+.backup-tip{background:#fff8e6;border:1px solid #ecd9a8;color:#8a6d1f;padding:10px 16px;border-radius:10px;font-size:13px;margin-bottom:14px;display:none;align-items:center;gap:8px}
+.backup-tip.show{display:flex}
+
+/* 移动端 */
+.tabbar{display:none}
+@media (max-width:768px){
+  .sidebar{display:none}
+  .main{padding:16px 14px calc(76px + env(safe-area-inset-bottom))}
+  .form-grid{grid-template-columns:1fr}
+  .tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);z-index:50;padding-bottom:env(safe-area-inset-bottom)}
+  .tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px 6px;font-size:11px;color:var(--ink2);min-height:52px}
+  .tabbar button.active{color:var(--accent)}
+  .budget-table thead{display:none}
+  .budget-table tr{display:flex;flex-wrap:wrap;gap:4px 10px;padding:10px 4px;border-bottom:1px solid var(--line)}
+  .budget-table td{border:none;padding:2px 0}
+}
+@media print{
+  body *{visibility:hidden}
+  #docModal,#docModal *{visibility:visible}
+  #docModal{position:fixed;inset:0;background:#fff;max-height:none;display:block}
+  #docModal .modal{max-height:none;box-shadow:none;border:none}
+  .no-print{display:none!important}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <!-- PC 侧边栏 -->
+  <aside class="sidebar">
+    <div class="brand">
+      <h1>光影策划台</h1>
+      <p>独立摄影师 · 项目策划工作台</p>
+    </div>
+    <div id="pcNav"></div>
+    <div class="sidebar-foot">
+      <button class="btn btn-ghost btn-sm" onclick="exportJSON()">导出 JSON 备份</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFile').click()">导入恢复</button>
+      <button class="btn btn-danger btn-sm" onclick="clearAll()">清空全部数据</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
+    </div>
+  </aside>
+
+  <!-- 主区域 -->
+  <main class="main">
+    <div class="backup-tip" id="backupTip">
+      <span>数据已积累较多（≥30 条），建议点击侧栏「导出 JSON 备份」留档。</span>
+    </div>
+
+    <!-- 引导流程条 -->
+    <div class="flow" id="flowBar"></div>
+
+    <!-- 今天要处理 -->
+    <div class="card today-card">
+      <h2><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a6783f" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>今天要处理</h2>
+      <div id="todayList"></div>
+    </div>
+
+    <!-- 模块页 -->
+    <section id="page-mood"></section>
+    <section id="page-concept"></section>
+    <section id="page-exec"></section>
+    <section id="page-budget"></section>
+
+    <div style="text-align:center;margin-top:10px" class="no-print">
+      <button class="btn btn-primary" onclick="openDoc()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg>
+        生成完整策划案
+      </button>
+      <p class="muted" style="margin-top:8px">汇总四个模块内容，生成可打印 / 可向客户展示的策划文档</p>
+    </div>
+  </main>
+</div>
+
+<!-- 移动端底部 Tab -->
+<nav class="tabbar" id="tabbar"></nav>
+
+<!-- 策划案弹窗 -->
+<div class="modal-mask" id="docModal">
+  <div class="modal">
+    <div class="row no-print" style="justify-content:flex-end;margin-bottom:10px">
+      <button class="btn btn-primary btn-sm" onclick="window.print()">打印 / 存为 PDF</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeDoc()">关闭</button>
+    </div>
+    <div class="doc" id="docBody"></div>
+  </div>
+</div>
+
+<!-- 二次确认弹窗 -->
+<div class="modal-mask" id="confirmModal">
+  <div class="modal confirm-box">
+    <h3 style="margin-bottom:10px" id="confirmTitle">确认操作？</h3>
+    <p class="muted" id="confirmDesc" style="margin-bottom:18px"></p>
+    <div class="row" style="justify-content:center">
+      <button class="btn btn-ghost" onclick="closeConfirm()">取消</button>
+      <button class="btn btn-danger" style="background:var(--red);color:#fff" id="confirmOk">确认</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============ 数据层 ============ */
+const K = { mood:'wb_photo_mood', concept:'wb_photo_concept', exec:'wb_photo_exec', budget:'wb_photo_budget', seed:'wb_photo_seeded' };
+const todayStr = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const load = (k,fb) => { try{ const v=localStorage.getItem(k); return v?JSON.parse(v):fb; }catch(e){ return fb; } };
+const save = (k,v) => localStorage.setItem(k,JSON.stringify(v));
+
+function getMood(){ return load(K.mood,[]); }
+function getConcept(){ return load(K.concept,{theme:'',style:'',audience:'',usage:'',note:''}); }
+function getExec(){ return load(K.exec,{shots:[],locations:[],styling:[],gear:[]}); }
+function getBudget(){ return load(K.budget,[]); }
+
+/* ============ 预置示例数据 ============ */
+function seed(){
+  if(localStorage.getItem(K.seed)) return;
+  const t = todayStr();
+  const y = new Date(Date.now()-864e5); const ys = y.getFullYear()+'-'+String(y.getMonth()+1).padStart(2,'0')+'-'+String(y.getDate()).padStart(2,'0');
+  save(K.mood,[
+    {id:uid(),type:'text',content:'午后四点的侧逆光，尘埃在光束里浮动，旧木地板的暖色调',tag:'光线参考',note:'',ts:Date.now()},
+    {id:uid(),type:'color',content:'#c8a97e',tag:'主色',note:'暖沙金',ts:Date.now()},
+    {id:uid(),type:'color',content:'#5d6b5a',tag:'辅色',note:'灰绿点缀',ts:Date.now()},
+    {id:uid(),type:'text',content:'关键词：松弛感、胶片颗粒、生活流、不摆拍',tag:'调性',note:'',ts:Date.now()}
+  ]);
+  save(K.concept,{theme:'城市漫游者 · 人像写真',style:'胶片感 / 暖调 / 生活流抓拍',audience:'25-35 岁都市女性，偏爱自然不摆拍的写真风格',usage:'客片交付 20 张精修 + 摄影师作品集更新 + 小红书宣发',note:'客户希望突出“一个人在城市里自洽漫游”的状态。'});
+  save(K.exec,{
+    shots:[
+      {id:uid(),name:'巷口逆光回眸（中景）',scene:'老街巷口',date:ys,done:false},
+      {id:uid(),name:'咖啡馆窗边侧脸（特写）',scene:'独立咖啡馆',date:t,done:false},
+      {id:uid(),name:'天桥行走背影（远景）',scene:'人行天桥',date:t,done:true},
+      {id:uid(),name:'天台黄昏剪影（全景）',scene:'居民楼天台',date:t,done:false}
+    ],
+    locations:[
+      {id:uid(),name:'五道营胡同',note:'下午 3-5 点光线最佳，需避开周末人流',done:true},
+      {id:uid(),name:'Metal Hands 咖啡馆',note:'已电话沟通拍摄许可，点单即可',done:false}
+    ],
+    styling:[
+      {id:uid(),item:'燕麦色廓形风衣',type:'服装',note:'客户自备',done:true},
+      {id:uid(),item:'旧胶片机道具',type:'道具',note:'工作室器材架第二层',done:false},
+      {id:uid(),item:'低饱和裸妆',type:'造型',note:'化妆师 9:00 到场',done:false}
+    ],
+    gear:[
+      {id:uid(),item:'Sony A7M4 + 35mm F1.4',note:'主机位',done:true},
+      {id:uid(),item:'85mm F1.8',note:'特写备用',done:true},
+      {id:uid(),item:'反光板（金面）',note:'补面光',done:false}
+    ]
+  });
+  save(K.budget,[
+    {id:uid(),item:'化妆师费用',cat:'人员',amount:800,paid:true},
+    {id:uid(),item:'咖啡馆场地低消',cat:'场地',amount:200,paid:false},
+    {id:uid(),item:'道具采购（花材/书）',cat:'道具',amount:150,paid:false}
+  ]);
+  localStorage.setItem(K.seed,'1');
+}
+
+/* ============ 导航 ============ */
+const PAGES = [
+  {id:'mood',   name:'灵感收集', step:'01', icon:'M4 5h16v14H4z M4 15l5-5 4 4 3-3 4 4'},
+  {id:'concept',name:'主题概念', step:'02', icon:'M12 2a7 7 0 0 1 4 12c-.8.6-1 1.5-1 3h-6c0-1.5-.2-2.4-1-3a7 7 0 0 1 4-12z M9 21h6'},
+  {id:'exec',   name:'执行规划', step:'03', icon:'M9 11l3 3 8-8 M21 12v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11'},
+  {id:'budget', name:'预算管理', step:'04', icon:'M12 2v20 M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'}
+];
+let curPage = 'mood';
+function navIcon(d,color){ return '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="'+d+'"/></svg>'; }
+function renderNav(){
+  document.getElementById('pcNav').innerHTML = PAGES.map(p=>
+    '<button class="nav-btn '+(p.id===curPage?'active':'')+'" onclick="go(\''+p.id+'\')">'+navIcon(p.icon,p.id===curPage?'#fff':'#6f675c')+p.name+'<span class="stepno">'+p.step+'</span></button>'
+  ).join('');
+  document.getElementById('tabbar').innerHTML = PAGES.map(p=>
+    '<button class="'+(p.id===curPage?'active':'')+'" onclick="go(\''+p.id+'\')">'+navIcon(p.icon,p.id===curPage?'#a6783f':'#6f675c')+'<span>'+p.name+'</span></button>'
+  ).join('');
+  PAGES.forEach(p=>{ document.getElementById('page-'+p.id).style.display = p.id===curPage?'block':'none'; });
+}
+function go(id){ curPage=id; renderNav(); window.scrollTo(0,0); }
+
+/* ============ 流程条 ============ */
+function renderFlow(){
+  const moodN=getMood().length, c=getConcept(), ex=getExec(), bg=getBudget();
+  const done=[ moodN>0, !!(c.theme&&c.style), (ex.shots.length+ex.gear.length)>0, bg.length>0 ];
+  const names=['灵感','概念','执行','预算'];
+  let h='';
+  names.forEach((n,i)=>{
+    h+='<span class="fstep '+(done[i]?'done':'')+'">'+(done[i]?'✓ ':'')+(i+1)+'. '+n+'</span>';
+    if(i<names.length-1) h+='<span class="farrow">→</span>';
+  });
+  document.getElementById('flowBar').innerHTML=h;
+}
+
+/* ============ 今天要处理 ============ */
+function renderToday(){
+  const ex=getExec(), t=todayStr();
+  const items = ex.shots.filter(s=>!s.done && s.date<=t).sort((a,b)=>a.date<b.date?-1:1);
+  const el=document.getElementById('todayList');
+  if(!items.length){ el.innerHTML='<p class="muted">今天没有待处理的分镜任务，去「执行规划」里安排一下吧。</p>'; return; }
+  el.innerHTML = items.map(s=>{
+    const overdue = s.date<t;
+    return '<div class="today-item '+(overdue?'overdue':'')+'">'
+      +'<span class="tag '+(overdue?'red':'')+'">'+(overdue?'已逾期 ':'')+s.date+'</span>'
+      +'<span class="grow" style="min-width:120px">'+esc(s.name)+' <span class="muted">· '+esc(s.scene||'未定场景')+'</span></span>'
+      +'<button class="btn btn-primary btn-sm" onclick="completeShot(\''+s.id+'\')">标记完成</button></div>';
+  }).join('');
+}
+function completeShot(id){
+  const ex=getExec(); const s=ex.shots.find(x=>x.id===id); if(s) s.done=true;
+  save(K.exec,ex); renderAll();
+}
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ============ 模块一：灵感收集 ============ */
+function renderMood(){
+  const items=getMood();
+  let h='<div class="card"><h2><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a6783f" stroke-width="1.8"><path d="M4 5h16v14H4z M4 15l5-5 4 4 3-3 4 4"/></svg>灵感收集区 · 情绪板</h2>'
+    +'<p class="muted" style="margin-bottom:12px">收集图片、文字、色彩参考。图片自动压缩至 800px，最多存 9 张。</p>'
+    +'<div class="row">'
+    +'<input type="text" id="moodText" class="grow" placeholder="记录一条文字灵感，如：光线 / 姿势 / 情绪关键词…">'
+    +'<input type="text" id="moodTag" style="max-width:130px" placeholder="分类标签">'
+    +'</div><div class="row" style="margin-top:10px">'
+    +'<input type="color" id="moodColor" value="#c8a97e" style="width:56px;height:44px;padding:4px" title="选择色彩参考">'
+    +'<button class="btn btn-ghost" onclick="addMood(\'text\')">加文字</button>'
+    +'<button class="btn btn-ghost" onclick="addMood(\'color\')">加色彩</button>'
+    +'<button class="btn btn-primary" onclick="document.getElementById(\'moodImg\').click()">上传图片</button>'
+    +'<input type="file" id="moodImg" accept="image/*" style="display:none" onchange="addMoodImg(event)">'
+    +'</div>'
+    +'<div class="mood-grid">'
+    + items.map(m=>{
+        let body='';
+        if(m.type==='image') body='<img src="'+m.content+'" alt="">';
+        else if(m.type==='color') body='<div class="mcolor" style="background:'+esc(m.content)+'"></div>';
+        else body='<div class="mtext">'+esc(m.content)+'</div>';
+        return '<div class="mood-item">'+body
+          +'<button class="del" onclick="delMood(\''+m.id+'\')" title="删除">×</button>'
+          +'<div class="mfoot"><span>'+(m.type==='color'?esc(m.content)+' ':'')+(m.tag?'<span class="tag">'+esc(m.tag)+'</span>':'')+'</span></div></div>';
+      }).join('')
+    +'</div></div>';
+  document.getElementById('page-mood').innerHTML=h;
+}
+function addMood(type){
+  const tag=document.getElementById('moodTag').value.trim();
+  let content='';
+  if(type==='text'){ content=document.getElementById('moodText').value.trim(); if(!content){alert('先写点灵感内容吧');return;} }
+  else { content=document.getElementById('moodColor').value; }
+  const arr=getMood(); arr.push({id:uid(),type,content,tag,note:'',ts:Date.now()});
+  save(K.mood,arr); renderAll();
+}
+function addMoodImg(e){
+  const f=e.target.files[0]; if(!f) return;
+  const arr=getMood();
+  if(arr.filter(m=>m.type==='image').length>=9){ alert('图片最多存 9 张，请先删除一些'); e.target.value=''; return; }
+  const img=new Image(), rd=new FileReader();
+  rd.onload=ev=>{ img.onload=()=>{
+      const c=document.createElement('canvas'); const scale=Math.min(1,800/img.width);
+      c.width=img.width*scale; c.height=img.height*scale;
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      arr.push({id:uid(),type:'image',content:c.toDataURL('image/jpeg',.72),tag:document.getElementById('moodTag').value.trim(),note:'',ts:Date.now()});
+      save(K.mood,arr); renderAll();
+    }; img.src=ev.target.result; };
+  rd.readAsDataURL(f); e.target.value='';
+}
+function delMood(id){ save(K.mood,getMood().filter(m=>m.id!==id)); renderAll(); }
+
+/* ============ 模块二：主题概念 ============ */
+function renderConcept(){
+  const c=getConcept();
+  document.getElementById('page-concept').innerHTML =
+    '<div class="card"><h2><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a6783f" stroke-width="1.8"><path d="M12 2a7 7 0 0 1 4 12c-.8.6-1 1.5-1 3h-6c0-1.5-.2-2.4-1-3a7 7 0 0 1 4-12z M9 21h6"/></svg>主题概念定义</h2>'
+    +'<p class="muted" style="margin-bottom:14px">把模糊的灵感收敛成一句话能讲清的拍摄方案。内容自动保存。</p>'
+    +'<div class="form-grid">'
+    +fld('拍摄主题','c_theme',c.theme,'如：城市漫游者 · 人像写真')
+    +fld('风格调性','c_style',c.style,'如：胶片感 / 暖调 / 生活流抓拍')
+    +fld('目标受众','c_audience',c.audience,'如：25-35 岁都市女性…')
+    +fld('成片用途','c_usage',c.usage,'如：客片交付 / 作品集 / 社媒宣发')
+    +'<div class="fld full"><label>创意阐述 / 备注</label><textarea id="c_note" rows="3" placeholder="一句话讲清这次拍摄想表达什么…">'+esc(c.note)+'</textarea></div>'
+    +'</div></div>';
+  ['c_theme','c_style','c_audience','c_usage','c_note'].forEach(id=>{
+    document.getElementById(id).addEventListener('input',()=>{
+      save(K.concept,{theme:gv('c_theme'),style:gv('c_style'),audience:gv('c_audience'),usage:gv('c_usage'),note:gv('c_note')});
+      renderFlow();
+    });
+  });
+}
+function fld(label,id,val,ph){ return '<div class="fld"><label>'+label+'</label><input type="text" id="'+id+'" value="'+esc(val)+'" placeholder="'+ph+'"></div>'; }
+function gv(id){ return document.getElementById(id).value; }
+
+/* ============ 模块三：执行规划 ============ */
+const EXEC_TABS=[
+  {key:'shots',name:'分镜头清单',fields:[['name','分镜内容','如：巷口逆光回眸（中景）'],['scene','场景','如：老街巷口'],['date','计划日期','date']]},
+  {key:'locations',name:'场景选址',fields:[['name','地点名称','如：五道营胡同'],['note','备注','光线时段 / 许可 / 费用…']]},
+  {key:'styling',name:'服装造型道具',fields:[['item','物品名称','如：燕麦色风衣'],['type','类别','select:服装|造型|道具'],['note','备注','来源 / 负责人…']]},
+  {key:'gear',name:'器材需求',fields:[['item','器材名称','如：85mm F1.8'],['note','备注','用途…']]}
+];
+let execTab='shots';
+function renderExec(){
+  const ex=getExec();
+  const tab=EXEC_TABS.find(t=>t.key===execTab);
+  let h='<div class="card"><h2><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a6783f" stroke-width="1.8"><path d="M9 11l3 3 8-8 M21 12v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11"/></svg>拍摄执行规划</h2>'
+    +'<div class="subtabs">'+EXEC_TABS.map(t=>'<button class="subtab '+(t.key===execTab?'active':'')+'" onclick="execTab=\''+t.key+'\';renderExec()">'+t.name+' ('+ex[t.key].length+')</button>').join('')+'</div>'
+    +'<div class="row" style="margin-bottom:12px">'
+    + tab.fields.map((f,i)=>{
+        if(f[2]==='date') return '<input type="date" id="ef_'+i+'" style="max-width:170px" value="'+todayStr()+'">';
+        if(f[2]&&f[2].startsWith('select:')){ const ops=f[2].slice(7).split('|'); return '<select id="ef_'+i+'" style="max-width:120px">'+ops.map(o=>'<option>'+o+'</option>').join('')+'</select>'; }
+        return '<input type="text" id="ef_'+i+'" class="grow" placeholder="'+f[2]+'">';
+      }).join('')
+    +'<button class="btn btn-primary" onclick="addExecItem()">添加</button></div>'
+    +'<ul class="checklist">'
+    + (ex[execTab].length? ex[execTab].map(it=>{
+        const main=esc(it.name||it.item), sub=[it.scene,it.type,it.note,it.date].filter(Boolean).map(esc).join(' · ');
+        return '<li><button class="chk '+(it.done?'on':'')+'" onclick="toggleExec(\''+it.id+'\')">'+(it.done?'✓':'')+'</button>'
+          +'<div class="grow" style="min-width:120px"><span class="'+(it.done?'done-text':'')+'">'+main+'</span>'+(sub?'<div class="muted" style="font-size:12px">'+sub+'</div>':'')+'</div>'
+          +'<button class="iconbtn" onclick="delExec(\''+it.id+'\')" title="删除"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></li>';
+      }).join('') : '<li class="muted" style="border:none">暂无条目，在上方添加第一条吧。</li>')
+    +'</ul></div>';
+  document.getElementById('page-exec').innerHTML=h;
+}
+function addExecItem(){
+  const tab=EXEC_TABS.find(t=>t.key===execTab), ex=getExec();
+  const vals=tab.fields.map((f,i)=>document.getElementById('ef_'+i).value.trim());
+  if(!vals[0]){ alert('第一栏不能为空'); return; }
+  const it={id:uid(),done:false};
+  tab.fields.forEach((f,i)=>it[f[0]]=vals[i]);
+  ex[execTab].push(it); save(K.exec,ex); renderAll();
+}
+function toggleExec(id){ const ex=getExec(); const it=ex[execTab].find(x=>x.id===id); if(it) it.done=!it.done; save(K.exec,ex); renderAll(); }
+function delExec(id){ const ex=getExec(); ex[execTab]=ex[execTab].filter(x=>x.id!==id); save(K.exec,ex); renderAll(); }
+
+/* ============ 模块四：预算管理 ============ */
+const BUDGET_CATS=['场地','人员','服装道具','器材','交通餐饮','后期','其他'];
+function renderBudget(){
+  const arr=getBudget();
+  const total=arr.reduce((s,b)=>s+(+b.amount||0),0), paid=arr.filter(b=>b.paid).reduce((s,b)=>s+(+b.amount||0),0);
+  let h='<div class="card"><h2><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a6783f" stroke-width="1.8"><path d="M12 2v20 M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>预算管理</h2>'
+    +'<div class="stat-cards">'
+    +'<div class="stat-card"><div class="num amount-red">¥'+total.toLocaleString()+'</div><div class="lbl">总预算</div></div>'
+    +'<div class="stat-card"><div class="num" style="color:var(--green)">¥'+paid.toLocaleString()+'</div><div class="lbl">已支付</div></div>'
+    +'<div class="stat-card"><div class="num">¥'+(total-paid).toLocaleString()+'</div><div class="lbl">待支付</div></div>'
+    +'</div>'
+    +'<div class="row" style="margin-bottom:12px">'
+    +'<input type="text" id="b_item" class="grow" placeholder="费用项目，如：化妆师费用">'
+    +'<select id="b_cat" style="max-width:130px">'+BUDGET_CATS.map(c=>'<option>'+c+'</option>').join('')+'</select>'
+    +'<input type="number" id="b_amount" style="max-width:130px" placeholder="金额 ¥" min="0">'
+    +'<button class="btn btn-primary" onclick="addBudget()">添加</button></div>';
+  if(arr.length){
+    h+='<table class="budget-table"><thead><tr><th>项目</th><th>类别</th><th>金额</th><th>状态</th><th></th></tr></thead><tbody>'
+      +arr.map(b=>'<tr><td>'+esc(b.item)+'</td><td><span class="tag">'+esc(b.cat)+'</span></td>'
+        +'<td class="amount-red">¥'+(+b.amount).toLocaleString()+'</td>'
+        +'<td><button class="tag '+(b.paid?'green':'red')+'" style="border:none;min-height:32px" onclick="togglePaid(\''+b.id+'\')">'+(b.paid?'已支付':'待支付')+'</button></td>'
+        +'<td><button class="iconbtn" onclick="delBudget(\''+b.id+'\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></td></tr>').join('')
+      +'</tbody></table>'
+      +svgBars(arr);
+  } else { h+='<p class="muted">暂无费用明细，在上方添加第一笔吧。</p>'; }
+  h+='</div>';
+  document.getElementById('page-budget').innerHTML=h;
+}
+function svgBars(arr){
+  const byCat={}; arr.forEach(b=>{ byCat[b.cat]=(byCat[b.cat]||0)+(+b.amount||0); });
+  const max=Math.max(...Object.values(byCat),1);
+  let bars=Object.entries(byCat).map(([c,v],i)=>{
+    const w=Math.round(v/max*100);
+    return '<div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px"><span style="width:64px;color:var(--ink2)">'+esc(c)+'</span><div style="flex:1;background:var(--accent-soft);border-radius:6px;height:14px"><div style="width:'+w+'%;height:100%;background:var(--accent);border-radius:6px"></div></div><span class="amount-red" style="width:80px;text-align:right">¥'+v.toLocaleString()+'</span></div>';
+  }).join('');
+  return '<div style="margin-top:16px"><p class="muted" style="margin-bottom:2px">分类支出占比</p>'+bars+'</div>';
+}
+function addBudget(){
+  const item=document.getElementById('b_item').value.trim(), amt=parseFloat(document.getElementById('b_amount').value);
+  if(!item||!(amt>0)){ alert('请填写项目和有效金额'); return; }
+  const arr=getBudget(); arr.push({id:uid(),item,cat:document.getElementById('b_cat').value,amount:amt,paid:false});
+  save(K.budget,arr); renderAll();
+}
+function togglePaid(id){ const arr=getBudget(); const b=arr.find(x=>x.id===id); if(b) b.paid=!b.paid; save(K.budget,arr); renderAll(); }
+function delBudget(id){ save(K.budget,getBudget().filter(b=>b.id!==id)); renderAll(); }
+
+/* ============ 策划案生成 ============ */
+function openDoc(){
+  const c=getConcept(), mood=getMood(), ex=getExec(), bg=getBudget();
+  const total=bg.reduce((s,b)=>s+(+b.amount||0),0);
+  const moodImgs=mood.filter(m=>m.type==='image'), moodColors=mood.filter(m=>m.type==='color'), moodTexts=mood.filter(m=>m.type==='text');
+  const li=(arr,fn)=>arr.length?arr.map(fn).join(''):'<tr><td colspan="4" style="color:#999">（未填写）</td></tr>';
+  document.getElementById('docBody').innerHTML =
+    '<h1>'+esc(c.theme||'摄影项目策划案')+'</h1>'
+    +'<p class="doc-sub">生成于 '+todayStr()+' · 光影策划台</p>'
+    +'<h2>一、主题概念</h2><dl class="kv">'
+    +'<dt>拍摄主题</dt><dd>'+esc(c.theme||'—')+'</dd><dt>风格调性</dt><dd>'+esc(c.style||'—')+'</dd>'
+    +'<dt>目标受众</dt><dd>'+esc(c.audience||'—')+'</dd><dt>成片用途</dt><dd>'+esc(c.usage||'—')+'</dd>'
+    +'<dt>创意阐述</dt><dd>'+esc(c.note||'—')+'</dd></dl>'
+    +'<h2>二、情绪板</h2>'
+    +(moodColors.length?'<p>'+moodColors.map(m=>'<span class="swatch" style="background:'+esc(m.content)+'" title="'+esc(m.note||m.tag||'')+'"></span>').join('')+'</p>':'')
+    +(moodImgs.length?'<p>'+moodImgs.map(m=>'<img src="'+m.content+'">').join('')+'</p>':'')
+    +(moodTexts.length?'<ul>'+moodTexts.map(m=>'<li>'+esc(m.content)+(m.tag?' <b>#'+esc(m.tag)+'</b>':'')+'</li>').join('')+'</ul>':'<p style="color:#999">（未收集灵感素材）</p>')
+    +'<h2>三、分镜头清单</h2><table><tr><th>分镜</th><th>场景</th><th>日期</th><th>状态</th></tr>'
+    +li(ex.shots,s=>'<tr><td>'+esc(s.name)+'</td><td>'+esc(s.scene||'—')+'</td><td>'+esc(s.date||'—')+'</td><td>'+(s.done?'已完成':'待拍摄')+'</td></tr>')+'</table>'
+    +'<h2>四、场景选址</h2><table><tr><th>地点</th><th>备注</th></tr>'
+    +li(ex.locations,s=>'<tr><td>'+esc(s.name)+'</td><td>'+esc(s.note||'—')+'</td></tr>')+'</table>'
+    +'<h2>五、服装造型与道具</h2><table><tr><th>物品</th><th>类别</th><th>备注</th></tr>'
+    +li(ex.styling,s=>'<tr><td>'+esc(s.item)+'</td><td>'+esc(s.type||'—')+'</td><td>'+esc(s.note||'—')+'</td></tr>')+'</table>'
+    +'<h2>六、器材需求</h2><table><tr><th>器材</th><th>备注</th></tr>'
+    +li(ex.gear,s=>'<tr><td>'+esc(s.item)+'</td><td>'+esc(s.note||'—')+'</td></tr>')+'</table>'
+    +'<h2>七、预算明细</h2><table><tr><th>项目</th><th>类别</th><th>金额</th><th>状态</th></tr>'
+    +li(bg,b=>'<tr><td>'+esc(b.item)+'</td><td>'+esc(b.cat)+'</td><td>¥'+(+b.amount).toLocaleString()+'</td><td>'+(b.paid?'已支付':'待支付')+'</td></tr>')
+    +'</table><p style="text-align:right;margin-top:8px"><b>总预算：¥'+total.toLocaleString()+'</b></p>';
+  document.getElementById('docModal').classList.add('show');
+}
+function closeDoc(){ document.getElementById('docModal').classList.remove('show'); }
+
+/* ============ 备份 / 恢复 / 清空 ============ */
+function exportJSON(){
+  const data={app:'photo-planner',version:1,exportedAt:new Date().toISOString(),mood:getMood(),concept:getConcept(),exec:getExec(),budget:getBudget()};
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+  a.download='光影策划台备份_'+todayStr()+'.json'; a.click();
+}
+function importJSON(e){
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=ev=>{ try{
+      const d=JSON.parse(ev.target.result);
+      if(d.mood) save(K.mood,d.mood); if(d.concept) save(K.concept,d.concept);
+      if(d.exec) save(K.exec,d.exec); if(d.budget) save(K.budget,d.budget);
+      renderAll(); alert('导入成功，数据已恢复。');
+    }catch(err){ alert('文件格式不正确，导入失败。'); } };
+  rd.readAsText(f); e.target.value='';
+}
+let confirmCb=null;
+function askConfirm(title,desc,cb){
+  document.getElementById('confirmTitle').textContent=title;
+  document.getElementById('confirmDesc').textContent=desc;
+  confirmCb=cb;
+  document.getElementById('confirmModal').classList.add('show');
+}
+function closeConfirm(){ document.getElementById('confirmModal').classList.remove('show'); confirmCb=null; }
+document.getElementById('confirmOk').onclick=()=>{ if(confirmCb) confirmCb(); closeConfirm(); };
+function clearAll(){
+  askConfirm('清空全部数据？','此操作不可恢复！建议先「导出 JSON 备份」。确认后将删除灵感、概念、执行与预算的所有内容。',()=>{
+    Object.values(K).forEach(k=>localStorage.removeItem(k));
+    seed(); renderAll();
+  });
+}
+
+/* ============ 汇总渲染 ============ */
+function renderAll(){
+  renderNav(); renderFlow(); renderToday(); renderMood(); renderConcept(); renderExec(); renderBudget();
+  const count=getMood().length+getBudget().length+Object.values(getExec()).reduce((s,a)=>s+a.length,0);
+  document.getElementById('backupTip').classList.toggle('show',count>=30);
+}
+seed();
+renderAll();
+</script>
+</body>
+</html>
