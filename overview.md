@@ -1,7 +1,7 @@
 # 瞬刻摄影工作台 · Stillmark 功能索引（开发视角）
 
 ## 版本
-- 当前：v3（`shotflow.html`，单文件全内联零依赖，node --check 通过）
+- 当前：v4（`shotflow.html`，单文件全内联零依赖，node --check + 15 项逻辑测试通过）
 - 历史：v1 `photo-planner.html`（表单版）、v2（分镜中枢 + 看板 + 拍摄日模式）
 
 ## v3 数据模型
@@ -19,15 +19,19 @@ project = {
   todos:[{id,title,owner,due,done}]
 }
 ```
-存储：localStorage `wb_sf_projects`；图片 IndexedDB 库 `shotflow` / store `images`。
-迁移：loadP() 检测无 v3 标记 → migrate()（refId→refIds、补 duration/ord/新数组）→ 保存。
+存储（v4）：项目主数据 IndexedDB 库 `shotflow` / store `projects`（key `all`）；图片同库 store `images`。loadP() 同步读内存缓存 projectsCache，saveP() 200ms 合并写入 IDB。
+迁移：initData() 先读 IDB；无则读旧 localStorage `wb_sf_projects` → migrate()（refId→refIds、补 duration/ord/新数组）→ 写 IDB → 清理旧 key。
 
 ## 关键实现
 - 拖拽排序：Pointer Events + setPointerCapture，.drag-handle 触发；persistOrder 落 ord 并继承邻组日期
 - 日落算法：NOAA 近似（eqtime/decl/HA），+ 时区偏移转本地时间；goldenStart=日落-75min
 - 拍摄日模式：schedule 节点 + shots 按时间合并；currentId = 今天未完成中最后不超过当前时间的
-- 提案文件：buildProposalHTML → Blob 下载，图片 base64 内嵌（imgCache）
-- PWA：manifest id=shotflow-planner；SW cache v3；updatefound → toast 提示刷新
+- 时间统一模型：dayItems() 派生 `_start/_end/_time/_conflict`；cascadeShift() 级联顺延并保证后项不早于前项结束，超出当天 24:00 返回 -1
+- 看板检索：boardQuery + boardScope（全部/进行中/已归档），匹配项目名/客户/地点/主题/调性/分镜/沟通记录
+- 备份：exportJSON() 全量；exportProject() 单案；importJSON() → askConfirm 二次确认 → applyImport()（单案追加，全量覆盖）
+- 文档：openDoc('proposal'|'manual'|'callsheet')，Call Sheet 为 A4 一页纸，天气/联系电话留白
+- 测试：`tests/logic.test.mjs`，node 直接运行，从 HTML 抽取纯函数用 vm 执行（15 项）
+- PWA：manifest id=shotflow-planner；SW cache v4；updatefound → toast 提示刷新
 - 部署原则：源码一律相对路径，不写任何平台访问码
 
 ## 部署

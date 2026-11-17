@@ -239,15 +239,21 @@ const STATUSES=['灵感期','策划中','待拍摄','后期中','已交付'];
 const STATUS_TAG=['gray','blue','red','purple','green'];
 const CITIES=[['北京',39.90,116.40],['上海',31.23,121.47],['广州',23.13,113.26],['深圳',22.54,114.06],['南京',32.06,118.78],['杭州',30.27,120.16],['成都',30.57,104.07],['西安',34.34,108.94]];
 
-/* IndexedDB 图片仓库 */
+/* IndexedDB：图片 + 项目主存储（v4 起项目不再存 localStorage） */
 const idb={db:null,
-  open(){return new Promise((res,rej)=>{const r=indexedDB.open('shotflow',1);
-    r.onupgradeneeded=e=>{e.target.result.createObjectStore('images');};
+  open(){return new Promise((res,rej)=>{const r=indexedDB.open('shotflow',2);
+    r.onupgradeneeded=e=>{const db=e.target.result;
+      if(!db.objectStoreNames.contains('images')) db.createObjectStore('images');
+      if(!db.objectStoreNames.contains('projects')) db.createObjectStore('projects');
+    };
     r.onsuccess=e=>{idb.db=e.target.result;res();};r.onerror=rej;});},
   put(k,v){return new Promise((res,rej)=>{const t=idb.db.transaction('images','readwrite');t.objectStore('images').put(v,k);t.oncomplete=res;t.onerror=rej;});},
   get(k){return new Promise((res,rej)=>{const r=idb.db.transaction('images').objectStore('images').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
   del(k){return new Promise((res,rej)=>{const t=idb.db.transaction('images','readwrite');t.objectStore('images').delete(k);t.oncomplete=res;t.onerror=rej;});},
-  keys(){return new Promise((res,rej)=>{const r=idb.db.transaction('images').objectStore('images').getAllKeys();r.onsuccess=()=>res(r.result);r.onerror=rej;});}
+  keys(){return new Promise((res,rej)=>{const r=idb.db.transaction('images').objectStore('images').getAllKeys();r.onsuccess=()=>res(r.result);r.onerror=rej;});},
+  getProjects(){return new Promise((res,rej)=>{const r=idb.db.transaction('projects').objectStore('projects').get('all');r.onsuccess=()=>res(r.result);r.onerror=rej;});},
+  putProjects(a){return new Promise((res,rej)=>{const t=idb.db.transaction('projects','readwrite');t.objectStore('projects').put(a,'all');t.oncomplete=res;t.onerror=()=>rej(t.error);});},
+  clearProjects(){return new Promise((res,rej)=>{const t=idb.db.transaction('projects','readwrite');t.objectStore('projects').delete('all');t.oncomplete=res;t.onerror=rej;});}
 };
 const imgCache={};
 async function cacheProjectImages(p){
@@ -256,7 +262,7 @@ async function cacheProjectImages(p){
 }
 
 /* ================= 状态 ================= */
-let view={mode:'board',pid:null,tab:'shots',shotFilter:''};
+let view={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部'};
 const cur=()=>loadP().find(p=>p.id===view.pid);
 function updateCur(fn){ const a=loadP(); const p=a.find(x=>x.id===view.pid); if(p){fn(p); p.updatedAt=Date.now(); saveP(a);} }
 
@@ -274,13 +280,33 @@ function migrate(p){
   p.schedule.forEach(n=>{ n.done=!!n.done; });
   return p;
 }
-function loadP(){
-  let arr; try{ arr=JSON.parse(localStorage.getItem(LS_PROJ))||[]; }catch(e){ arr=[]; }
-  const dirty=arr.some(p=>!p.v3);
-  if(dirty){ arr=arr.map(p=>{ migrate(p); p.v3=1; return p; }); saveP(arr); }
-  return arr;
+/* 内存缓存 + 异步持久化：UI 层仍同步读 loadP()，写通过 saveP() 合并后落 IndexedDB */
+let projectsCache=null, persistTimer=null;
+function loadP(){ if(!projectsCache) projectsCache=[]; return projectsCache; }
+function saveP(a){
+  projectsCache=a;
+  clearTimeout(persistTimer);
+  persistTimer=setTimeout(()=>{
+    idb.putProjects(projectsCache).catch(()=>toast('保存失败，请立即导出备份'));
+  },200);
 }
-function saveP(a){ localStorage.setItem(LS_PROJ,JSON.stringify(a)); }
+async function initData(){
+  await idb.open();
+  let arr=null;
+  try{ arr=await idb.getProjects(); }catch(e){}
+  let migrated=false;
+  if(Array.isArray(arr)){
+    migrated=arr.some(p=>!p.v3);
+    projectsCache=arr.map(p=>{ migrate(p); p.v3=1; return p; });
+  } else {
+    try{ arr=JSON.parse(localStorage.getItem(LS_PROJ))||[]; }catch(e){ arr=[]; }
+    projectsCache=arr.map(p=>{ migrate(p); p.v3=1; return p; });
+    migrated=true;
+  }
+  await idb.putProjects(projectsCache);
+  try{ localStorage.removeItem(LS_PROJ); }catch(e){}
+  return migrated;
+}
 
 /* ================= 太阳时间（NOAA 近似算法） ================= */
 function sunTimes(dateStr,lat,lng){
@@ -357,7 +383,16 @@ function seed(){
 
 /* ================= 看板 ================= */
 function renderBoard(){
-  const ps=loadP();
+  const all=loadP();
+  const q=(view.boardQuery||'').trim().toLowerCase();
+  const ps=all.filter(p=>{
+    if(view.boardScope==='进行中'&&p.status==='已交付') return false;
+    if(view.boardScope==='已归档'&&p.status!=='已交付') return false;
+    if(!q) return true;
+    const text=[p.name,p.client,p.location,(p.concept||{}).theme,(p.concept||{}).style,
+      ...(p.shots||[]).map(s=>s.name),...(p.notes||[]).map(n=>n.content)].join(' ').toLowerCase();
+    return text.includes(q);
+  });
   let h='<div class="topbar"><h1>瞬刻摄影工作台</h1><span class="muted">STILLMARK · 定格一瞬，刻下永恒。</span><div class="sp"></div>'
     +'<button class="btn btn-primary btn-sm" id="installBtn" style="display:none" onclick="installApp()">安装到桌面</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="exportJSON()">导出备份</button>'
@@ -367,17 +402,21 @@ function renderBoard(){
     +'<input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)"></div>'
     +'<div class="backup-tip" id="backupTip"><span>数据较多，建议「导出备份」留档。</span></div>';
   const t=todayStr();
-  const active=ps.filter(p=>['灵感期','策划中','待拍摄','后期中'].includes(p.status)).length;
-  const todayShoots=ps.filter(p=>p.shootDate===t&&p.status!=='已交付').length;
-  const overdueTodos=ps.reduce((s,p)=>s+p.todos.filter(x=>!x.done&&x.due&&x.due<t).length,0);
-  const totalBudget=ps.reduce((s,p)=>s+p.budget.reduce((x,b)=>x+(+b.amount||0),0),0);
+  const active=all.filter(p=>['灵感期','策划中','待拍摄','后期中'].includes(p.status)).length;
+  const todayShoots=all.filter(p=>p.shootDate===t&&p.status!=='已交付').length;
+  const overdueTodos=all.reduce((s,p)=>s+p.todos.filter(x=>!x.done&&x.due&&x.due<t).length,0);
+  const totalBudget=all.reduce((s,p)=>s+p.budget.reduce((x,b)=>x+(+b.amount||0),0),0);
   h+='<div class="stats-bar">'
     +statPill('M3 7h13v10H3z M16 10h3l2 2v3h-5',active,'进行中项目')
     +statPill('M12 6v6l4 2 M12 3a9 9 0 1 0 .01 0',todayShoots,'今日拍摄')
     +statPill('M9 11l3 3 8-8 M21 12v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11',overdueTodos,'逾期待办')
     +statPill('M12 2v20 M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6','¥'+totalBudget.toLocaleString(),'总预算')
+    +'</div>'
+    +'<div class="row" style="margin-bottom:14px"><input id="boardSearch" class="grow" placeholder="搜索策划案 / 客户 / 主题 / 分镜 / 沟通记录…" value="'+esc(view.boardQuery)+'" onchange="view.boardQuery=this.value;renderBoard()">'
+    +'<select id="boardScope" style="max-width:140px" onchange="view.boardScope=this.value;renderBoard()">'
+    +['全部','进行中','已归档'].map(s=>'<option '+(view.boardScope===s?'selected':'')+'>'+s+'</option>').join('')+'</select>'
     +'</div>';
-  if(!ps.length){ h+='<div class="card" style="text-align:center;padding:50px"><p class="muted">还没有项目，点击右上角「新建项目」开始第一个策划。</p></div>'; }
+  if(!ps.length){ h+='<div class="card" style="text-align:center;padding:50px"><p class="muted">'+(all.length?'没有匹配的策划案，换个关键词或切换筛选。':'还没有项目，点击右上角「新建项目」开始第一个策划。')+'</p></div>'; }
   h+='<div class="board">'+STATUSES.map((s,i)=>{
     const col=ps.filter(p=>p.status===s);
     return '<div class="bcol"><h3>'+s+'<span>'+col.length+'</span></h3>'
@@ -399,7 +438,7 @@ function renderBoard(){
       }).join('')+'</div>';
   }).join('')+'</div>';
   document.getElementById('app').innerHTML=h;
-  const count=ps.reduce((s,p)=>s+p.shots.length+p.mood.length+p.items.length+p.budget.length+p.todos.length+p.notes.length,0);
+  const count=all.reduce((s,p)=>s+p.shots.length+p.mood.length+p.items.length+p.budget.length+p.todos.length+p.notes.length,0);
   document.getElementById('backupTip').classList.toggle('show',count>=30);
   if(deferredPrompt) document.getElementById('installBtn').style.display='';
 }
@@ -430,6 +469,7 @@ function renderProject(){
     +'<h1 style="font-size:20px">'+esc(p.name)+'</h1>'+cd+'<span class="tag '+STATUS_TAG[STATUSES.indexOf(p.status)]+'">'+p.status+'</span>'
     +(openTodos?'<span class="tag purple" onclick="view.tab=\'notes\';renderProject()" style="cursor:pointer">待办 '+openTodos+'</span> ':'')
     +'<div class="sp"></div>'
+    +'<button class="btn btn-ghost btn-sm" onclick="exportProject(\''+p.id+'\')">导出此案</button>'
     +'<button class="btn btn-primary btn-sm" onclick="openShootDay()">进入拍摄日模式</button></div>'
     +'<div class="card"><div class="form-grid">'
     +'<div class="fld"><label>客户</label><input value="'+esc(p.client)+'" onchange="setP(\'client\',this.value)"></div>'
@@ -448,6 +488,7 @@ function renderProject(){
     +'<div style="flex:1"></div>'
     +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'proposal\')">客户提案</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="exportProposalFile()">发送提案文件</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'callsheet\')">Call Sheet</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'manual\')">执行手册</button></div>'
     +'<div id="tabBody"></div>';
   document.getElementById('app').innerHTML=h;
@@ -538,6 +579,7 @@ function renderShots(p){
     +'<div class="row" style="margin-bottom:12px"><input id="s_filter" class="grow" placeholder="搜索分镜 / 场景 / 备注…" value="'+esc(view.shotFilter)+'" oninput="view.shotFilter=this.value;renderShots(cur())"></div>'
     +(sorted.length? '<div id="shotList">'+sorted.map(s=>{
         const scene=p.scenes.find(x=>x.id===s.sceneId);
+        const clash=dayItems(p,s.date).some(x=>x.id===s.id&&x._conflict);
         const refs=s.refIds.filter(r=>imgCache[r]);
         const refHtml=refs.length? refs.map(r=>'<img src="'+imgCache[r]+'">').join('')+(refs.length>2?'<div class="more">+'+(refs.length-2)+'</div>':'')
           :'<div class="noref-single">无参考图</div>';
@@ -545,7 +587,7 @@ function renderShots(p){
           +'<span class="drag-handle" title="拖拽排序"><svg width="12" height="18" viewBox="0 0 12 18" fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></svg></span>'
           +'<button class="chk '+(s.done?'on':'')+'" onclick="toggleShot(\''+s.id+'\')">'+(s.done?'✓':'')+'</button>'
           +'<div class="refs">'+refHtml+'</div>'
-          +'<div class="grow" style="min-width:150px"><div class="'+(s.done?'done-text':'')+'" style="font-weight:600">'+esc(s.name)+'</div>'
+          +'<div class="grow" style="min-width:150px"><div class="'+(s.done?'done-text':'')+'" style="font-weight:600">'+esc(s.name)+(clash?' <span class="tag red">时间重叠</span>':'')+'</div>'
           +'<div class="muted" style="font-size:12px;margin-top:2px">'+esc(s.date||'未定')+' '+(s.slot||'')+' · 约 '+s.duration+' 分钟'+(scene?' · '+esc(scene.name):'')+(s.note?' · '+esc(s.note):'')+'</div></div>'
           +'<button class="iconbtn" onclick="delShot(\''+s.id+'\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
       }).join('')+'</div>' : '<p class="muted">'+(kw?'没有匹配的分镜。':'还没有分镜。添加第一条，把素材挂上来。')+'</p>')
@@ -657,29 +699,77 @@ function renderSchedule(p){
     +'<input type="time" id="n_end" style="max-width:105px" value="15:00">'
     +'<input id="n_note" class="grow" placeholder="备注…">'
     +'<button class="btn btn-primary" onclick="addNode()">添加环节</button></div>'
-    +timelineHtml(p,nodes,shots)
+    +timelineHtml(p,schedDate)
     +'</div>';
 }
 function addMin(hhmm,m){ const [h,mi]=hhmm.split(':').map(Number); const t=(h*60+mi+m+1440)%1440; return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0'); }
-function timelineHtml(p,nodes,shots){
-  const items=[...nodes.map(n=>({...n,_t:'node'})),...shots.map(s=>({...s,_t:'shot'}))]
-    .sort((a,b)=>(a._t==='shot'?(a.slot||'99'):(a.start||'99'))<(b._t==='shot'?(b.slot||'99'):(b.start||'99'))?-1:1);
+/* 时间统一模型：分镜与流程节点都派生出 start/end，冲突即前一事项未结束下一事项已开始 */
+function toMin(t){ const m=/^(\d{1,2}):(\d{2})$/.exec(t||''); return m?(+m[1])*60+(+m[2]):1440; }
+function fmtMin(m){ m=Math.max(0,Math.min(1439,Math.round(m))); return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+function dayItems(p,date){
+  const out=[];
+  (p.shots||[]).filter(s=>s.date===date).forEach(s=>{
+    const st=toMin(s.slot), dur=Math.max(5,+s.duration||20);
+    out.push({...s,_t:'shot',_start:st,_end:st+dur,_time:s.slot||''});
+  });
+  (p.schedule||[]).filter(n=>(n.date||date)===date&&n.start).forEach(n=>{
+    const st=toMin(n.start), raw=toMin(n.end||addMin(n.start,30));
+    out.push({...n,_t:'node',_start:st,_end:raw>st?raw:st+30,_time:n.start});
+  });
+  out.sort((a,b)=>a._start-b._start||a._end-b._end);
+  let prevEnd=-1;
+  out.forEach(it=>{ it._conflict=it._start<prevEnd; if(it._end>prevEnd) prevEnd=it._end; });
+  return out;
+}
+/* 级联顺延：被点事项及其后所有事项后移，后一项不早于前一项结束 */
+function cascadeShift(p,date,id,delta){
+  const items=dayItems(p,date);
+  const idx=items.findIndex(x=>x.id===id); if(idx<0) return 0;
+  const base=items[idx]._start;
+  const plan=[]; let cursor=-1;
+  items.forEach(it=>{
+    const dur=it._t==='shot'?Math.max(5,+it.duration||20):Math.max(30,it._end-it._start);
+    if(it._start<base){ if(it._end>cursor) cursor=it._end; return; }
+    let ns=it._start+delta;
+    if(cursor>=0&&ns<cursor) ns=cursor;
+    plan.push({it,ns,dur});
+    cursor=ns+dur;
+  });
+  if(plan.some(x=>x.ns+x.dur>1440)) return -1;
+  let moved=0;
+  plan.forEach(({it,ns,dur})=>{
+    if(it._t==='shot'){
+      const s=p.shots.find(z=>z.id===it.id);
+      if(s&&s.slot){ s.slot=fmtMin(ns); moved++; }
+    } else {
+      const n=p.schedule.find(z=>z.id===it.id);
+      if(n&&n.start){ n.start=fmtMin(ns); n.end=fmtMin(ns+dur); moved++; }
+    }
+  });
+  return moved;
+}
+function timelineHtml(p,date){
+  const items=dayItems(p,date);
   if(!items.length) return '<p class="muted">这一天还没有安排。添加流程环节，或在分镜表里给分镜定日期。</p>';
-  return items.map(it=>{
-    const time=it._t==='shot'?(it.slot||'未排时'):(it.start||'')+(it.end?' – '+it.end:'');
+  const conflictN=items.filter(x=>x._conflict).length;
+  let h=conflictN?'<div class="backup-tip show" style="margin-bottom:12px">检测到 '+conflictN+' 处时间重叠，后续事项与前一项未结束的时间相交。</div>':'';
+  h+=items.map(it=>{
+    const time=it._t==='shot'?(it._time||'未排时'):(it.start||'')+(it.end?' – '+it.end:'');
+    const cflag=it._conflict?' <span class="tag red">时间重叠</span>':'';
     if(it._t==='shot'){
       const sc=p.scenes.find(x=>x.id===it.sceneId);
       return '<div class="tl-item shot-row"><div class="tl-time">'+esc(time)+'</div><div class="tl-dot" style="background:var(--accent)"></div>'
-        +'<div class="tl-body"><div class="tl-title">'+esc(it.name)+' <span class="muted" style="font-weight:400">· 约 '+it.duration+' 分钟</span></div>'
+        +'<div class="tl-body"><div class="tl-title">'+esc(it.name)+' <span class="muted" style="font-weight:400">· 约 '+it.duration+' 分钟</span>'+cflag+'</div>'
         +'<div class="tl-note">'+(sc?esc(sc.name)+' · ':'')+esc(it.note||'')+'</div></div>'
         +'<button class="chk '+(it.done?'on':'')+'" onclick="toggleShot(\''+it.id+'\')">'+(it.done?'✓':'')+'</button></div>';
     }
     return '<div class="tl-item"><div class="tl-time">'+esc(time)+'</div><div class="tl-dot" style="background:'+(it.type==='拍摄'?'var(--accent)':'#b4b2a9')+'"></div>'
-      +'<div class="tl-body"><div class="tl-title '+(it.done?'done-text':'')+'">'+nodeTag(it.type)+' '+esc(it.title)+'</div>'
+      +'<div class="tl-body"><div class="tl-title '+(it.done?'done-text':'')+'">'+nodeTag(it.type)+' '+esc(it.title)+cflag+'</div>'
       +(it.note?'<div class="tl-note">'+esc(it.note)+'</div>':'')+'</div>'
       +'<button class="chk '+(it.done?'on':'')+'" onclick="toggleNode(\''+it.id+'\')">'+(it.done?'✓':'')+'</button>'
       +'<button class="iconbtn" onclick="delNode(\''+it.id+'\')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
   }).join('');
+  return h;
 }
 function addNode(){
   const title=gv('n_title').trim(); if(!title){toast('环节内容不能为空');return;}
@@ -805,14 +895,12 @@ function sdSetDate(d){ sdDate=d; renderShootDay(); }
 function renderShootDay(){
   const p=cur(); if(!p) return;
   const shots=p.shots.filter(s=>s.date===sdDate);
-  const nodes=p.schedule.filter(n=>(n.date||sdDate)===sdDate);
-  const items=[...nodes.map(n=>({...n,_t:'node'})),...shots.map(s=>({...s,_t:'shot'}))]
-    .sort((a,b)=>(a._t==='shot'?(a.slot||'99'):(a.start||'99'))<(b._t==='shot'?(b.slot||'99'):(b.start||'99'))?-1:1);
+  const items=dayItems(p,sdDate);
   const done=items.filter(x=>x.done).length;
   const now=new Date(); const nowT=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
   const isToday=sdDate===todayStr();
   let currentId=null;
-  if(isToday){ items.forEach(x=>{ if(!x.done&&(x._t==='shot'?x.slot:x.start||'00:00')<=nowT) currentId=x.id; }); if(!currentId){ const nxt=items.find(x=>!x.done); if(nxt) currentId=nxt.id; } }
+  if(isToday){ items.forEach(x=>{ if(!x.done&&(x._time||'00:00')<=nowT) currentId=x.id; }); if(!currentId){ const nxt=items.find(x=>!x.done); if(nxt) currentId=nxt.id; } }
   const sun=sunTimes(sdDate,p.lat,p.lng);
   let h='<div class="sd-head"><h2>'+esc(p.name)+'</h2>'
     +'<button class="sd-nav" onclick="sdShift(-1)" title="前一天">‹</button>'
@@ -826,23 +914,24 @@ function renderShootDay(){
   else{
     let lastT='';
     items.forEach(x=>{
-      const time=x._t==='shot'?(x.slot||'未排时'):(x.start||'未排时');
+      const time=x._time||'未排时';
       if(time!==lastT){ lastT=time;
         h+='<div class="sd-slot">◷ '+time+(x.id===currentId?' <span class="now">当前</span>':'')+'</div>'; }
       const overdue=isToday&&!x.done&&time<nowT&&x.id!==currentId&&time!=='未排时';
+      const cflag=x._conflict?' <span class="tag red" style="border:1px solid #a32d2d">重叠</span>':'';
       if(x._t==='shot'){
         const scene=p.scenes.find(s=>s.id===x.sceneId);
         const refs=(x.refIds||[]).filter(r=>imgCache[r]);
         h+='<div class="sd-shot '+(x.done?'done':'')+' '+(x.id===currentId?'now':'')+'">'
           +(refs.length?refs.map(r=>'<img src="'+imgCache[r]+'">').join(''):'')
-          +'<div style="flex:1;min-width:120px"><div class="sd-name">'+esc(x.name)+'</div>'
+          +'<div style="flex:1;min-width:120px"><div class="sd-name">'+esc(x.name)+cflag+'</div>'
           +'<div class="sd-meta">'+(scene?esc(scene.name)+' · ':'')+'约 '+x.duration+' 分钟'+(x.note?' · '+esc(x.note):'')+'</div>'
-          +(overdue?'<button class="sd-btn" style="margin-top:8px" onclick="sdPostpone(\''+x.id+'\')">顺延 1 小时</button>':'')
+          +((overdue||x._conflict)?'<button class="sd-btn" style="margin-top:8px" onclick="sdPostpone(\''+x.id+'\')">顺延后续 1 小时</button>':'')
           +'</div>'
           +'<button class="sd-chk '+(x.done?'on':'')+'" onclick="sdToggle(\''+x.id+'\')">✓</button></div>';
       } else {
         h+='<div class="sd-shot node '+(x.done?'done':'')+' '+(x.id===currentId?'now':'')+'">'
-          +'<div style="flex:1;min-width:120px"><div class="sd-name" style="font-size:16px">'+esc(x.title)+'</div>'
+          +'<div style="flex:1;min-width:120px"><div class="sd-name" style="font-size:16px">'+esc(x.title)+cflag+'</div>'
           +'<div class="sd-meta">'+esc(x.type)+(x.end?' · 至 '+x.end:'')+(x.note?' · '+esc(x.note):'')+'</div></div>'
           +'<button class="sd-chk sm '+(x.done?'on':'')+'" onclick="sdToggleNode(\''+x.id+'\')">✓</button></div>';
       }
@@ -854,15 +943,49 @@ function sdShift(d){ const dt=new Date(sdDate+'T12:00:00'); dt.setDate(dt.getDat
 function sdToggle(id){ updateCur(p=>{const s=p.shots.find(x=>x.id===id); if(s) s.done=!s.done;}); renderShootDay(); }
 function sdToggleNode(id){ updateCur(p=>{const n=p.schedule.find(x=>x.id===id); if(n) n.done=!n.done;}); renderShootDay(); }
 function sdPostpone(id){
-  updateCur(p=>{const s=p.shots.find(x=>x.id===id); if(s&&s.slot){
-    const [hh,mm]=s.slot.split(':').map(Number);
-    s.slot=String(Math.min(23,hh+1)).padStart(2,'0')+':'+String(mm).padStart(2,'0'); }});
+  let overflow=false;
+  updateCur(p=>{ if(cascadeShift(p,sdDate,id,60)===-1) overflow=true; });
+  if(overflow) toast('顺延后超出当天 24:00，请先改到次日'); else toast('后续事项已顺延并避开重叠');
   renderShootDay();
 }
 
 /* ================= 文档输出 ================= */
+/* 现场一页纸：时间线 + 地点 + 器材 + 沟通要点，天气与联系电话留白现场填写 */
+function callSheetHtml(p){
+  const date=p.shootDate||todayStr();
+  const items=dayItems(p,date);
+  const sun=sunTimes(date,p.lat,p.lng);
+  const rows=items.length?items.map(x=>{
+    const sc=p.scenes.find(s=>s.id===x.sceneId);
+    const time=x._t==='shot'?(x._time||'—'):((x.start||'—')+(x.end?' – '+x.end:''));
+    const name=x._t==='shot'?x.name:(x.type+' · '+x.title);
+    return '<tr><td style="white-space:nowrap">'+esc(time)+'</td><td>'+esc(name)+'</td><td>'+esc(sc?sc.name:(x._t==='shot'?'—':''))+'</td><td>'+(x._t==='shot'?(x.duration+' 分钟'):'—')+'</td></tr>';
+  }).join(''):'<tr><td colspan="4">（未安排分镜或流程）</td></tr>';
+  const scenes=p.scenes.map(s=>'<li>'+esc(s.name)+(s.note?'：'+esc(s.note):'')+'</li>').join('')||'<li>待定</li>';
+  const kit=p.items.map(i=>'<li>'+esc(i.kind)+' · '+esc(i.name)+(i.note?'（'+esc(i.note)+'）':'')+'</li>').join('')||'<li>无</li>';
+  const notes=[...(p.notes||[])].sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,3).map(n=>'<li>['+esc(n.kind)+'] '+esc(n.content)+'</li>').join('')||'<li>无</li>';
+  return '<h1>拍摄通告 · Call Sheet</h1>'
+    +'<p class="doc-sub">'+esc(p.name)+' · '+date+' · '+esc(p.location||'地点待定')+'</p>'
+    +'<p style="text-align:center;font-size:12px;color:#746c5f">瞬刻摄影工作台 · Stillmark｜定格一瞬，刻下永恒。</p>'
+    +'<h2>当日时间线</h2><table><tr><th>时间</th><th>事项</th><th>场景</th><th>时长</th></tr>'+rows+'</table>'
+    +(sun?'<p class="muted">日照参考：日出 '+sun.sunrise+' · 黄金时刻 '+sun.goldenStart+' · 日落 '+sun.sunset+'（近似值）</p>':'')
+    +'<h2>联系方式与天气（现场填写）</h2><table>'
+    +'<tr><th>客户联系人</th><td>＿＿＿＿＿＿　电话：＿＿＿＿＿＿＿＿＿＿＿</td></tr>'
+    +'<tr><th>场地联系人</th><td>＿＿＿＿＿＿　电话：＿＿＿＿＿＿＿＿＿＿＿</td></tr>'
+    +'<tr><th>天气 / 光线</th><td>＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿</td></tr></table>'
+    +'<h2>地点</h2><ul>'+scenes+'</ul>'
+    +'<h2>器材 / 服装 / 道具</h2><ul>'+kit+'</ul>'
+    +'<h2>沟通要点</h2><ul>'+notes+'</ul>'
+    +(p.concept&&p.concept.note?'<p class="muted">创意备注：'+esc(p.concept.note)+'</p>':'');
+}
 function openDoc(kind){
-  const p=cur(); const c=p.concept;
+  const p=cur();
+  if(kind==='callsheet'){
+    document.getElementById('docBody').innerHTML=callSheetHtml(p);
+    document.getElementById('docModal').classList.add('show');
+    return;
+  }
+  const c=p.concept;
   const moodColors=p.mood.filter(m=>m.type==='color'), moodTexts=p.mood.filter(m=>m.type==='text'), moodImgs=p.mood.filter(m=>m.type==='image');
   const total=p.budget.reduce((s,b)=>s+(+b.amount||0),0);
   const sun=sunTimes(p.shootDate,p.lat,p.lng);
@@ -952,34 +1075,80 @@ function exportProposalFile(){
 }
 
 /* ================= 备份 / 恢复 / 清空 ================= */
-async function exportJSON(){
-  const keys=await idb.keys(); const images={};
-  for(const k of keys){ images[k]=await idb.get(k); }
-  const data={app:'shotflow',version:3,exportedAt:new Date().toISOString(),projects:loadP(),images};
+function downloadData(data,filename){
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));
-  a.download='瞬刻摄影工作台备份_'+todayStr()+'.json'; a.click();
+  a.download=filename; a.click();
 }
+function collectImages(ps){
+  const ids=new Set();
+  ps.forEach(p=>{
+    (p.mood||[]).filter(m=>m.type==='image').forEach(m=>ids.add(m.content));
+    (p.shots||[]).forEach(s=>(s.refIds||[]).forEach(r=>ids.add(r)));
+  });
+  return ids;
+}
+async function imagesFor(ps){
+  const out={};
+  for(const id of collectImages(ps)){ const v=(imgCache[id]||await idb.get(id)); if(v) out[id]=v; }
+  return out;
+}
+async function exportJSON(){
+  const data={app:'stillmark',version:4,exportedAt:new Date().toISOString(),projects:loadP(),images:await imagesFor(loadP())};
+  downloadData(data,'瞬刻摄影工作台备份_'+todayStr()+'.json');
+}
+async function exportProject(pid){
+  const p=loadP().find(x=>x.id===pid); if(!p) return;
+  downloadData({app:'stillmark',version:4,type:'project',exportedAt:new Date().toISOString(),project:p,images:await imagesFor([p])},
+    '策划案_'+String(p.name||'未命名').replace(/[\\/:*?"<>|]/g,'')+'_'+todayStr()+'.json');
+  toast('单项目备份已导出');
+}
+let pendingImport=null;
 function importJSON(e){
   const f=e.target.files[0]; if(!f) return;
   const rd=new FileReader();
-  rd.onload=async ev=>{ try{
-      const d=JSON.parse(ev.target.result);
-      if(d.projects){ const arr=d.projects.map(p=>{migrate(p);p.v3=1;return p;}); saveP(arr); }
-      if(d.images){ for(const k of Object.keys(d.images)){ await idb.put(k,d.images[k]); imgCache[k]=d.images[k]; } }
-      view={mode:'board',pid:null,tab:'shots'}; renderBoard(); toast('导入成功，数据已恢复');
-    }catch(err){ toast('文件格式不正确，导入失败'); } };
+  rd.onload=ev=>{
+    let d;
+    try{ d=JSON.parse(ev.target.result); }catch(err){ toast('文件格式不正确，导入失败'); e.target.value=''; return; }
+    const list=d.projects?d.projects:(d.project?[d.project]:null);
+    if(!list||!list.length){ toast('文件中没有可导入的策划案'); e.target.value=''; return; }
+    pendingImport=d;
+    const names=list.slice(0,3).map(p=>p.name||'未命名').join('、')+(list.length>3?' 等':'');
+    if(d.type==='project'||d.project){
+      askConfirm('导入为新的策划案？','将新增 1 个策划案「'+(list[0].name||'未命名')+'」，不会覆盖现有数据。',applyImport);
+    } else {
+      askConfirm('导入将覆盖全部数据？','文件含 '+list.length+' 个策划案：'+names+'。此操作会替换当前全部数据，不可撤销；建议先导出备份。',applyImport);
+    }
+  };
   rd.readAsText(f); e.target.value='';
+}
+async function applyImport(){
+  const d=pendingImport; if(!d){ return; }
+  try{
+    let arr;
+    if(d.type==='project'||d.project){
+      const p=migrate(d.project); delete p.v3; p.v3=1; p.id=uid(); p.name=(p.name||'导入的策划案')+'（导入）';
+      arr=[...loadP(),p];
+    } else {
+      arr=d.projects.map(p=>{ migrate(p); p.v3=1; return p; });
+    }
+    if(d.images){ for(const k of Object.keys(d.images)){ await idb.put(k,d.images[k]); imgCache[k]=d.images[k]; } }
+    saveP(arr);
+    view={mode:'board',pid:null,tab:'shots'}; renderBoard(); toast('导入成功，共 '+arr.length+' 个策划案');
+  }catch(err){ toast('导入失败：数据格式或图片异常'); }
+  finally{ pendingImport=null; }
 }
 let confirmCb=null;
 function askConfirm(t,d,cb){ document.getElementById('confirmTitle').textContent=t; document.getElementById('confirmDesc').textContent=d; confirmCb=cb; document.getElementById('confirmModal').classList.add('show'); }
 function closeConfirm(){ document.getElementById('confirmModal').classList.remove('show'); confirmCb=null; }
-document.getElementById('confirmOk').onclick=()=>{ if(confirmCb) confirmCb(); closeConfirm(); };
+document.getElementById('confirmOk').onclick=()=>{ const cb=confirmCb; closeConfirm(); if(cb) cb(); };
 function clearAll(){
-  askConfirm('清空全部数据？','不可恢复！将删除所有项目、分镜与图片，建议先导出备份。',async()=>{
+  askConfirm('清空全部数据？','不可恢复！将删除所有策划案与图片，建议先导出备份。',async()=>{
     localStorage.removeItem(LS_PROJ);
+    await idb.clearProjects();
     const keys=await idb.keys(); for(const k of keys) await idb.del(k);
     Object.keys(imgCache).forEach(k=>delete imgCache[k]);
+    projectsCache=[];
     view={mode:'board',pid:null,tab:'shots'}; renderBoard(); toast('已清空');
   });
 }
@@ -1018,7 +1187,7 @@ document.addEventListener('keydown',e=>{
 });
 
 /* ================= 启动 ================= */
-(async()=>{ await idb.open(); seed(); renderBoard(); })();
+(async()=>{ await initData(); seed(); renderBoard(); })();
 </script>
 </body>
 </html>
