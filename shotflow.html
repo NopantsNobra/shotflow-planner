@@ -13,14 +13,14 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
 :root{
-  --bg:#f7f5f0; --surface:#fff; --surface-2:#fbf9f4;
-  --ink:#17150f; --ink2:#6e6557; --ink3:#9b9285;
-  --line:#e7e1d5; --line2:#d8d0c0;
+  --bg:#F5F2EC; --surface:#FFFCF7; --surface-2:#FAF7F1;
+  --ink:#2B2A27; --ink2:#6E6557; --ink3:#9C9389;
+  --line:#E3DCD1; --line2:#D2C9BB;
   --accent:#9a6a33; --accent-ink:#7a5124; --accent-soft:#f3e9da;
   --red:#b23a2e; --green:#3c7a57; --blue:#3b6c9e; --purple:#7a5488;
-  --radius:16px; --shadow-sm:0 1px 2px rgba(23,21,15,.04); --shadow:0 10px 26px -16px rgba(23,21,15,.35);
-  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
-  --serif:Georgia,"Songti SC","Songti TC",serif;
+  --radius:16px; --shadow-sm:0 1px 2px rgba(43,42,39,.05); --shadow:0 10px 26px -16px rgba(43,42,39,.30);
+  --sans:"Noto Sans SC",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+  --serif:"Noto Serif SC",Georgia,"Songti SC","Songti TC",serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--sans);background:var(--bg);color:var(--ink);line-height:1.6;font-size:14px;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
@@ -307,6 +307,99 @@ const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded';
 const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+/* ===== 提案出版系统：画廊扉页封面 + 统一文档排版 ===== */
+const CV_DIAMOND = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 960 1500' fill='none'><path d='M-2000,-3500 L2000,500 M-2000,-3460 L2000,540 M-2000,-3420 L2000,580 M-2000,-3380 L2000,620 M-2000,-3340 L2000,660 M-2000,-3300 L2000,700 M-2000,-3260 L2000,740 M-2000,-3220 L2000,780 M-2000,-3180 L2000,820 M-2000,-3140 L2000,860 M-2000,-3100 L2000,900 M-2000,-3060 L2000,940 M-2000,-3020 L2000,980 M-2000,-2980 L2000,1020 M-2000,-2940 L2000,1060 M-2000,-2900 L2000,1100 M-2000,-2860 L2000,1140 M-2000,-2820 L2000,1180 M-2000,-2780 L2000,1220 M-2000,-2740 L2000,1260 M-2000,-2700 L2000,1300 M-2000,-2660 L2000,1340 M-2000,-2620 L2000,1380 M-2000,-2580 L2000,1420 M-2000,-2540 L2000,1460 M-2000,-2500 L2000,1500 M-2000,-2460 L2000,1540 M-2000,-2420 L2000,1580 M-2000,-2380 L2000,1620 M-2000,-2340 L2000,1660 M-2000,-2300 L2000,1700 M-2000,-2260 L2000,1740 M-2000,-2220 L2000,1780 M-2000,-2180 L2000,1820 M-2000,-2140 L2000,1860 M-2000,-2100 L2000,1900 M-2000,-2060 L2000,1940 M-2000,-2020 L2000,1980 M-2000,-1980 L2000,2020 M-2000,-1940 L2000,2060 M-2000,-1900 L2000,2100 M-2000,-1860 L2000,2140 M-2000,-1820 L2000,2180 M-2000,-1780 L2000,2220 M-2000,-1740 L2000,2260 M-2000,-1700 L2000,2300 M-2000,-1660 L2000,2340 M-2000,-1620 L2000,2380 M-2000,-1580 L2000,2420 M-2000,-1540 L2000,2460 M-2000,-1500 L2000,2500 M-2000,-1460 L2000,2540 M-2000,-1420 L2000,2580 M-2000,-1380 L2000,2620 M-2000,-1340 L2000,2660 M-2000,-1300 L2000,2700 M-2000,-1260 L2000,2740 M-2000,-1220 L2000,2780 M-2000,-1180 L2000,2820 M-2000,-1140 L2000,2860 M-2000,-1100 L2000,2900 M-2000,-1060 L2000,2940 M-2000,1900 L2000,-2100 M-2000,1940 L2000,-2060 M-2000,1980 L2000,-2020 M-2000,2020 L2000,-1980 M-2000,2060 L2000,-1940 M-2000,2100 L2000,-1900 M-2000,2140 L2000,-1860 M-2000,2180 L2000,-1820 M-2000,2220 L2000,-1780 M-2000,2260 L2000,-1740 M-2000,2300 L2000,-1700 M-2000,2340 L2000,-1660 M-2000,2380 L2000,-1620 M-2000,2420 L2000,-1580 M-2000,2460 L2000,-1540 M-2000,2500 L2000,-1500 M-2000,2540 L2000,-1460 M-2000,2580 L2000,-1420 M-2000,2620 L2000,-1380 M-2000,2660 L2000,-1340 M-2000,2700 L2000,-1300 M-2000,2740 L2000,-1260 M-2000,2780 L2000,-1220 M-2000,2820 L2000,-1180 M-2000,2860 L2000,-1140 M-2000,2900 L2000,-1100 M-2000,2940 L2000,-1060 M-2000,2980 L2000,-1020 M-2000,3020 L2000,-980 M-2000,3060 L2000,-940 M-2000,3100 L2000,-900 M-2000,3140 L2000,-860 M-2000,3180 L2000,-820 M-2000,3220 L2000,-780 M-2000,3260 L2000,-740 M-2000,3300 L2000,-700 M-2000,3340 L2000,-660 M-2000,3380 L2000,-620 M-2000,3420 L2000,-580 M-2000,3460 L2000,-540 M-2000,3500 L2000,-500 M-2000,3540 L2000,-460 M-2000,3580 L2000,-420 M-2000,3620 L2000,-380 M-2000,3660 L2000,-340 M-2000,3700 L2000,-300 M-2000,3740 L2000,-260 M-2000,3780 L2000,-220 M-2000,3820 L2000,-180 M-2000,3860 L2000,-140 M-2000,3900 L2000,-100 M-2000,3940 L2000,-60 M-2000,3980 L2000,-20 M-2000,4020 L2000,20 M-2000,4060 L2000,60 M-2000,4100 L2000,100 M-2000,4140 L2000,140 M-2000,4180 L2000,180 M-2000,4220 L2000,220 M-2000,4260 L2000,260 M-2000,4300 L2000,300 M-2000,4340 L2000,340 M-2000,4380 L2000,380 M-2000,4420 L2000,420 M-2000,4460 L2000,460 M-2000,4500 L2000,500 M-2000,4540 L2000,540' stroke='#8A8076' stroke-width='0.6' stroke-opacity='0.1' stroke-linecap='butt'/><path d='M-2000,-3500 L2000,500 M-2000,-3340 L2000,660 M-2000,-3180 L2000,820 M-2000,-3020 L2000,980 M-2000,-2860 L2000,1140 M-2000,-2700 L2000,1300 M-2000,-2540 L2000,1460 M-2000,-2380 L2000,1620 M-2000,-2220 L2000,1780 M-2000,-2060 L2000,1940 M-2000,-1900 L2000,2100 M-2000,-1740 L2000,2260 M-2000,-1580 L2000,2420 M-2000,-1420 L2000,2580 M-2000,-1260 L2000,2740 M-2000,-1100 L2000,2900 M-2000,1900 L2000,-2100 M-2000,2060 L2000,-1940 M-2000,2220 L2000,-1780 M-2000,2380 L2000,-1620 M-2000,2540 L2000,-1460 M-2000,2700 L2000,-1300 M-2000,2860 L2000,-1140 M-2000,3020 L2000,-980 M-2000,3180 L2000,-820 M-2000,3340 L2000,-660 M-2000,3500 L2000,-500 M-2000,3660 L2000,-340 M-2000,3820 L2000,-180 M-2000,3980 L2000,-20 M-2000,4140 L2000,140 M-2000,4300 L2000,300 M-2000,4460 L2000,460' stroke='#8A8076' stroke-width='0.9' stroke-opacity='0.16' stroke-linecap='butt'/></svg>`;
+
+const PUBLIC_STYLE = `
+:root{--paper:#F5F2EC;--pub-ink:#2B2A27;--pub-mute:#9C9389;--pub-line:rgba(138,128,118,.5);--pub-serif:"Noto Serif SC","Songti SC","STSong",Georgia,serif;--pub-sans:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;}
+.cv-fit{position:relative;width:100%;height:1091px;overflow:hidden}
+.cv-sheet{position:absolute;left:0;top:0;width:1080px;height:1620px;background:var(--paper);transform-origin:top left;overflow:hidden;font-family:var(--pub-sans);color:var(--pub-ink)}
+.cv-sheet *{box-sizing:border-box}
+.cv-diamond{position:absolute;left:60px;top:60px;width:960px;height:1500px}
+.cv-diamond svg{display:block;width:100%;height:100%}
+.cv-rule{position:absolute;left:90px;width:900px;height:1px;background:var(--pub-line)}
+.cv-rule.head{top:190px}.cv-rule.foot{top:1440px}
+.cv-eyebrow{position:absolute;top:140px;height:36px;line-height:36px;font-size:26px;font-weight:300;letter-spacing:5px;color:var(--pub-mute);white-space:nowrap}
+.cv-eyebrow.l{left:90px}.cv-eyebrow.r{right:90px}
+.cv-title{position:absolute;left:90px;top:540px;width:900px;font-family:var(--pub-serif);font-size:130px;font-weight:500;line-height:1.25;letter-spacing:6px;white-space:nowrap}
+.cv-subtitle{position:absolute;left:90px;top:802px;font-size:24px;font-weight:300;letter-spacing:7px;color:var(--pub-mute);white-space:nowrap}
+.cv-col{position:absolute;top:1050px;width:300px}
+.cv-col.c1{left:90px}.cv-col.c2{left:390px}.cv-col.c3{left:690px}
+.cv-col .crule{width:300px;height:1px;background:rgba(138,128,118,.55)}
+.cv-col .clabel{margin-top:26px;font-size:24px;font-weight:300;letter-spacing:3px;color:var(--pub-mute);white-space:nowrap}
+.cv-col .cvalue{margin-top:14px;font-family:var(--pub-serif);font-size:38px;font-weight:400;letter-spacing:1px;white-space:nowrap}
+.cv-vsep{position:absolute;top:1050px;width:1px;height:150px;background:rgba(138,128,118,.35)}
+.cv-vsep.v1{left:375px}.cv-vsep.v2{left:675px}
+.cv-foot{position:absolute;top:1470px;font-size:26px;font-weight:300;letter-spacing:3px;color:var(--pub-mute);white-space:nowrap}
+.cv-foot.l{left:90px;width:520px}.cv-foot.r{right:90px;width:360px;text-align:right}
+#docModal .modal{padding:0;background:var(--paper);overflow:auto}
+#docModal .no-print{margin:14px 18px 0}
+.doc{font-family:var(--pub-sans);color:var(--pub-ink);padding:18px 34px 34px}
+.doc h1{font-family:var(--pub-serif);font-size:30px;font-weight:500;letter-spacing:4px;text-align:left;margin-bottom:6px}
+.doc .doc-sub{text-align:left;font-size:13px;letter-spacing:2px;color:var(--pub-mute);margin-bottom:22px}
+.doc h2{font-family:var(--pub-serif);font-size:19px;font-weight:500;letter-spacing:2px;border-bottom:1px solid var(--pub-line);padding-bottom:9px;margin:28px 0 14px}
+.doc table{width:100%;border-collapse:collapse;font-size:13px}
+.doc td,.doc th{border:1px solid #ded6ca;padding:8px 10px;text-align:left}
+.doc .kv{display:grid;grid-template-columns:100px 1fr;gap:9px 16px;font-size:14px}
+.doc .kv dt{color:var(--pub-mute)}
+.doc img{max-width:120px;border-radius:6px;margin:4px;border:1px solid #ded6ca}
+.doc .swatch{display:inline-block;width:38px;height:38px;border-radius:6px;margin:4px;vertical-align:middle;border:1px solid #ded6ca}
+.doc .muted{color:var(--pub-mute);font-size:12px}
+.doc .ft{text-align:center;color:var(--pub-mute);font-size:11px;letter-spacing:2px;margin-top:28px}
+.imgs{display:flex;flex-wrap:wrap;gap:10px}.imgs img{width:150px;height:110px;object-fit:cover;border-radius:8px}.sw{display:inline-block;width:40px;height:40px;border-radius:8px;margin:4px;border:1px solid #ded6ca}
+.export-page{max-width:720px;margin:0 auto;background:var(--paper);padding-bottom:32px}
+.export-page>.doc{padding:0 34px 32px}
+@media(max-width:700px){.doc{padding:14px 18px 26px}.doc h1{font-size:23px}.doc .kv{grid-template-columns:84px 1fr;gap:7px 10px;font-size:13px}.doc table{font-size:12px}.export-page>.doc{padding:0 18px 26px}}
+@media print{body{background:#fff}.export-page{max-width:none;padding:0}.cv-fit{height:1053px!important}.cv-sheet{transform:scale(.65)!important}.doc{padding:0}.doc h2{break-after:avoid}}
+`;
+
+function cvNo(p){
+  const d=(p&&p.createdAt)?new Date(p.createdAt):new Date();
+  const bad=isNaN(d.getTime());
+  const y=bad?new Date().getFullYear():d.getFullYear();
+  const m=bad?new Date().getMonth()+1:d.getMonth()+1;
+  return 'NO. '+y+'-'+String(m).padStart(2,'0');
+}
+function cvDate(s){
+  if(!s) return '待定';
+  const m=String(s).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  return m?m[1]+'.'+m[2].padStart(2,'0')+'.'+m[3].padStart(2,'0'):String(s);
+}
+function coverData(p){
+  const c=(p&&p.concept)||{};
+  return {no:cvNo(p),title:(p&&p.name)||'摄影策划案',theme:c.theme||'待定',model:c.model||'待定',date:cvDate(p&&p.shootDate),studio:(p&&p.studio)||'瞬刻摄影工作室 · STUDIO',est:'EST. '+new Date().getFullYear()};
+}
+function fitCovers(){
+  document.querySelectorAll('.cv-fit').forEach(fit=>{
+    const sheet=fit.querySelector('.cv-sheet'); if(!sheet) return;
+    const parent=fit.parentElement;
+    const avail=fit.clientWidth||(parent?parent.clientWidth:0)||1080;
+    const s=Math.min(avail/1080,1);
+    sheet.style.transform='scale('+s+')';
+    fit.style.height=Math.round(1620*s)+'px';
+    fit.querySelectorAll('[data-cv-fit]').forEach(el=>{
+      const base=parseInt(el.getAttribute('data-cv-fit'),10)||24;
+      let fs=base; el.style.fontSize=fs+'px';
+      while(fs>24&&el.scrollWidth>el.clientWidth+2){fs-=4;el.style.fontSize=fs+'px';}
+    });
+  });
+}
+function coverHtml(p){
+  const d=coverData(p);
+  const col=(cls,label,value)=>'<div class="cv-col '+cls+'"><div class="crule"></div><div class="clabel">'+esc(label)+'</div><div class="cvalue" data-cv-fit="38">'+esc(value)+'</div></div>';
+  return '<div class="cv-fit"><div class="cv-sheet">'
+    +'<div class="cv-diamond">'+CV_DIAMOND+'</div>'
+    +'<div class="cv-rule head"></div><div class="cv-rule foot"></div>'
+    +'<div class="cv-eyebrow l">PHOTOGRAPHY PROPOSAL</div><div class="cv-eyebrow r">'+esc(d.no)+'</div>'
+    +'<div class="cv-title" data-cv-fit="130">'+esc(d.title)+'</div>'
+    +'<div class="cv-subtitle">A PHOTOGRAPHIC PROPOSAL</div>'
+    +col('c1','拍摄主题 · THEME',d.theme)+col('c2','出镜模特 · MODEL',d.model)+col('c3','拍摄日期 · DATE',d.date)
+    +'<div class="cv-vsep v1"></div><div class="cv-vsep v2"></div>'
+    +'<div class="cv-foot l" data-cv-fit="26">'+esc(d.studio)+'</div><div class="cv-foot r" data-cv-fit="26">'+esc(d.est)+'</div>'
+    +'</div></div>';
+}
+
 const STATUSES=['灵感期','策划中','待拍摄','后期中','已交付'];
 const STATUS_TAG=['gray','blue','red','purple','green'];
 const CITIES=[['北京',39.90,116.40],['上海',31.23,121.47],['广州',23.13,113.26],['深圳',22.54,114.06],['南京',32.06,118.78],['杭州',30.27,120.16],['成都',30.57,104.07],['西安',34.34,108.94]];
@@ -342,7 +435,8 @@ function updateCur(fn){ const a=loadP(); const p=a.find(x=>x.id===view.pid); if(
 function migrate(p){
   p.mood=p.mood||[]; p.scenes=p.scenes||[]; p.shots=p.shots||[]; p.items=p.items||[]; p.budget=p.budget||[];
   p.schedule=p.schedule||[]; p.notes=p.notes||[]; p.todos=p.todos||[];
-  p.concept=p.concept||{theme:'',style:'',audience:'',usage:'',note:''};
+  p.concept=p.concept||{theme:'',style:'',audience:'',usage:'',note:'',model:''};
+  if(p.concept.model===undefined) p.concept.model='';
   p.shots.forEach(s=>{
     if(s.refId!==undefined&&!s.refIds) s.refIds=s.refId?[s.refId]:[];
     s.refIds=s.refIds||[]; delete s.refId;
@@ -553,6 +647,7 @@ function renderProject(){
     +'</div></div></div>'
     +'<div class="metacard"><div class="mgrid">'
     +'<div class="fld"><label>客户</label><input value="'+esc(p.client)+'" onchange="setP(\'client\',this.value)"></div>'
+    +'<div class="fld"><label>工作室署名（封面落款）</label><input value="'+esc(p.studio||'')+'" onchange="setP(\'studio\',this.value)" placeholder="如：瞬刻摄影工作室"></div>'
     +'<div class="fld"><label>拍摄日期</label><input type="date" value="'+esc(p.shootDate)+'" onchange="setP(\'shootDate\',this.value)"></div>'
     +'<div class="fld"><label>项目阶段</label><select onchange="setP(\'status\',this.value)">'+STATUSES.map(s=>'<option '+(p.status===s?'selected':'')+'>'+s+'</option>').join('')+'</select></div>'
     +'<div class="fld"><label>拍摄地点</label><input value="'+esc(p.location||'')+'" onchange="setP(\'location\',this.value)" placeholder="如：南京 · 老门东"></div>'
@@ -585,13 +680,14 @@ function gv(id){return document.getElementById(id).value;}
 function renderConcept(p){
   const c=p.concept;
   document.getElementById('tabBody').innerHTML='<div class="card"><h2>主题概念</h2><div class="form-grid">'
-    +fld('拍摄主题','ct',c.theme,'如：城市漫游者')+fld('风格调性','cs',c.style,'如：胶片感 / 暖调')
+    +fld('拍摄主题','ct',c.theme,'如：城市漫游者')+fld('出镜模特','cm',c.model||'','如：模特姓名')
+    +fld('风格调性','cs',c.style,'如：胶片感 / 暖调')
     +fld('目标受众','ca',c.audience,'')
     +'<div class="full"></div>'
     +fld('成片用途','cu',c.usage,'')+'<div class="full"></div>'
     +'<div class="fld full"><label>创意阐述</label><textarea id="cn" rows="3">'+esc(c.note)+'</textarea></div></div></div>';
-  const save=()=>updateCur(pp=>pp.concept={theme:gv('ct'),style:gv('cs'),audience:gv('ca'),usage:gv('cu'),note:gv('cn')});
-  ['ct','cs','ca','cu','cn'].forEach(id=>document.getElementById(id).addEventListener('input',save));
+  const save=()=>updateCur(pp=>pp.concept={theme:gv('ct'),model:gv('cm'),style:gv('cs'),audience:gv('ca'),usage:gv('cu'),note:gv('cn')});
+  ['ct','cm','cs','ca','cu','cn'].forEach(id=>document.getElementById(id).addEventListener('input',save));
 }
 
 /* ---- 情绪板 ---- */
@@ -1072,7 +1168,9 @@ function openDoc(kind){
   const total=p.budget.reduce((s,b)=>s+(+b.amount||0),0);
   const sun=sunTimes(p.shootDate,p.lat,p.lng);
   const li=(arr,fn,cols)=>arr.length?arr.map(fn).join(''):'<tr><td colspan="'+(cols||4)+'" style="color:#999">（未填写）</td></tr>';
-  let h='<h1>'+esc(c.theme||p.name)+'</h1><p class="doc-sub">'+(kind==='proposal'?'摄影策划提案':'拍摄执行手册')+' · '+esc(p.name)+' · '+todayStr()+'</p>'
+  let h=(kind==='proposal'
+      ? coverHtml(p)
+      : '<h1>'+esc(c.theme||p.name)+'</h1><p class="doc-sub">拍摄执行手册 · '+esc(p.name)+' · '+todayStr()+'</p>')
     +'<h2>一、主题概念</h2><dl class="kv">'
     +'<dt>拍摄主题</dt><dd>'+esc(c.theme||'—')+'</dd><dt>风格调性</dt><dd>'+esc(c.style||'—')+'</dd>'
     +'<dt>目标受众</dt><dd>'+esc(c.audience||'—')+'</dd><dt>成片用途</dt><dd>'+esc(c.usage||'—')+'</dd>'
@@ -1109,6 +1207,7 @@ function openDoc(kind){
   }
   document.getElementById('docBody').innerHTML=h;
   document.getElementById('docModal').classList.add('show');
+  fitCovers();
 }
 function closeDoc(){ document.getElementById('docModal').classList.remove('show'); }
 
@@ -1121,18 +1220,8 @@ function exportProposalFile(){
   const html='<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
     +'<meta name="viewport" content="width=device-width,initial-scale=1">'
     +'<title>'+esc(c.theme||p.name)+' · 摄影提案</title>'
-    +'<style>body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f7f5f1;color:#28241e;margin:0;padding:24px}'
-    +'.page{max-width:680px;margin:0 auto;background:#fff;border-radius:16px;padding:36px 32px;box-shadow:0 2px 14px rgba(60,45,25,.08)}'
-    +'h1{font-family:Georgia,"Songti SC",serif;text-align:center;letter-spacing:3px;font-size:26px}'
-    +'.sub{text-align:center;color:#746c5f;font-size:13px;margin:6px 0 24px}'
-    +'h2{font-family:Georgia,"Songti SC",serif;font-size:17px;border-left:4px solid #9c6b30;padding-left:10px;margin:26px 0 12px}'
-    +'.kv{display:grid;grid-template-columns:90px 1fr;gap:8px 14px;font-size:14px}.kv dt{color:#746c5f}'
-    +'.imgs{display:flex;flex-wrap:wrap;gap:10px}.imgs img{width:150px;height:110px;object-fit:cover;border-radius:10px}'
-    +'.sw{display:inline-block;width:40px;height:40px;border-radius:8px;margin:4px;border:1px solid #e6e0d6}'
-    +'table{width:100%;border-collapse:collapse;font-size:13px}td,th{border:1px solid #e6e0d6;padding:8px 10px;text-align:left}'
-    +'.muted{color:#746c5f;font-size:12px}.ft{text-align:center;color:#b0a693;font-size:11px;margin-top:28px}'
-    +'@media(max-width:520px){.page{padding:24px 18px}.imgs img{width:calc(50% - 5px)}}</style></head><body><div class="page">'
-    +'<h1>'+esc(c.theme||p.name)+'</h1><p class="sub">摄影策划提案 · '+esc(p.name)+' · '+todayStr()+'</p>'
+    +'<style>body{margin:0;background:#E9E6E0}'+PUBLIC_STYLE+'</style></head><body><div class="export-page"><div class="doc">'
+    +coverHtml(p)
     +'<h2>拍摄概念</h2><dl class="kv">'
     +'<dt>风格调性</dt><dd>'+esc(c.style||'—')+'</dd>'
     +'<dt>目标受众</dt><dd>'+esc(c.audience||'—')+'</dd>'
@@ -1149,7 +1238,8 @@ function exportProposalFile(){
     +'<h2>服务报价</h2><table><tr><th>项目</th><th>金额</th></tr>'
     +'<tr><td>拍摄服务套餐（'+esc(p.name)+'）</td><td>¥'+total.toLocaleString()+'</td></tr></table>'
     +'<p class="muted">* 报价基于成本核算，最终价格以双方确认合同为准。</p>'
-    +'<p class="ft">瞬刻摄影工作台 · Stillmark｜定格一瞬，刻下永恒。 · '+todayStr()+'</p></div></body></html>';
+    +'<p class="ft">瞬刻摄影工作台 · Stillmark｜定格一瞬，刻下永恒。 · '+todayStr()+'</p></div></div>'
+    +'<script>'+fitCovers.toString()+'\nwindow.addEventListener("resize",fitCovers);fitCovers();<\/script></body></html>';
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([html],{type:'text/html'}));
   a.download='摄影提案_'+esc(p.name).replace(/[\\/:*?"<>|]/g,'')+'.html'; a.click();
@@ -1269,7 +1359,11 @@ document.addEventListener('keydown',e=>{
 });
 
 /* ================= 启动 ================= */
-(async()=>{ await initData(); seed(); renderBoard(); })();
+(async()=>{
+  document.head.insertAdjacentHTML('beforeend','<style id="cvPublicStyle">'+PUBLIC_STYLE+'</style>');
+  window.addEventListener('resize',fitCovers);
+  await initData(); seed(); renderBoard();
+})();
 </script>
 </body>
 </html>

@@ -49,6 +49,16 @@ const shifted = vm.runInContext(`(() => {
 check('级联顺延后冲突归零', shifted.conflicts === 0, JSON.stringify(shifted));
 check('级联顺延移动 4 项', shifted.moved === 4, '实际 ' + shifted.moved);
 
+for (const n of ['coverData', 'cvDate', 'cvNo']) vm.runInContext(fn(n), ctx);
+const CD = vm.runInContext(`coverData({name:'光影手记',createdAt:'2026-08-15T10:00:00',shootDate:'2026-09-03',studio:'测试工作室',concept:{theme:'城市漫游',model:'小林'}})`, ctx);
+check('封面策划名取自项目名', CD.title === '光影手记', CD.title);
+check('封面主题取自概念页', CD.theme === '城市漫游', CD.theme);
+check('封面模特取自概念页', CD.model === '小林', CD.model);
+check('封面日期格式化', CD.date === '2026.09.03', CD.date);
+check('封面编号取自创建时间', CD.no === 'NO. 2026-08', CD.no);
+check('封面落款取自元数据', CD.studio === '测试工作室', CD.studio);
+check('封面缺省字段不丢内容', vm.runInContext(`coverData({name:'未填日期',concept:{}}).date`, ctx) === '待定');
+
 const migrated = vm.runInContext(`migrate({name:'x',shots:[{id:'s',refId:'img1'}],budget:[]})`, ctx);
 check('迁移 refId → refIds', JSON.stringify(migrated.shots[0].refIds) === '["img1"]');
 check('迁移补 duration', migrated.shots[0].duration === 20);
