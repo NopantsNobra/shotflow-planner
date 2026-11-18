@@ -129,7 +129,8 @@ svg{display:inline-block;vertical-align:middle}
 .ptab:hover{color:var(--ink)}
 .ptab.active{color:var(--ink);font-weight:600}
 .ptab.active::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;border-radius:2px;background:var(--ink)}
-.tab-group{font-size:10px;color:#a89c88;letter-spacing:.16em;margin:0 8px 0 12px}
+.tab-group{font-size:10px;color:var(--ink3);letter-spacing:.14em;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:3px 10px;margin:0 10px 0 14px;flex-shrink:0}
+.tab-group.on{color:var(--accent-ink);background:var(--accent-soft);border-color:var(--accent);font-weight:600}
 .subbar{display:flex;justify-content:flex-end;align-items:center;gap:6px;flex-wrap:wrap;margin:-6px 0 18px}
 .form-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 .form-grid .full{grid-column:1/-1}
@@ -170,6 +171,24 @@ svg{display:inline-block;vertical-align:middle}
 .ref-opt img{width:100%;height:100%;object-fit:cover;display:block}
 .ref-opt.on{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .ref-opt .ord{position:absolute;top:2px;left:3px;background:var(--accent);color:#fff;font-size:10px;border-radius:5px;padding:0 4px}
+
+/* 参考图编辑态 / 分镜缩略图操作 */
+.edit-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--accent-ink);background:var(--accent-soft);border:1px solid var(--line2);border-radius:10px;padding:10px 14px;margin-bottom:14px}
+.edit-bar span{flex:1;min-width:180px}
+.ref-thumb{position:relative;width:54px;height:54px;border-radius:8px;overflow:hidden;border:1px solid var(--line);cursor:pointer;background:var(--surface-2);flex-shrink:0;transition:border-color .15s,transform .15s}
+.ref-thumb:hover{border-color:var(--accent);transform:translateY(-1px)}
+.ref-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.ref-thumb .noref{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--ink3);text-align:center;line-height:1.4;padding:2px}
+.ref-thumb .ref-del{position:absolute;top:1px;right:1px;width:18px;height:18px;border-radius:5px;background:rgba(20,17,12,.55);color:#fff;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center}
+.ref-thumb .ref-del:hover{background:var(--red)}
+.ref-thumb.ghost{border-style:dashed}
+.noref-add{border:1px dashed var(--line2);border-radius:8px;padding:14px 16px;font-size:12px;color:var(--ink2);background:transparent;flex-shrink:0;transition:border-color .15s,color .15s}
+.noref-add:hover{border-color:var(--accent);color:var(--accent-ink)}
+
+/* 参考图大图查看 */
+.rv-title{font-size:14px;font-weight:600;margin-bottom:14px}
+.rv-img{max-width:100%;max-height:64vh;border-radius:10px;border:1px solid var(--line)}
+.rv-placeholder{min-height:180px;display:flex;align-items:center;justify-content:center;color:var(--ink3);font-size:13px;background:var(--surface-2);border:1px dashed var(--line2);border-radius:10px}
 
 /* 分镜表 */
 .shot{border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:9px;display:flex;gap:12px;align-items:flex-start;background:var(--surface);transition:border-color .15s,box-shadow .15s}
@@ -285,7 +304,7 @@ svg{display:inline-block;vertical-align:middle}
   .form-grid,.mgrid{grid-template-columns:1fr}
   .ptabs{flex-wrap:nowrap;overflow-x:auto;gap:0;padding-bottom:0}
   .ptabs::-webkit-scrollbar{display:none}
-  .tab-group{display:none}
+  .tab-group{margin:0 6px 0 10px;padding:2px 8px;font-size:9.5px}
   .ptab{padding:10px 11px 12px;white-space:nowrap}
   .subbar{justify-content:flex-start;overflow-x:auto;flex-wrap:nowrap;margin-top:-4px}
   .subbar .btn{white-space:nowrap}
@@ -316,6 +335,11 @@ svg{display:inline-block;vertical-align:middle}
     </div>
     <div class="doc" id="docBody"></div>
   </div>
+</div>
+
+<!-- 参考图大图查看 -->
+<div class="modal-mask" id="refViewer">
+  <div class="modal" style="max-width:640px;text-align:center" id="refViewerBody"></div>
 </div>
 
 <!-- 确认弹窗 -->
@@ -351,8 +375,8 @@ const MATERIAL_SOURCES=[
     lic:'图片 CC0 1.0 · 代码 Apache-2.0',
     note:'280 姿势 × 5 视角，四语说明；线稿整包约 36.5MB。可下载后从「上传图片」导入本项目。'},
   {name:'RuiC-PoseAtlas · AI 人台线稿',url:'https://github.com/HRuiCcc/RuiC-PoseAtlas',
-    lic:'代码 MIT · 图片版权归原作者，可个人创作参考；再分发图片数据本身需自行核实许可',
-    note:'288 组 / 1439 张，仓库约 798MB。仅作外链浏览参考，勿随提案分发图片。'},
+    lic:'代码 MIT · 图片版权归原作者',
+    note:'288 组 / 1439 张，仓库约 798MB。仅作外链浏览参考。'},
   {name:'alt-cinematography-reference · 分类维度参考',url:'https://github.com/patipanpealt/alt-cinematography-reference',
     lic:'无许可证 · 仅借鉴分类维度',
     note:'6 部分 53 项摄影语法（景别 / 机位 / 运动 / 光线 / 构图），含 25 张 WebP 照片。仅借鉴分类维度做标签词表，不复制仓库内容。'}
@@ -499,7 +523,8 @@ async function cacheProjectImages(p){
 }
 
 /* ================= 状态 ================= */
-let view={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',moodFilter:[],moodFilterMode:'any'};
+let view={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',moodFilter:[],moodFilterMode:'any',
+  shotDraft:{},poseCat:null,editingShotId:null,replaceIdx:-1};
 const cur=()=>loadP().find(p=>p.id===view.pid);
 function updateCur(fn){ const a=loadP(); const p=a.find(x=>x.id===view.pid); if(p){fn(p); p.updatedAt=Date.now(); saveP(a);} }
 
@@ -852,7 +877,7 @@ function renderProject(){
     +'<span class="muted" style="margin-left:4px">快速填入城市中心坐标，日落时间据此估算</span></div></div>'
     +'<div class="ptabs">'+TABS.map((tb,i)=>{
         const prev=i>0?TABS[i-1][2]:'';
-        return (tb[2]!==prev?'<span class="tab-group">'+tb[2]+'</span>':'')
+        return (tb[2]!==prev?'<span class="tab-group'+(view.tab===tb[0]||TABS.some(t=>t[2]===tb[2]&&t[0]===view.tab)?' on':'')+'">'+tb[2]+'</span>':'')
           +'<button class="ptab '+(view.tab===tb[0]?'active':'')+'" onclick="view.tab=\''+tb[0]+'\';renderProject()">'+tb[1]+'</button>';
       }).join('')
     +'</div>'
@@ -1025,24 +1050,38 @@ function addMood(type){
     p.tagVocab=mergeVocab(p.tagVocab,tags);
   }); renderProject();
 }
-function addMoodImg(e){
+/* 图片入库共享链路：压缩 → IndexedDB → 情绪板。tags 由调用方决定（情绪板读输入框，分镜页传空后补） */
+async function ingestImageFile(f,tags){
+  if(!f) return null;
+  return new Promise(res=>{
+    const rd=new FileReader();
+    rd.onload=ev=>{ const img=new Image();
+      img.onload=async()=>{
+        try{
+          const c=document.createElement('canvas'); const s=Math.min(1,800/img.width);
+          c.width=img.width*s; c.height=img.height*s;
+          c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+          const imgId=uid(); const data=c.toDataURL('image/jpeg',.72);
+          await idb.put(imgId,data); imgCache[imgId]=data;
+          updateCur(p=>{
+            p.mood.push({id:uid(),type:'image',content:imgId,tag:(tags&&tags[0])||'',tags:tags||[]});
+            p.tagVocab=mergeVocab(p.tagVocab,tags||[]);
+          });
+          res(imgId);
+        }catch(err){ toast('图片处理失败'); res(null); }
+      };
+      img.onerror=()=>{ toast('图片读取失败'); res(null); };
+      img.src=ev.target.result; };
+    rd.onerror=()=>{ toast('图片读取失败'); res(null); };
+    rd.readAsDataURL(f);
+  });
+}
+async function addMoodImg(e){
   const f=e.target.files[0]; if(!f) return;
-  const tagInput=gv('m_tag'), tags=parseTagsInput(tagInput);   // 异步前同步读取，避免压缩期间切页丢输入
-  const rd=new FileReader();
-  rd.onload=ev=>{ const img=new Image();
-    img.onload=async()=>{
-      const c=document.createElement('canvas'); const s=Math.min(1,800/img.width);
-      c.width=img.width*s; c.height=img.height*s;
-      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
-      const imgId=uid(); const data=c.toDataURL('image/jpeg',.72);
-      await idb.put(imgId,data); imgCache[imgId]=data;
-      updateCur(p=>{
-        p.mood.push({id:uid(),type:'image',content:imgId,tag:tags[0]||'',tags});
-        p.tagVocab=mergeVocab(p.tagVocab,tags);
-      });
-      renderProject();
-    }; img.src=ev.target.result; };
-  rd.readAsDataURL(f); e.target.value='';
+  const tags=parseTagsInput(gv('m_tag'));   // 异步前同步读取，避免压缩期间切页丢输入
+  const imgId=await ingestImageFile(f,tags);
+  e.target.value='';
+  if(imgId) renderProject();
 }
 function delMood(id){ updateCur(p=>p.mood=p.mood.filter(m=>m.id!==id)); renderProject(); }
 
@@ -1051,48 +1090,67 @@ let selRefs=[];
 function shotSortKey(s){ return (s.date||'9999')+'|'+(s.ord!=null?'o'+String(s.ord).padStart(6,'0'):'s'+(s.slot||'99:99')); }
 async function renderShots(p){
   if(!p) return;
+  view.shotDraft=view.shotDraft||{}; const D=view.shotDraft;
   await ensureShiseiRefs(p);
   const moodImgs=p.mood.filter(m=>m.type==='image'&&matchByTags(m,view.moodFilter,view.moodFilterMode));
   let gallery=[];
   try{ gallery=await idb.shiseiIndex(); }catch(e){ gallery=[]; }
-  const shiseiCats=['全部',...[...new Set(gallery.map(r=>r.cat).filter(Boolean))]];
-  const galleryRows=shiseiCat==='全部'?gallery:gallery.filter(r=>r.cat===shiseiCat);
+  const cats=[...new Set(gallery.map(r=>r.cat).filter(Boolean))];
+  const galleryRows=view.poseCat?gallery.filter(r=>r.cat===view.poseCat):[];
   const kw=(view.shotFilter||'').trim().toLowerCase();
   const sorted=[...p.shots].sort((a,b)=>shotSortKey(a)<shotSortKey(b)?-1:1)
     .filter(s=>!kw||(s.name||'').toLowerCase().includes(kw)||(s.note||'').toLowerCase().includes(kw)||(p.scenes.find(x=>x.id===s.sceneId)||{}).name&&(p.scenes.find(x=>x.id===s.sceneId)||{}).name.toLowerCase().includes(kw));
-  const mineHtml=moodImgs.length?'<div class="ref-group"><div class="ref-group-head"><span>我的素材</span></div><div class="ref-picker">'
+  const editing=p.shots.find(x=>x.id===view.editingShotId);
+  const editBar=editing?'<div class="edit-bar"><span>正在编辑「'+esc(editing.name)+'」的参考图 — 点击下方图片'+(view.replaceIdx>=0?'替换第 '+(view.replaceIdx+1)+' 张':'添加')+'，完成后点「完成」。</span><button class="btn btn-primary btn-sm" onclick="exitShotRefEditor()">完成</button></div>':'';
+  const mineHead='<div class="ref-group-head"><span>我的素材</span><div class="chips">'
+    +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'s_img\').click()">上传图片</button>'
+    +'<input type="file" id="s_img" accept="image/*" style="display:none" onchange="addShotImg(event)"></div></div>';
+  const mineHtml='<div class="ref-group">'+mineHead
+    +(moodImgs.length?'<div class="ref-picker">'
       +moodImgs.map(m=>
         '<div class="ref-opt '+(selRefs.includes(m.content)?'on':'')+'" title="'+esc(tagsForDisplay(m).join(' / '))+'" onclick="toggleRef('+jstr(m.content)+')"><img src="'+esc(imgCache[m.content]||'')+'">'
         +(tagsForDisplay(m).length?'<span class="ref-tag">'+tagsForDisplay(m).map(t=>'#'+esc(t)).join(' ')+'</span>':'')
         +(selRefs.includes(m.content)?'<span class="ord">'+(selRefs.indexOf(m.content)+1)+'</span>':'')+'</div>').join('')
-      +'<span class="muted" style="align-self:center">点击选参考图（最多 3 张）</span></div></div>':'';
-  const galleryHtml=galleryRows.length?'<div class="ref-group"><div class="ref-group-head"><span>姿势图库</span><div class="chips">'
-      +shiseiCats.map(c=>'<button class="chip '+(shiseiCat===c?'on':'')+'" onclick="setShiseiCat('+jstr(c)+')">'+esc(c)+'</button>').join('')
-      +'</div></div><div class="ref-picker">'+galleryRows.map(r=>
+      +'<span class="muted" style="align-self:center">点击选参考图（最多 3 张）</span></div>'
+      :'<p class="muted" style="margin:6px 2px">'+(view.moodFilter.length?'没有素材命中所选标签，可清空筛选或直接上传。':'还没有图片素材。可直接「上传图片」，或到情绪板 / 姿势图库获取。')+'</p>')
+    +'</div>';
+  const galleryHead='<div class="ref-group-head"><span>姿势图库</span><div class="chips">'
+    +cats.map(c=>'<button class="chip '+(view.poseCat===c?'on':'')+'" onclick="setShiseiCat('+jstr(c)+')">'+esc(c)+'</button>').join('')
+    +(gallery.length?'<span class="muted" style="margin-left:2px">'+gallery.length+' 张</span>':'')+'</div></div>';
+  const galleryHtml=!gallery.length?'<div class="ref-group">'+galleryHead+'<p class="muted" style="margin:6px 2px">图库尚未同步。到下方「素材来源」开启姿势图库同步，空闲时会自动下载到本机。</p></div>'
+    :!view.poseCat?'<div class="ref-group">'+galleryHead+'<p class="muted" style="margin:6px 2px">点击上方分类查看对应姿势参考图，再点一次收起。</p></div>'
+    :!galleryRows.length?'<div class="ref-group">'+galleryHead+'<p class="muted" style="margin:6px 2px">该分类暂无图片。</p></div>'
+    :'<div class="ref-group">'+galleryHead+'<div class="ref-picker">'+galleryRows.map(r=>
         '<div class="ref-opt '+(selRefs.includes(r.key)?'on':'')+'" data-shisei-key="'+esc(r.key)+'" title="'+esc(r.zh+' · '+r.cat)+'" onclick="toggleRef('+jstr(r.key)+')">'
         +'<img src="'+esc(imgCache[r.key]||'')+'" alt="'+esc(r.zh)+'">'
         +'<span class="ref-tag">#'+esc(r.cat)+' · '+esc(r.zh)+'</span>'
         +(selRefs.includes(r.key)?'<span class="ord">'+(selRefs.indexOf(r.key)+1)+'</span>':'')+'</div>').join('')
-      +'<span class="muted" style="align-self:center">图库引用同样最多 3 张</span></div></div>':'';
-  document.getElementById('tabBody').innerHTML='<div class="card"><h2>分镜表 · 数据中枢</h2>'
+      +'<span class="muted" style="align-self:center">图库引用同样最多 3 张</span></div></div>';
+  document.getElementById('tabBody').innerHTML=(editBar?'<div class="card" style="padding:14px 18px">'+editBar+'</div>':'')
+    +'<div class="card"><h2>分镜表 · 数据中枢</h2>'
     +'<p class="muted" style="margin-bottom:12px">每条分镜可挂 1-3 张参考图（我的素材 + 姿势图库）+ 场景 + 日期时段。拖动左侧手柄排序，拖到另一日期分组会自动改期。</p>'
     +'<div class="row" style="margin-bottom:6px">'
-    +'<input id="s_name" class="grow" placeholder="分镜内容，如：巷口逆光回眸（中景）">'
-    +'<input type="date" id="s_date" style="max-width:150px" value="'+(p.shootDate||todayStr())+'">'
-    +'<input type="time" id="s_slot" style="max-width:105px" value="15:00">'
-    +'<select id="s_dur" style="max-width:105px">'+[10,15,20,30,45,60,90].map(d=>'<option '+(d===20?'selected':'')+'>'+d+' 分钟</option>').join('')+'</select>'
-    +'<select id="s_scene" style="max-width:150px"><option value="">— 场景 —</option>'+p.scenes.map(s=>'<option value="'+s.id+'">'+esc(s.name)+'</option>').join('')+'</select>'
-    +'<input id="s_note" class="grow" placeholder="备注（机位 / 光线 / 姿势…）">'
+    +'<input id="s_name" class="grow" placeholder="分镜内容，如：巷口逆光回眸（中景）" value="'+esc(D.name||'')+'" oninput="saveShotDraft(\'name\',this.value)">'
+    +'<input type="date" id="s_date" style="max-width:150px" value="'+esc(D.date||p.shootDate||todayStr())+'" onchange="saveShotDraft(\'date\',this.value)">'
+    +'<input type="time" id="s_slot" style="max-width:105px" value="'+esc(D.slot||'15:00')+'" onchange="saveShotDraft(\'slot\',this.value)">'
+    +'<select id="s_dur" style="max-width:105px" onchange="saveShotDraft(\'duration\',this.value)">'+[10,15,20,30,45,60,90].map(d=>'<option value="'+d+'" '+((parseInt(D.duration)||20)===d?'selected':'')+'>'+d+' 分钟</option>').join('')+'</select>'
+    +'<select id="s_scene" style="max-width:150px" onchange="saveShotDraft(\'scene\',this.value)"><option value="">— 场景 —</option>'+p.scenes.map(s=>'<option value="'+s.id+'" '+(D.scene===s.id?'selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select>'
+    +'<input id="s_note" class="grow" placeholder="备注（机位 / 光线 / 姿势…）" value="'+esc(D.note||'')+'" oninput="saveShotDraft(\'note\',this.value)">'
     +'<button class="btn btn-primary" onclick="addShot()">添加分镜</button></div>'
-    +((mineHtml||galleryHtml)?mineHtml+galleryHtml
-      :'<p class="muted" style="margin-bottom:10px">'+(p.mood.some(m=>m.type==='image')?'没有命中所选标签的素材，换个标签或清空筛选。':'情绪板还没有可用图片。先上传并设置标签（动作 / 景别 / 光线…），或到「素材来源」开启姿势图库同步 / 自行下载线稿。')+'</p>')
+    +(mineHtml||galleryHtml?'':'<p class="muted" style="margin-bottom:10px">还没有任何参考图来源。上传图片、到情绪板添加，或在下方「素材来源」开启姿势图库同步。</p>')
+    +mineHtml+galleryHtml
     +'<div class="row" style="margin-bottom:12px"><input id="s_filter" class="grow" placeholder="搜索分镜 / 场景 / 备注…" value="'+esc(view.shotFilter)+'" oninput="view.shotFilter=this.value;renderShots(cur())"></div>'
     +(sorted.length? '<div id="shotList">'+sorted.map(s=>{
         const scene=p.scenes.find(x=>x.id===s.sceneId);
         const clash=dayItems(p,s.date).some(x=>x.id===s.id&&x._conflict);
-        const refs=s.refIds.filter(r=>imgCache[r]||String(r||'').startsWith('shisei:'));
-        const refHtml=refs.length? refs.map(r=>imgCache[r]?'<img src="'+esc(imgCache[r])+'">':'<div class="noref">图库原图已更新</div>').join('')+(refs.length>2?'<div class="more">+'+(refs.length-2)+'</div>':'')
-          :'<div class="noref-single">无参考图</div>';
+        const refs=s.refIds||[];
+        const refHtml=refs.length? refs.map((r,ri)=>{
+            const img=imgCache[r];
+            const inner=img?'<img src="'+esc(img)+'">':'<div class="noref">图库原图已更新</div>';
+            return '<div class="ref-thumb'+(img?'':' ghost')+'" title="点击查看大图" onclick="openRefViewer('+jstr(s.id)+','+ri+')">'+inner
+              +'<button class="ref-del" title="从本分镜移除该参考图" onclick="event.stopPropagation();removeShotRef('+jstr(s.id)+','+ri+')">×</button></div>';
+          }).join('')
+          :'<button class="noref-add" onclick="openShotRefEditor('+jstr(s.id)+')">+ 添加参考图</button>';
         return '<div class="shot '+(s.done?'done':'')+'" data-id="'+s.id+'">'
           +'<span class="drag-handle" title="拖拽排序"><svg width="12" height="18" viewBox="0 0 12 18" fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></svg></span>'
           +'<button class="chk '+(s.done?'on':'')+'" onclick="toggleShot(\''+s.id+'\')">'+(s.done?'✓':'')+'</button>'
@@ -1105,11 +1163,73 @@ async function renderShots(p){
   galleryRows.forEach(r=>ensureShiseiImage(r.key));
   attachDrag();
 }
-function setShiseiCat(cat){ shiseiCat=String(cat||'全部'); renderShots(cur()); }
+function setShiseiCat(cat){ view.poseCat=(view.poseCat===cat)?null:String(cat||null); renderShots(cur()); }
+function saveShotDraft(k,v){ view.shotDraft=view.shotDraft||{}; view.shotDraft[k]=v; }
+/* 参考图选图态：新增模式用 selRefs；编辑模式 view.editingShotId 指向目标分镜，replaceIdx>=0 表示替换该位置 */
 function toggleRef(id){
+  if(view.editingShotId){
+    updateCur(p=>{
+      const s=p.shots.find(x=>x.id===view.editingShotId); if(!s){ view.editingShotId=null; return; }
+      s.refIds=s.refIds||[];
+      if(view.replaceIdx>=0){ if(s.refIds[view.replaceIdx]===id){ view.editingShotId=null; view.replaceIdx=-1; return; } s.refIds[view.replaceIdx]=id; }
+      else if(s.refIds.length>=3){ toast('每条分镜最多挂 3 张参考图'); return; }
+      else if(s.refIds.includes(id)){ s.refIds=s.refIds.filter(x=>x!==id); }
+      else s.refIds.push(id);
+      view.editingShotId=null; view.replaceIdx=-1;
+    });
+    renderShots(cur());
+    return;
+  }
   const i=selRefs.indexOf(id);
   if(i>=0) selRefs.splice(i,1);
   else { if(selRefs.length>=3){toast('每条分镜最多选 3 张参考图');return;} selRefs.push(id); }
+  renderShots(cur());
+}
+function openShotRefEditor(shotId){
+  view.editingShotId=shotId; view.replaceIdx=-1;
+  renderShots(cur()).then(()=>{ const el=document.getElementById('tabBody'); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); });
+}
+function exitShotRefEditor(){ view.editingShotId=null; view.replaceIdx=-1; renderShots(cur()); }
+function removeShotRef(shotId,idx){
+  updateCur(p=>{ const s=p.shots.find(x=>x.id===shotId); if(s&&s.refIds) s.refIds.splice(idx,1); });
+  closeRefViewer(); renderShots(cur()); toast('已从本分镜移除该参考图');
+}
+/* 参考图大图查看：点击分镜缩略图打开；支持「更换」进入选图态 */
+function openRefViewer(shotId,ri){
+  const p=cur(); const s=p&&p.shots.find(x=>x.id===shotId); if(!s||!s.refIds||!s.refIds[ri]) return;
+  const r=s.refIds[ri]; const img=imgCache[r];
+  const isSh=String(r||'').startsWith('shisei:');
+  document.getElementById('refViewerBody').innerHTML=
+    '<div class="rv-title">'+esc(s.name)+' · 第 '+(ri+1)+' / '+s.refIds.length+' 张</div>'
+    +(img?'<img class="rv-img" src="'+esc(img)+'" alt="参考图大图">'
+         :'<div class="rv-placeholder">'+(isSh?'图库原图已更新，可「更换」为其它参考图或移除。':'原图缺失，可「更换」或移除。')+'</div>')
+    +'<div class="row" style="justify-content:center;margin-top:16px">'
+    +'<button class="btn btn-ghost btn-sm" onclick="closeRefViewer();openShotRefEditor('+jstr(shotId)+');view.replaceIdx='+ri+'">更换这张</button>'
+    +'<button class="btn btn-danger btn-sm" onclick="removeShotRef('+jstr(shotId)+','+ri+')">从分镜移除</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="closeRefViewer()">关闭</button></div>';
+  document.getElementById('refViewer').classList.add('show');
+}
+function closeRefViewer(){ document.getElementById('refViewer').classList.remove('show'); }
+async function addShotImg(e){
+  const f=e.target.files[0]; if(!f) return;
+  const editingId=view.editingShotId, rIdx=view.replaceIdx;
+  const imgId=await ingestImageFile(f,[]);
+  e.target.value='';
+  if(!imgId) return;
+  if(editingId){
+    updateCur(p=>{
+      const s=p.shots.find(x=>x.id===editingId); if(!s) return;
+      s.refIds=s.refIds||[];
+      if(rIdx>=0) s.refIds[rIdx]=imgId;
+      else if(s.refIds.length<3) s.refIds.push(imgId);
+      else { toast('每条分镜最多挂 3 张参考图，已存入情绪板'); return; }
+      view.editingShotId=null; view.replaceIdx=-1;
+    });
+    toast('图片已存入情绪板并挂到该分镜（可在情绪板页补标签）');
+  } else {
+    if(selRefs.length>=3){ toast('已存入情绪板；当前新增分镜已选满 3 张参考图'); }
+    else { selRefs.push(imgId); toast('图片已存入情绪板并选为参考图（可在情绪板页补标签）'); }
+  }
   renderShots(cur());
 }
 function addShot(){
@@ -1120,7 +1240,7 @@ function addShot(){
     const ord=sameDay.length?Math.max(...sameDay.map(x=>x.ord||0))+1:0;
     p.shots.push({id:uid(),name,date:d,slot:gv('s_slot'),duration:parseInt(gv('s_dur'))||20,sceneId:gv('s_scene'),refIds:[...selRefs],note:gv('s_note').trim(),done:false,ord});
   });
-  selRefs=[]; renderProject();
+  selRefs=[]; view.shotDraft={}; renderProject();
 }
 
 /* 拖拽排序（桌面 + 触屏，Pointer Events） */
@@ -1715,7 +1835,7 @@ function applyAiSuggestion(moodId){
 const SHISEI_CATALOG_URL='https://cdn.jsdelivr.net/gh/wquguru/shisei@main/data/catalog.json';
 const SHISEI_CDN_BASE='https://cdn.jsdelivr.net/gh/wquguru/shisei@main/';
 const SHISEI_META_KEY='catalog', SHISEI_SYNC_INTERVAL=24*60*60*1000, SHISEI_BATCH=3;
-let shiseiInitReady=false, shiseiCat='全部';
+let shiseiInitReady=false;
 let shiseiState={running:false,paused:false,total:0,done:0};
 function shiseiSyncEnabled(){
   try{ return localStorage.getItem('wb_sf_shisei_sync')!=='0'; }catch(e){ return true; }
@@ -1953,7 +2073,7 @@ if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
   }).catch(()=>{});
 }
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){ closeDoc(); closeConfirm(); closeShootDay(); }
+  if(e.key==='Escape'){ closeDoc(); closeConfirm(); closeShootDay(); closeRefViewer(); }
 });
 
 /* ================= 启动 ================= */
