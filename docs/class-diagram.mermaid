@@ -1,4 +1,8 @@
 classDiagram
+    class FavItem {
+        <<interface 八类条目统一>>
+        +boolean fav
+    }
     class MoodItem {
         +string id
         +string type
@@ -6,35 +10,159 @@ classDiagram
         +string tag
         +string[] tags
         +string[] autoTags
+        +boolean fav
+    }
+    class Shot {
+        +string id
+        +string name
+        +string date
+        +string slot
+        +number duration
+        +string sceneId
+        +string[] refIds
+        +string note
+        +boolean done
+        +number ord
+        +boolean fav
+    }
+    class Node {
+        +string id
+        +string type
+        +string title
+        +string start
+        +string end
+        +string note
+        +string date
+        +boolean done
+        +boolean fav
+    }
+    class Scene {
+        +string id
+        +string name
+        +string note
+        +boolean done
+        +boolean fav
+    }
+    class Item {
+        +string id
+        +string kind
+        +string name
+        +string note
+        +boolean done
+        +boolean fav
+    }
+    class Budget {
+        +string id
+        +string item
+        +string cat
+        +number amount
+        +boolean paid
+        +boolean fav
+    }
+    class Note {
+        +string id
+        +string kind
+        +string content
+        +number ts
+        +boolean fav
+    }
+    class Todo {
+        +string id
+        +string title
+        +string owner
+        +string due
+        +boolean done
+        +boolean fav
     }
     class Project {
         +string id
         +string name
+        +string client
+        +string studio
+        +string status
+        +string shootDate
+        +string location
+        +string lat
+        +string lng
+        +number v3
+        +boolean demo
+        +number createdAt
+        +number updatedAt
+        +Concept concept
         +MoodItem[] mood
         +Shot[] shots
+        +Node[] schedule
+        +Scene[] scenes
+        +Item[] items
+        +Budget[] budget
+        +Note[] notes
+        +Todo[] todos
         +string[] tagVocab
     }
-    class Shot {
-        +string id
-        +string[] refIds
-        +string name
+    class Concept {
+        +string theme
+        +string model
+        +string style
+        +string audience
+        +string usage
+        +string note
     }
     class ViewState {
+        +string mode
+        +string pid
         +string tab
+        +string shotFilter
+        +string boardQuery
+        +string boardScope
         +string[] moodFilter
         +string moodFilterMode
+        +Object shotDraft
+        +string poseCat
+        +string editingShotId
+        +number replaceIdx
+        +boolean allowDemoWrite
+        +string editingNodeId
+        +string editingStuffId
+        +string editingStuffKey
+        +string editingTodoId
+        +string editingNoteId
+        +Object refViewer
+        +Object focusRef
     }
-    class TagPureFunctions {
-        <<module 纯函数层>>
-        +tagKey(s) string
-        +dedupeTags(list) string[]
-        +parseTagsInput(str) string[]
-        +mergeVocab(vocab, list) string[]
-        +migrateTags(p) Project
-        +tagsForDisplay(m) string[]
-        +matchByTags(item, filter, mode) boolean
-        +renameTag(p, from, to) Project
-        +removeTag(p, tag) Project
+    class FavEntry {
+        +string type
+        +string pid
+        +string id
+        +string summary
+        +string module
+        +string date
+    }
+    class DemoSpec {
+        +string status
+        +string name
+        +string theme
+        +string[] art
+        +boolean fullRefShot
+        +number favIndex
+    }
+    class V9PureFunctions {
+        <<module 纯函数层 可 vm 抽取>>
+        +freshView(patch) ViewState
+        +clearInlineEditState(v) ViewState
+        +migrateFav(p) Project
+        +isFav(it) boolean
+        +favCount(list) number
+        +favSummary(type, it) string
+        +summary40(s) string
+        +collectFavorites(projects) FavEntry[]
+        +backupItemCount(projects) number
+        +matchBoardScope(p, scope) boolean
+        +isActiveStatus(p) boolean
+        +parseMultiImage(e) File[]
+        +slugPreview(label, palette) string
+        +cloneDemo(p, newId, now) Project
+        +demoSpecs() DemoSpec[]
+        +buildDemoProject(spec, mkId, now) Project
     }
     class Persistence {
         <<module 状态层>>
@@ -42,52 +170,91 @@ classDiagram
         +saveP(a) void
         +updateCur(fn) void
         +migrate(p) Project
+        +initData() Promise
+        +cacheProjectImages(p) Promise
         +idb Object
     }
-    class MoodRenderer {
+    class DemoFactory {
+        <<module 状态层>>
+        +seed() void
+        +ensureV9Demo() Promise
+        +copyDemoToMine(pid) void
+        +LS_DEMO_V9 string
+    }
+    class BoardRenderer {
         <<module 渲染层>>
+        +renderBoard() void
+        +renderFavorites() void
+        +openFavorites() void
+        +jumpToFav(type, pid, id) void
+    }
+    class ProjectRenderer {
+        <<module 渲染层>>
+        +renderProject() void
+        +renderConcept(p) void
         +renderMood(p) void
         +renderMoodGrid(p) void
-        +addMood(type) void
-        +addMoodImg(e) void
-        +openTagEditor(moodId) void
-        +saveTagEditor(moodId) void
-        +delTagFromVocab(tag) void
+        +renderSchedule(p) void
+        +timelineHtml(p, date) string
+        +renderStuff(p) void
+        +renderBudget(p) void
+        +renderNotes(p) void
     }
     class ShotRenderer {
         <<module 渲染层>>
-        +renderShots(p) void
+        +renderShots(p) Promise
+        +addShotImg(e) Promise
         +toggleRef(id) void
-        +addShot() void
+        +openRefViewer(shotId, ri) void
+        +refNav(delta) void
+        +removeShotRef(shotId, idx) void
     }
-    class AIService {
-        <<module AI 桩 恒关闭>>
-        +boolean AI_TAGGING_ENABLED
-        +Object TagProviders
-        +Object aiConfig
-        +registerTagProvider(name, provider) boolean
-        +suggestTags(req, cfg) Promise
-        +applyAiSuggestion(moodId) void
+    class EditHandlers {
+        <<module 渲染层>>
+        +beginInlineEdit(kind, id, key) void
+        +cancelInlineEdit() boolean
+        +saveNodeEdit(id) void
+        +saveStuffEdit(key, id) void
+        +saveTodoEdit(id) void
+        +saveNoteEdit(id) void
+        +toggleFav(type, id) void
     }
     class DocOutput {
         <<module 文档输出>>
         +openDoc(kind) void
         +exportProposalFile() void
+        +exportJSON() Promise
+        +exportProject(pid) Promise
     }
-    class MaterialSources {
-        <<module 常量 轻量入口>>
-        +Object[] MATERIAL_SOURCES
-        +string[] TAG_SUGGESTIONS
-    }
+    FavItem <|.. MoodItem
+    FavItem <|.. Shot
+    FavItem <|.. Node
+    FavItem <|.. Scene
+    FavItem <|.. Item
+    FavItem <|.. Budget
+    FavItem <|.. Note
+    FavItem <|.. Todo
+    Project "1" *-- "1" Concept : concept
     Project "1" *-- "0..*" MoodItem : mood
     Project "1" *-- "0..*" Shot : shots
-    ViewState ..> TagPureFunctions : 提供筛选条件
-    Persistence ..> TagPureFunctions : migrate 调用 migrateTags
-    MoodRenderer ..> TagPureFunctions : 归一化/合并/重命名
-    MoodRenderer ..> Persistence : updateCur 持久化
-    MoodRenderer ..> AIService : applyAiSuggestion 需确认
-    ShotRenderer ..> TagPureFunctions : matchByTags
-    ShotRenderer ..> ViewState : 读取 moodFilter
-    ShotRenderer ..> MoodItem : content 作为 refIds
-    DocOutput ..> TagPureFunctions : tagsForDisplay
-    MoodRenderer ..> MaterialSources : 常用词/来源入口
+    Project "1" *-- "0..*" Node : schedule
+    Project "1" *-- "0..*" Scene : scenes
+    Project "1" *-- "0..*" Item : items
+    Project "1" *-- "0..*" Budget : budget
+    Project "1" *-- "0..*" Note : notes
+    Project "1" *-- "0..*" Todo : todos
+    Shot "1" o-- "0..3" MoodItem : refIds 指向 content
+    ViewState ..> V9PureFunctions : freshView / clearInlineEditState
+    Persistence ..> V9PureFunctions : migrateFav 挂钩 migrate
+    Persistence ..> ViewState : updateCur 读取 allowDemoWrite
+    DemoFactory ..> V9PureFunctions : slugPreview / buildDemoProject / cloneDemo
+    DemoFactory ..> Persistence : saveP / idb.put
+    BoardRenderer ..> V9PureFunctions : matchBoardScope / backupItemCount / collectFavorites
+    BoardRenderer ..> Persistence : loadP
+    ProjectRenderer ..> V9PureFunctions : isFav / favCount
+    ProjectRenderer ..> Persistence : updateCur
+    ShotRenderer ..> V9PureFunctions : parseMultiImage
+    ShotRenderer ..> Persistence : updateCur / idb
+    EditHandlers ..> V9PureFunctions : clearInlineEditState / isFav
+    EditHandlers ..> Persistence : updateCur
+    DocOutput ..> Persistence : loadP / imgCache

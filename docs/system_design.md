@@ -1,19 +1,26 @@
-# Stillmark 素材标签系统 · 系统设计与任务分解
+# 瞬刻摄影工作台 Stillmark v9 · 实现设计与任务分解
 
-> 架构师：高见远（Gao）｜基线：`shotflow.html` v5 @ `d5717db`（1369 行单文件全内联）｜状态：设计定稿，待主理人确认「待明确事项」
+> 架构师：高见远（Gao）｜基线：`shotflow.html` v8 @ HEAD **`dd12254`**（2098 行单文件全内联）、`tests/logic.test.mjs` **44 项**通过
 >
-> 本文所有行号均以 HEAD `d5717db` 为准；代码插入后行号顺延，以函数名定位为准。
+> **本文所有行号均以 `dd12254` 当前源码为准**；代码插入后行号顺延，落地时**以函数名定位**。本文只做设计，不含代码改动。
+> 产品经理定稿需求已全部采纳，不再论证；第 5 节只列实现默认决策，无阻塞项。
+>
+> **实现裁决覆盖（主理人，落码后）**：示例注入按「6 列各一个完整示例」执行——`demoSpecs()` 只返回 5 个新 spec（灵感期 / 策划中 / 后期中 / 已交付 / 已归档），**待拍摄列沿用旧「城市漫游者」**，不再新增「雨后街角 · 都市速写」；全局共 6 个示例。本文下文涉及「6 个新 spec / 7 个示例」的表述均以本裁决为准，README / overview / 测试断言已同步。另：分镜多图上传入口在 demo 项目提前提示一次并 return，`updateCur` 仍是唯一写守卫。
 
-## 0. 需求对齐摘要（已采纳，不再论证）
+## 0. 需求对齐摘要（已采纳）
 
-| 项 | 定稿结论 | 落地位置 |
+| 编号 | 定稿结论 | 落地函数 / 行号（基线） |
 |---|---|---|
-| 「动作区域」 | 不新增页签；指情绪板图片区 + 分镜 ref picker；「动作」作为标签维度 | `renderMood` / `renderShots` 空态文案 + `TAG_SUGGESTIONS` 动作词组 |
-| 标签模型 | mood 项统一 `tags:string[]`，旧 `tag` 只读兼容；项目级 `tagVocab` | `migrateTags` / `migrate` |
-| 归一化 | trim + NFKC 全半角 + 大小写 + 空白折叠后比较；保留首次显示形式 | `tagKey` / `dedupeTags` |
-| AI 接口 | 只设计不实现；`AI_TAGGING_ENABLED=false`；零网络；失败降级 toast；不覆盖手工标签；建议需确认；另存 `autoTags`；可插拔注册表 | `suggestTags` / `TagProviders` / `applyAiSuggestion` |
-| 素材仓库 | 本期不打包任何外部素材；轻量外链入口 + 版权说明 | `MATERIAL_SOURCES` + 情绪板底部 `<details>` |
-| 不做 | AI 实际调用、以图搜图/向量检索、云同步、标签层级/颜色、密钥入库、内嵌外部素材、改 `refIds` 或 800px 压缩策略、人脸识别/OCR | 全文禁止出现相关实现 |
+| D1 | 八类条目统一 `fav:boolean`（默认 false），项目根 `demo:boolean`，`migrate` 幂等补齐 | `migrate` 653–667；新增 `migrateFav` |
+| D2 | `STATUSES` 追加「已归档」变 6 项；`STATUS_TAG` 补第 6 色；`.st-5` 配色；看板「进行中/已归档」按新集合 | `STATUSES/STATUS_TAG` 485–486；`renderBoard` 770–833；CSS 97/103 |
+| D3 | `ensureV9Demo()` 独立于 `seed()`，用 `localStorage['wb_sf_demo_v9']` 只做一次；5 个新示例 + 现有「城市漫游者」标 demo（全局 6 个示例）；不覆盖用户字段 | `seed` 717–767；启动链 2080–2085 |
+| D4 | 示例只读：唯一拦截点在 `updateCur()`；角标、复制为我的项目、隐藏拍摄日、元数据 disabled；「导出此案」保留 | `updateCur` 529；`renderBoard` 819；`renderProject` 856–877 |
+| R1 | 分镜多图上传：一次 N 张顺序入库，前 3 张挂当前分镜 / 只补到 3 / 替换只用第 1 张；单张失败跳过并汇总 | `s_img` 1107；`addShotImg` 1213–1234 |
+| R2 | 参考图预览/替换/删除：新增态「已选参考图 k/3」条；灯箱「第 i/N 张」+ 更换/移除/关闭 + 上一张/下一张；`shisei:` 占位禁大图 | `renderShots` 1129–1161；`openRefViewer` 1198–1211 |
+| R3-R5 | 日程/清单/协作行内编辑，同一时刻只允许一行；`chk → ✎ → ☆ → 🗑`；保存走 `updateCur`，取消/Esc 丢弃 | `timelineHtml` 1383–1405；`renderStuff` 1415–1428；`renderNotes` 1470–1507 |
+| R6-R7 | 八类 ☆/★ 即写 `fav`；看板与项目页「★ 已收藏 N」；`view.mode='favorites'` 分组视图；`jumpToFav` 高亮 3 秒 | `renderBoard` 781–789；`renderProject` 863–866；新 `renderFavorites` |
+| R8 | 6 示例自动出现、只读、可复制；「已归档」含已交付 | 同 D2/D3/D4 |
+| 边界 | 不做跨项目复制收藏、概念页收藏/新编辑、预算编辑、分镜正文编辑、情绪板素材内容编辑、级联顺延、>3 张、新状态、示例在线更新/单条删除、服务端同步、第三方库/构建链 | 全文禁止 |
 
 ---
 
@@ -21,92 +28,133 @@
 
 ## 1. 实现方案总述
 
-### 1.1 单文件内的三层组织
+### 1.1 单文件三层组织（不引入任何运行时文件）
 
-`shotflow.html` 是单文件全内联结构（`<style>` 14–273 行、`<script>` 304–1367 行），零依赖、无构建。本次改造**不引入任何运行时文件、框架或打包步骤**，而是在现有 `<script>` 内按既有分层追加代码，保持与 v5 完全一致的组织方式：
+`shotflow.html` 结构：`<style>` 14–321、静态 DOM 324–355、`<script>` 357–2096。v9 在**同一 `<script>`** 内扩层，保持零依赖、零构建、44 项 node 测试可直接跑。
 
-| 层 | 现有位置 | 本次新增/改动 | 约束 |
+| 层 | 基线位置 | v9 改动 | 硬约束 |
 |---|---|---|---|
-| **纯函数层** | 数据层 305–322（`todayStr`/`uid`/`esc`）、时间函数 883–928 | 在 `migrate`（435）之前插入标签纯函数块（约 60 行） | 全部写成 `function name(){}` 具名声明；不引用 `document`/`window`/`idb`/`view`；只用 `String/Array/Object/Set/JSON` 等内置，保证 `tests/logic.test.mjs` 的 `vm` 抽取可执行 |
-| **状态层** | `view`（430）、`cur`（431）、`updateCur`（432）、`loadP/saveP`（451–458） | `view` 增加会话内筛选字段；`aiConfig` 独立内存变量 + `sessionStorage`；所有持久化仍只走 `updateCur` | 禁止直接写 `projectsCache`；禁止为标签新增 IndexedDB store；筛选状态不入库、不导出 |
-| **渲染层** | `renderProject`（628–673）总绘制 `tabBody`，各 `render*` 子函数 | 重写 `renderMood`、新增 `renderMoodGrid`、改 `renderShots` 的 ref picker；文档输出小改 | 除筛选输入外仍走 `renderProject()` 全量重绘；筛选局部重绘只替换 `#tagCloud` / `#moodGrid`，避免输入框丢焦点 |
+| **纯函数层** | 数据层 359–363；标签纯函数 531–598；图库纯函数 600–650 | 在 `migrate` 之前（651 行处）追加 v9 纯函数块：`freshView`、`clearInlineEditState`、`migrateFav`、`isFav`、`favCount`、`favSummary`、`summary40`、`collectFavorites`、`backupItemCount`、`matchBoardScope`、`isActiveStatus`、`parseMultiImage`、`slugPreview`、`cloneDemo`、`demoSpecs`、`buildDemoProject` | 全部 `function name(){}` 具名声明；不引用 `document`/`window`/`idb`/`view`/`toast`/`localStorage`；只用可被 `vm` ctx 注入的内置对象（`Array/Object/JSON/String/Number/Date/Set/encodeURIComponent`）。`slugPreview` **不得调用 `esc`**（`esc` 是箭头常量，`fn()` 抽不到），用自带字符白名单替换 |
+| **状态层** | `view` 526–527、`cur` 528、`updateCur` 529、`loadP/saveP` 668–677、`initData` 678–694 | `freshView()` 统一构造 view（526、843、1769、1784 四处）；`updateCur` 顶部加 demo 守卫；新增 `ensureV9Demo`/`copyDemoToMine`/`toggleFav`/编辑处理器 | 所有持久化**只走** `updateCur(fn)`（自动 `updatedAt` + 200ms 合并 `saveP`）；demo 初始化例外地直接 `saveP(a)`（一次性追加，不改用户字段）；筛选/编辑/焦点状态永不入库、不导出 |
+| **渲染层** | `renderProject` 847–892 总绘制 `#tabBody`，各 `render*` 子函数 | 8 类条目加 `data-fid` + ☆ + 行内编辑；`renderShots` 多图与灯箱增强；新 `renderFavorites`；CSS 全部新增类集中在 T01 | 沿用内联 `onclick` + 全量重绘；动态文本一律 `esc()`，内联事件参数一律 `jstr()`；`renderShots` 末尾仍 `attachDrag()`（1247） |
 
 ### 1.2 核心技术难点与对策
 
-1. **向后兼容不能破坏 22 项既有测试**
-   `tests/logic.test.mjs:17-19` 用 `vm.createContext({console,Date,Math,String,Number,Array,Object,JSON,RegExp})` 抽取具名函数执行。`migrate` 在测试输入里拿到的是没有 `mood` 的对象（`logic.test.mjs:62`），因此 `migrateTags` 必须容忍字段缺失；新增纯函数用到 `Set`，**必须在测试 ctx 第 17 行注入 `Set`**（这是唯一的测试框架改动，不影响既有断言）。
+1. **44 项测试零回归 + 幂等迁移**
+   `logic.test.mjs:17` 的 `vm.createContext` 只注入白名单全局；v9 纯函数用到 `encodeURIComponent`（`slugPreview`），**必须在第 17 行补注入**。`migrate`（653）在既有数组补齐之后、`migrateTags(p)`（665）之前调用 `migrateFav(p)`，只补 `fav` 与 `demo`，不动 `refIds`/`tags`/`tagVocab`；测试(ctx) 里 `migrate({name:'x',shots:[...]})`（`logic.test.mjs:64`）没有 mood 也不会崩。
 
-2. **异步上传时读取输入框的时序**
-   现有 `addMoodImg`（718–732）在 `FileReader.onload → img.onload → await idb.put` 之后才读 `document.getElementById('m_tag').value`。改造时把标签字符串在 `addMoodImg(e)` 同步入口先读出为局部变量 `tagInput`，再传入异步回调，避免用户在压缩期间切页导致空引用。压缩策略（`800px` / `image/jpeg` / `.72`）与 `idb.put` 写入方式**一行不改**。
+2. **示例只读必须"一处拦截所有写路径"**
+   不逐函数散写 `if(p.demo)`。唯一拦截点是 `updateCur`（529）：
+   ```js
+   function updateCur(fn){
+     const a=loadP(), p=a.find(x=>x.id===view.pid);
+     if(!p) return;
+     if(p.demo&&!view.allowDemoWrite){ toast('示例项目为只读，可点「复制为我的项目」后再修改'); return; }
+     fn(p); p.updatedAt=Date.now(); saveP(a);
+   }
+   ```
+   `view.allowDemoWrite` 默认 `false`，**仅** `copyDemoToMine` 在 `saveP` 期间短暂置 `true`；看板/项目页/元数据/概念页对 demo 的特殊处理只涉及**渲染**（角标、按钮显隐、disabled），不是额外写守卫。
 
-3. **筛选与重绘的焦点冲突**
-   现有 `s_filter`（757 行）逐字符 `renderShots(cur())` 会丢焦点。标签筛选不复制这个缺陷：`renderMood` 骨架只建一次，筛选输入保持 DOM 常驻，仅由 `renderMoodGrid(p)` 替换两个网格容器。
+3. **异步多图上传的顺序、部分失败与 3 张上限**
+   复用 `ingestImageFile(f,tags)`（1054–1078，800px/JPEG `.72`/IDB 完全不改）；在 `addShotImg` 里用 `for...of await` **顺序**处理，成功 id 进 `okIds`、失败 `failN++` 后继续；全部完成后**一次** `renderShots`。上限按当前真实状态动态计算：新增态 `3-selRefs.length`，编辑追加态 `3-s.refIds.length`，替换态固定 `replaceIdx` 一个位置。超出部分只入库到情绪板并汇总 toast。
 
-4. **AI 桩做到"可插拔但绝对零网络"**
-   双重门控：编译期常量 `AI_TAGGING_ENABLED=false`（本期恒 false）+ 运行期注册表 `TagProviders` 默认空。开关关闭时直接返回空对象，连注册表都不查；即使有人在运行期把开关改 true，没有 provider 也会抛 `AI_TAGGING_PROVIDER_MISSING` 而非发请求。`aiConfig` 只存内存/`sessionStorage`，不进 `loadP/saveP`、不进任何导出。
+4. **全量重绘下的"行内编辑只开一行"与 Esc 优先级**
+   `view` 新增五个编辑指针，`beginInlineEdit` 先调纯函数 `clearInlineEditState(view)` 再置其中一个；保存/取消都 `updateCur`→`renderProject()`，未保存输入天然丢弃。`document keydown`（2075–2077）改为显式优先级：`refViewer → confirmModal → 行内编辑 → closeDoc+closeShootDay`。
 
-5. **删标签不破坏分镜引用**
-   `Shot.refIds` 存的是 `mood.content`（IndexedDB key），与标签完全解耦。`removeTag` / `renameTag` 只改 `m.tags` / `p.tagVocab`，绝不触碰 `m.content`、`m.id`、`refIds`。只有 `delMood` 才断引用（现有行为不变）。
+5. **示例图离线可看且不改渲染链路**
+   `slugPreview(label,palette)` 生成内联 SVG dataURL（约 1KB，零网络）；`ensureV9Demo` 用 `uid()` 作 key，`imgCache[key]=dataURL` 并 `await idb.put(key,dataURL)`。所有既有渲染口（`renderMoodGrid` 974、`renderShots` 1111、`openDoc` 1636、`imagesFor` 1723、`cacheProjectImages` 520）**只读 `imgCache[m.content]`**，因此 demo 图与用户上传图走完全相同的路径，无需改渲染函数。
+
+6. **收藏跳转的焦点生命周期**
+   `focusRef={type,id,until:now+3000}` 存 view；`jumpToFav` 后异步等 `renderProject()` 完成，再用 `[...document.querySelectorAll('[data-fid]')].find(el=>el.dataset.fid===id)` 定位（**不拼接选择器**，兼容导入的脏 id）；3 秒后重新查询 DOM 按 id 复核清除，避免重绘后清错元素。
+
+7. **状态过滤单一真源**
+   `matchBoardScope(p,scope)` 一处定义「已归档 = {已交付,已归档}、进行中 = 其余 4 态」；`renderBoard` 的列过滤（773–780）、进行中指标（791）、今日拍摄（792）、卡片倒计时（815）与 `renderProject` 倒计时（851）全部调用它，杜绝 5 处 `status!=='已交付'` 各自漂移。
 
 ### 1.3 架构模式
 
-沿用现有 **事件驱动 + 全量重绘（MVC-lite）**：`view` 为 Controller 状态，`loadP()/saveP()` 为 Model 入口，`renderProject()` 为 View 入口。标签系统不引入新范式，工程师可照抄 `addTodo/delTodo`（1054–1060）等既有函数的写法。
+沿用现有**事件驱动 + 全量重绘（MVC-lite）**：`view` = Controller 会话状态，`loadP/saveP/updateCur` = Model 入口，`renderProject/renderBoard` = View 入口。不引入事件总线、不引入虚拟 DOM、不新增 `<script>` 外链。
 
 ---
 
 ## 2. 文件清单
 
-### 2.1 `shotflow.html`（唯一运行时改动文件）
+### 2.1 `shotflow.html`（唯一运行时改动文件，2098 行 → 约 2600 行）
 
-| 序 | 区域（HEAD 行号） | 改动类型 | 具体内容 |
+> 「定位」列为 **HEAD `dd12254` 基线行号**；「改动」列标注新增函数时，插入点写在原函数之前/之后。
+
+| 序 | 定位（函数 / 行号） | 改动 | v9 具体内容 |
 |---|---|---|---|
-| A | CSS `.tag`/`.chip` 之后（45–52） | 追加类 | `.tagchip`、`.tag-cloud`、`.tag-filter`、`.tag-editor`、`.ref-tag`、`.src-note`、`.src-lic`（复用 `--accent*` / `--line*` 变量，不新增色板） |
-| B | CSS mood 区之后（127–143） | 追加类 | `.mfoot .tagchip` 换行布局、`.tag-cloud` chip 的 hover 操作位、`.tag-rename` 内联输入框、`<details>` 来源区样式 |
-| C | 数据层常量（306–309 后） | 新增 | `AI_TAGGING_ENABLED`、`TagProviders`、`aiConfig`、`MATERIAL_SOURCES`、`TAG_SUGGESTIONS` |
-| D | `migrate`（435–448） | 修改 | 在第 447 行 `return p` 前插入 `migrateTags(p)`；一行改动，幂等 |
-| E | `migrate` 之前（434 行处） | 新增 | 纯函数块：`tagKey` / `dedupeTags` / `parseTagsInput` / `mergeVocab` / `migrateTags` / `tagsForDisplay` / `matchByTags` / `renameTag` / `removeTag` |
-| F | `view`（430） | 修改 | 增加 `moodFilter:[]`、`moodFilterMode:'any'` |
-| G | `renderMood`（694–711） | 重写 | 骨架 + 标签输入（逗号分隔）+ 词表云 + `#moodGrid` + 素材来源 `<details>`；末尾调用 `renderMoodGrid(p)` |
-| H | 新增（紧随 `renderMood`） | 新增 | `renderMoodGrid(p)`、`openTagEditor(moodId)`、`saveTagEditor(moodId)`、`startRenameTag(from)`、`commitRenameTag(from)`、`delTagFromVocab(tag)`、`clearMoodFilter()` |
-| I | `addMood`（712–717） | 修改 | `parseTagsInput(gv('m_tag'))` → 写 `tags` + `tag`（兼容）+ `tagVocab=mergeVocab(...)` |
-| J | `addMoodImg`（718–732） | 修改 | 同步读 tag 输入 → 异步回调里写 `tags`/`tag`/`tagVocab`；压缩与 IDB 写入不动 |
-| K | `delMood`（733） | 不改 | 保持"删项才断引用"；不自动清理词表（避免误删可复用词），由用户显式 `delTagFromVocab` 清理 |
-| L | `renderShots`（738–774） | 修改 | 739 行 `moodImgs` 增加 `matchByTags` 过滤；753–756 ref picker 每项加 `.ref-tag` 与空态新文案；`selRefs` / `addShot` 不改 |
-| M | `openDoc`（1159–1211） | 修改 | 仅 1181 行：当 `kind==='manual'` 时文字项尾部追加 `tagsForDisplay(m).map(t=>'#'+esc(t))`；提案分支视觉不变 |
-| N | `exportProposalFile`（1215–1247） | 不改 | 对外文档保持干净，不显示内部标签；不写 AI 配置 |
-| O | 新增（AI 接口区，建议放在 `toast` 之前 1328 行处） | 新增 | `registerTagProvider`、`suggestTags`、`applyAiSuggestion`、`setAiConfig`；桩内零 `fetch`/`XMLHttpRequest` |
-| P | `collectImages`（1255–1262）/ `applyImport`（1297–1312） | 不改 | 标签是项目 JSON 内字段，随既有导出/导入自动流转；`migrate` 已挂钩故导入旧数据自动补标签 |
+| A | CSS `.dot.st-*`/`.pcard.st-*`（97、103） | 追加 | `.dot.st-5`、`.pcard.st-5::before`（灰墨色 `#9c9389`）；`.tag.ink`（`.tag` 45–47 之后） |
+| B | CSS `.iconbtn`（48–49）之后 | 追加 | `.rowbtn`（hover/焦点显现、★ 常亮）、`.inline-edit`（左侧 2px 强调条 + 淡底）、`.selrefs`、`.badge.demo`、`.fav-focus`、`.metacard :disabled`、移动端 `@media (max-width:700px)`（296–313）追加 `.rowbtn{opacity:1;font-size:14px}` |
+| C | 数据层 `LS_PROJ/LS_SEED`（359） | 修改 | 追加 `const LS_DEMO_V9='wb_sf_demo_v9';`；`FAV_KINDS/FAV_META/FAV_ICON/FAV_TAB` 常量同处 |
+| D | `esc/jstr`（362–363） | 不改 | 所有新 `innerHTML` 继续走这两个出口 |
+| E | `STATUSES`/`STATUS_TAG`（485–486） | 修改 | `STATUSES` 末尾追加 `'已归档'`；`STATUS_TAG` 追加 `'ink'`（第 6 色） |
+| F | `view`（526–527） | 修改 | `let view=freshView();`；`freshView(patch)` 覆盖全部字段（见 3.2） |
+| G | `cur/updateCur`（528–529） | 修改 | `updateCur` 加 demo 守卫（1.2 节代码），**唯一写拦截点** |
+| H | `migrate` 之前（651 行处） | 新增 | 16 个 v9 具名纯函数（见 3.2），位于标签纯函数（531–598）与图库纯函数（600–650）之间或紧随其后、`migrate` 之前 |
+| I | `migrate`（653–667） | 修改 | 第 664 行后、第 665 行 `migrateTags(p)` 前插入 `migrateFav(p);`；一行改动 |
+| J | `loadP/saveP/initData`（668–694） | 不改 | `initData` 已对所有数组跑 `migrate`（685/688），故 `fav/demo` 自动覆盖老数据 |
+| K | `cacheProjectImages`（519–523） | 不改 | 按 `m.type==='image'` 读 `idb.get(m.content)`；demo SVG key 自动预载 |
+| L | `seed`（717–767） | 修改 | 对象内加 `demo:true`（721 行对象字面量）；首条 mood（725）加 `fav:true`；**不加 `v9` 标记**；`saveP([demo])`（765）、`LS_SEED`（766）不变 |
+| M | `ensureV9Demo`（新增，紧随 `seed` 767 后） | 新增 | async；`localStorage[LS_DEMO_V9]` + 项目 `v9:1` 双 guards；追加 6 demo、给旧「城市漫游者」补 `demo:true` 与 1 张 SVG 图；`idb.put` 图片；绝不改用户字段 |
+| N | `renderBoard`（770–833） | 修改 | 过滤 774–775 → `matchBoardScope`；mast-actions 783 前插「★ 已收藏 N」；统计 791/792、倒计时 815 → `isActiveStatus/matchBoardScope`；卡片 819 加 demo 角标与 `openProject`；备份数 830 → `backupItemCount(all)`；保留 804 三档按钮 |
+| O | `openProject`（843） | 修改 | `view=freshView({mode:'project',pid,tab:'shots'});`，避免新字段在 4 处 view 重置中漂移 |
+| P | `TABS`（846）/ `renderProject` 页签（878–883） | 不改 | 7 页签结构与分组视觉不变；`renderFavorites` 是 `mode` 独立视图，不进 TABS |
+| Q | `renderProject`（847–892） | 修改 | 851 倒计时 → `matchBoardScope`；858 标题旁 demo 角标；863–866 pactions：demo 隐藏「进入拍摄日模式」、加「复制为我的项目」，两种项目都加「★ 已收藏 N」；867–877 元数据卡 demo 时 input/select/城市 chip `disabled`；891 分发不变 |
+| R | `renderConcept`（899–910） | 修改 | demo 时 6 个输入 `disabled`（避免每次 input 都触发只读 toast）；用户项目行为不变 |
+| S | `renderMood`/`renderMoodGrid`（913–986） | 修改 | 974/980  mood 项加 `data-fid`、mfoot 加 ☆/★（`toggleFav('mood',id)`）；既有标签 ✎ 保留（标签编辑保持）；913–939 骨架与筛选不动 |
+| T | `addMood`/`ingestImageFile`/`addMoodImg`/`delMood`（1044–1086） | 修改 | 新增条目写 `fav:false`；压缩/IDB/标签逻辑一行不改；`addMoodImg` 仍单张（R1 只针对分镜页） |
+| U | `renderShots`（1091–1165） | 修改 | 1107 `s_img` 加 `multiple`；1139 后插「已选参考图（k/3）」条（`selRefs` 缩略图+序号+×）；1147–1160 分镜行加 ☆/★ + `data-fid`，按钮序 `drag→chk→refs→文案→☆→🗑` |
+| V | `toggleRef`/`openShotRefEditor`/`removeShotRef`（1169–1196） | 修改 | 编辑替换分支仅改 `refIds[i]`（1174）与追加分支补到 3（1175）保持；`view.editingShotId` 状态不变；`removeShotRef` 只改目标分镜 |
+| W | `openRefViewer`/`closeRefViewer`（1198–1212） | 修改 | 设置 `view.refViewer={shotId,ri}`；标题「第 i/N 张」已有（1203）保留；加 `refNav(±1)`；`shisei:` 无缓存仍只显示占位（1201/1205），不渲染 `<img>` |
+| X | `addShotImg`（1213–1234） | 重写 | `parseMultiImage(e)` → `for...of await ingestImageFile` → 按新增/追加/替换三种模式挂图 → 汇总 toast → `renderShots` 一次 |
+| Y | `addShot`（1235–1244） | 修改 | 新分镜对象加 `fav:false`；`selRefs=[]`、draft 清空、ord 计算均不变 |
+| Z | `renderSchedule`（1306–1336） | 不改 | `schedDate`（1304）保持；编辑保存后不重置 |
+| AA | `timelineHtml`/`addNode`/`toggleNode`/`delNode`（1383–1412） | 修改 | 节点行 `chk→✎→☆→🗑`；编辑态内联输入 `en_*`；新增 `saveNodeEdit`；`addNode` 写 `fav:false`；分镜行在日程里保持只读（☆ 只在分镜页给） |
+| AB | `renderStuff`/`addStuff`/`toggleStuff`/`delStuff`（1415–1438） | 修改 | 三区块行 `chk→✎→☆→🗑`；`view.editingStuffId+Key` 定位；`es_name/es_note` 内联；`saveStuffEdit`；新条目 `fav:false` |
+| AC | `renderBudget`/`addBudget`（1442–1465） | 修改 | **只加 ☆/★ + `data-fid`**，不加 ✎；新条目 `fav:false`；金额/支付逻辑不改 |
+| AD | `renderNotes`/`addTodo`/`delTodo`/`addNote`/`delNote`（1470–1520） | 修改 | 待办 `chk→✎→☆→🗑`，沟通 `✎→☆→🗑`；`et_*`/`en_*` 内联输入；`saveTodoEdit`/`saveNoteEdit`（保留原 `ts`）；新条目 `fav:false` |
+| AE | `askConfirm`（1774） | 不改 | 删除仍二次确认；Esc 优先级中 `confirmModal` 排第二 |
+| AF | `applyImport`/`clearAll`（1757–1786） | 修改 | view 重置改 `freshView()`；导入的 demo 字段由 `migrateFav` 规范化（不剥夺 demo 只读属性） |
+| AG | `exportJSON`/`exportProject`/`collectImages`（1715–1737） | 不改 | `fav/demo/v9` 随项目 JSON 自然流转；demo 图 key 与用户图一并由 `imagesFor` 导出 |
+| AH | `openDoc`/`writeProposalFile`（1614–1707） | 不改 | 对外文档不显示 fav/demo；`manual` 文字标签（1637）保持 v6 行为 |
+| AI | `renderFavorites`/`openFavorites`/`jumpToFav`（新增，建议置于 `renderBoard` 之后 833 行处） | 新增 | `view.mode='favorites'` 独立视图；项目→模块分组；行「类型图标+40 字摘要+模块+定位›」；跳转设 `schedDate`/`focusRef` |
+| AJ | `document keydown`（2075–2077） | 修改 | Esc 四级优先级；调用 `cancelInlineEdit()` |
+| AK | 启动链（2080–2085） | 修改 | `await initData(); seed(); await ensureV9Demo(); renderBoard();`，其余 PWA/图库启动不变 |
+| AL | PWA 注册（2057–2074） | 不改 | 注册逻辑不变；**发布时 SW 版本必须 bump（见 2.5）** |
 
-> 运行时文件总数不变：`shotflow.html` 与 `shotflow-app/shotflow.html` 为同一份内容（改完 `cp` 同步，遵循 README:87 的既定流程）。`shotflow-sw.js` 缓存版本按既有发布流程递增即可，非本设计强制项。
+### 2.2 `tests/logic.test.mjs`（154 行 → 约 215 行）
 
-### 2.2 `tests/logic.test.mjs`（80 行 → 约 130 行）
-
-| 序 | 行号 | 改动 |
+| 序 | 定位 | 改动 |
 |---|---|---|
-| 1 | 第 17 行 | `vm.createContext({..., RegExp, Set})` —— 注入 `Set`，唯一框架改动 |
-| 2 | 第 18 行 | 抽取列表追加 9 个纯函数名：`tagKey,dedupeTags,parseTagsInput,mergeVocab,migrateTags,matchByTags,renameTag,removeTag,tagsForDisplay` |
-| 3 | 第 18 行后 | 追加 `vm.runInContext(fn('suggestTags'), ctx)` 并断言默认关闭路径返回空、零网络 |
-| 4 | 第 62–64 行后 | 追加约 14 项标签断言；原 `migrate` 断言保持原样不动 |
-| 5 | 末尾 | `RESULT` 计数由 22 增至 36（22 原有 + 14 新增），`process.exit(fail?1:0)` 不变 |
+| 1 | 第 17 行 | `vm.createContext({..., RegExp, Set, encodeURIComponent})` —— 补 `encodeURIComponent`（`slugPreview` 需要）。这是唯一框架级注入变化 |
+| 2 | 第 18 行抽取列表 | 追加：`freshView,clearInlineEditState,migrateFav,isFav,favCount,favSummary,summary40,collectFavorites,backupItemCount,matchBoardScope,isActiveStatus,parseMultiImage,slugPreview,cloneDemo,demoSpecs,buildDemoProject` |
+| 3 | 第 64–95 行之后 | 追加 **15 项** v9 断言（明细见 7.T01 验收点）；原有 44 项断言**一行不删不改** |
+| 4 | 第 153 行 | `RESULT` 计数 44 → 59；`process.exit(fail?1:0)` 不变 |
 
-### 2.3 `README.md`（142 行）
+### 2.3 `README.md`（148 行）
 
-- **第 37 行「情绪板」表格行**：补充「图片/文字/色彩均可打多标签（逗号分隔），支持按标签筛选与词表重命名/删除」。
-- **第 38 行「分镜」表格行**：补充「参考图选择器支持按情绪板标签筛选；动作/景别/光线等词可快捷选取」。
-- **第 103–115 行「推荐使用流程」第 3、5 步**：第 3 步加「上传时给素材打标签」，第 5 步加「按标签快速挑参考图」。
-- **第 126–132 行「迭代记录」**：新增 **v6** 条目（标签系统 + AI 接口预留 + 素材来源入口），置于 v5 之上。
-- **第 133–139 行「已知限制」**：加一条「AI 自动打标签为接口预留，当前默认关闭、不发起任何网络请求；外部素材仅提供链接，不内置」。
+- 28–30 行：看板段补「★ 已收藏」入口与「已归档含已交付」。
+- 32–42 行页签表：情绪板补「☆ 收藏」；分镜补「多图上传 / 参考图灯箱上一张下一张 / ☆」；日程、清单、协作补「行内编辑 + ☆」；预算补「只加 ☆」。
+- 66 行：备份提醒注明「不计入示例项目」。
+- 74–76 行：主程序描述 v8 → v9；SW 版本描述 v4 → v9。
+- 115 行：交付后改状态一句补「已归档筛选同时含已交付与已归档」。
+- 124–125 行「预置示例」：改为 6 个示例（5 个新 + 城市漫游者），只读、可复制、7 页签完整、离线内联 SVG 图、示例不进备份提醒。
+- 127–135 行：新增 **v9** 迭代记录（置于 v8 之上）。
+- 137–145 行：已知限制补「示例只读，需复制后才能改；收藏不跨项目；示例图离线内嵌不联网」。
 
-### 2.4 `overview.md`（40 行）
+### 2.4 `overview.md`（53 行）
 
-- **第 4 行版本**：改为 `v6`，测试数 36。
-- **第 12 行 mood 数据模型**：`tag` 旁补 `tags:string[]`；project 补 `tagVocab:string[]`。
-- **第 25–36 行「关键实现」**：新增一条「标签体系：`tagKey` 归一化 / `migrateTags` 幂等迁移 / `matchByTags` any|all 筛选 / `suggestTags` 可插拔桩（恒关闭、零网络）」。
-- **第 34 行测试描述**：22 → 36 项。
+- 第 4 行：v8 → v9，44 → 59 项测试。
+- 9–21 行数据模型：8 类条目加 `fav:boolean`，项目加 `demo:boolean`（+ 可选 `v9:1` 标记）。
+- 27–42 行关键实现：新增「示例一次性注入 / 单守卫只读 / 复制为我的项目」「多图上传与参考图灯箱」「行内编辑与收藏跳转高亮 3 秒」三条。
+- 第 40 行测试描述：44 → 59；第 41 行 PWA：SW v8 → v9。
 
-### 2.5 是否需要新增文件
+### 2.5 部署相关文件（非逻辑改动，但发布必做）
 
-**运行时：否。** 仅新增 3 份设计文档（`docs/system_design.md`、`docs/class-diagram.mermaid`、`docs/sequence-diagram.mermaid`），不参与程序加载、不影响 PWA 缓存。不新增 CSS/JS 外链文件，不新增素材图片文件。
+- `shotflow-sw.js:1`：`const CACHE='shotflow-v8'` → `'shotflow-v9'`（**硬性要求**：SW 不 bump 会导致 PWA 用户拿不到 v9；`ASSETS` 2–7 行不变）。
+- `shotflow-app/shotflow.html`：从 `shotflow.html` 整体 `cp` 同步，部署 `shotflow-app/`；`diff` 必须为空。
+- **不新增**任何 `.js`/`.css`/图片文件；示例图以 dataURL 写在主脚本内，PWA 缓存清单不变。
 
 ---
 
@@ -115,334 +163,368 @@
 ### 3.1 精确数据结构（TypeScript-like）
 
 ```ts
-type MoodType = 'text' | 'color' | 'image';
+type FavKind = 'mood'|'shots'|'schedule'|'scenes'|'items'|'budget'|'notes'|'todos';
 
-interface MoodItem {
-  id: string;            // uid()，卡片与编辑器主键，永不因标签操作改变
-  type: MoodType;
-  content: string;       // image → IndexedDB key；color → '#RRGGBB'；text → 文本正文
-  tag: string;           // [兼容·只读] 旧单值标签；migrateTags 只读取不删除
-                         // 新写路径仍写 tags[0]||''，保证旧文档模板与旧导出可显示
-  tags: string[];        // 新增：归一化去重后的标签数组，保留首次出现显示形式
-  autoTags?: string[];   // 预留：AI 建议但未确认的候选词；本期恒不存在（migrate 不预置）
+interface FavItem { fav: boolean; }              // 8 类条目统一，默认 false；migrateFav 幂等补齐
+
+interface MoodItem extends FavItem {
+  id: string; type: 'text'|'color'|'image'; content: string;
+  tag: string; tags: string[]; autoTags?: string[];   // v6 字段完全不变
 }
+interface Shot extends FavItem {
+  id: string; name: string; date: string; slot: string; duration: number;
+  sceneId: string; refIds: string[]; note: string; done: boolean; ord: number; // refIds ≤3 不变
+}
+interface Node extends FavItem {
+  id: string; type: string; title: string; start: string; end: string;
+  note: string; date?: string; done: boolean;          // 行内编辑不改 date/done/fav
+}
+interface Scene  extends FavItem { id: string; name: string; note: string; done: boolean; }
+interface Item   extends FavItem { id: string; kind: string; name: string; note: string; done: boolean; }
+interface Budget extends FavItem { id: string; item: string; cat: string; amount: number; paid: boolean; }
+interface Note   extends FavItem { id: string; kind: string; content: string; ts: number; } // 编辑保留 ts
+interface Todo   extends FavItem { id: string; title: string; owner: string; due: string; done: boolean; }
 
 interface Project {
-  // ...既有字段 id/name/client/studio/status/shootDate/location/lat/lng/v3/createdAt/updatedAt 全部不变
-  concept: { theme, model, style, audience, usage, note };
-  mood: MoodItem[];
-  tagVocab: string[];    // 新增：项目级词表，元素为首次出现的显示形式，顺序=首次出现顺序（不做字典序）
-  scenes: Scene[]; shots: Shot[]; schedule: Node[];
-  items: Item[]; budget: Budget[]; notes: Note[]; todos: Todo[];
+  id: string; name: string; client: string; studio: string; status: '灵感期'|'策划中'|'待拍摄'|'后期中'|'已交付'|'已归档';
+  shootDate: string; location: string; lat: string|number; lng: string|number;
+  v3: number; createdAt: number; updatedAt: number;
+  concept: { theme: string; model: string; style: string; audience: string; usage: string; note: string };
+  mood: MoodItem[]; shots: Shot[]; schedule: Node[]; scenes: Scene[]; items: Item[];
+  budget: Budget[]; notes: Note[]; todos: Todo[]; tagVocab: string[];
+  demo: boolean;      // 新增：只读示例标记，默认 false
+  v9?: number;        // 新增：ensureV9Demo 注入的幂等标记（值 1）；cloneDemo 删除；不参与 UI
 }
 
-interface Shot {
-  id: string; name: string; date: string; slot: string;
-  duration: number; sceneId: string; refIds: string[]; // refIds 机制完全不变
-  note: string; done: boolean; ord: number;
+interface ViewState {   // 会话内，不持久化、不导出；由 freshView() 统一构造
+  mode: 'board'|'project'|'favorites'; pid: string|null; tab: string;
+  shotFilter: string; boardQuery: string; boardScope: '全部'|'进行中'|'已归档';
+  moodFilter: string[]; moodFilterMode: 'any'|'all';
+  shotDraft: Object; poseCat: string|null; editingShotId: string|null; replaceIdx: number;
+  allowDemoWrite: boolean;                       // 默认 false，唯一逃生阀
+  editingNodeId: string|null; editingStuffId: string|null; editingStuffKey: string|null;
+  editingTodoId: string|null; editingNoteId: string|null;   // 五者同一时刻只允许一个非空
+  refViewer: {shotId: string; ri: number}|null;
+  focusRef: {type: FavKind; id: string; until: number}|null;
 }
 
-interface ViewState {    // 会话内，不持久化、不导出
-  mode: 'board' | 'project'; pid: string | null; tab: string;
-  shotFilter: string; boardQuery: string; boardScope: string;
-  moodFilter: string[];        // 新增：当前筛选标签（语义为 tagKey 归一化后的 key 列表）
-  moodFilterMode: 'any'|'all'; // 新增：多标签匹配模式，默认 'any'
+interface FavEntry {
+  type: FavKind; pid: string; id: string; summary: string; // 摘要≤40 字（超长加 …）
+  module: string;                                          // 情绪板/分镜/日程/清单/预算/协作
+  date: string;                                            // 仅 schedule 有值，供跳转设 schedDate
 }
 
-interface AiConfig {     // 仅内存 + sessionStorage['sf_ai_cfg_v1']，绝不入库/导出
-  enabled: boolean; endpoint: string; apiKey: string; model: string; timeoutMs: number;
+interface DemoSpec {
+  status: string; name: string; theme: string; label: string;
+  art: [string,string][];                                  // 每张 mood 图的调色板 [主色,底色]
+  moodTexts: string[]; shotNames: string[]; nodeTitles: string[];
+  sceneNames: string[]; itemNames: string[]; budgetItems: string[];
+  noteTexts: string[]; todoTitles: string[];
+  fullRefShot: boolean;                                    // true 时第 1 条分镜挂满 3 张 refIds
+  favType: FavKind; favIndex: number;                      // 至少一个 fav:true 的落点
 }
-
-interface TagSuggestReq { blob: Blob; mime: string; maxTags?: number; vocab?: string[] }
-interface TagSuggestRes { tags: string[]; confidence?: number; source: 'ai' }
 ```
 
-### 3.2 新增纯函数签名与语义
+### 3.2 新增纯函数签名与语义（全部具名 `function`，可被 `fn()` 抽取）
 
-全部位于 `migrate` 之前，具名 `function` 声明，无副作用（除显式传入的 `p` 外不改外部状态）。
+| 函数 | 签名 | 语义 / 边界 |
+|---|---|---|
+| `freshView` | `function freshView(patch): ViewState` | 返回**完整**默认 view 对象（3.1 全部字段），`Object.assign(defaults, patch||{})`。526、843、1769、1784 四处统一调用，杜绝字段漂移；不改入参 |
+| `clearInlineEditState` | `function clearInlineEditState(v): ViewState` | 就地清空传入 `v` 的 5 个编辑指针（Node/Stuff/StuffKey/Todo/Note），返回 `v`；不引用全局 `view`；不改 `editingShotId/replaceIdx` |
+| `migrateFav` | `function migrateFav(p): Project` | 幂等：`FAV_KINDS` 八数组缺失/非数组→`[]`；每项 `it.fav = (it.fav===true)`（字符串 `"true"` 归 false）；`p.demo=(p.demo===true)`；**不动** `refIds/tags/tagVocab/ts/done`，不删 `v9` |
+| `isFav` | `function isFav(it): boolean` | `!!(it && it.fav===true)`，唯一收藏判定口 |
+| `favCount` | `function favCount(list): number` | 非数组→0；统计 `isFav` 为真的项数 |
+| `favSummary` | `function favSummary(type,it): string` | 按类型取摘要源：mood→text/content（image 固定 `'图片'`）、shots→name、schedule→title、scenes/items→name、budget→item、notes→content、todos→title；空值返回 `''` |
+| `summary40` | `function summary40(s): string` | `String(s??'').replace(/\s+/g,' ').trim()`，超过 40 字符截前 40 并加 `…`；用于已收藏视图行摘要 |
+| `collectFavorites` | `function collectFavorites(projects): FavEntry[]` | 遍历项目×八类，仅收 `isFav(it)`；产出扁平 `FavEntry[]`（`pid/id/type/module/summary/date`）；**不按项目复制条目**，不排序（保留项目→集合原序），不改入参 |
+| `backupItemCount` | `function backupItemCount(projects): number` | 只统计 `!p.demo` 项目的 `shots+mood+items+budget+todos+notes` 条数；`renderBoard:830` 用；demo 不触发备份提醒 |
+| `matchBoardScope` | `function matchBoardScope(p,scope): boolean` | `'已归档'` → `p.status==='已交付'||p.status==='已归档'`；`'进行中'` → **非**上述两者；其余 → true；空项目对象安全 |
+| `isActiveStatus` | `function isActiveStatus(p): boolean` | `matchBoardScope(p,'进行中')` 的语义别名，供统计/倒计时调用 |
+| `parseMultiImage` | `function parseMultiImage(e): File[]` | `Array.from((e&&e.target&&e.target.files)||[])`，过滤 `!f.type \|\| /^image\//.test(f.type)`；不读 `document`、不修改 `input.files`；测试可传伪事件 |
+| `slugPreview` | `function slugPreview(label,palette): string` | 生成内联 SVG dataURL：`'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg)`；`label` 用 `[<>&"']` 白名单剔除（**不调用 `esc`**）；`palette` 取 `[主色,底色]`，缺省 `['#9a6a33','#f3e9da']`；输出零 `http` 引用 |
+| `cloneDemo` | `function cloneDemo(p,newId,now): Project` | 纯深拷贝：`JSON.parse(JSON.stringify(p||{}))`；`delete c.demo; delete c.v9; c.v3=1; c.id=newId; c.name=(c.name\|\|'示例')+'（副本）'; c.createdAt=c.updatedAt=now`；原对象不变；图片 content 键共享（IDB 同名 key 复用） |
+| `demoSpecs` | `function demoSpecs(): DemoSpec[]` | 返回 5 个固定 spec（状态：灵感期/策划中/后期中/已交付/已归档；待拍摄列沿用旧「城市漫游者」），每 spec 满足 3.4 完整性表；无随机、无 Date |
+| `buildDemoProject` | `function buildDemoProject(spec,mkId,now): Project` | 用注入的 `mkId(tag)` 生成全部 id（生产传 `()=>uid()`，测试传确定性函数）；组装 7 页签非空数据，末尾跑 `migrateFav`+`migrateTags`（经 `migrate`），按 `favType/favIndex` 置一个 `fav:true`；`fullRefShot` 时 `shots[0].refIds = moodImgs.slice(0,3).map(m=>m.content)`；写 `demo:true,v9:1,v3:1` |
+
+**状态层函数（非纯，允许 DOM/IDB）**
 
 | 函数 | 签名 | 语义 |
 |---|---|---|
-| `tagKey` | `function tagKey(s): string` | `String(s??'').normalize('NFKC').trim().toLocaleLowerCase('en-US').replace(/\s+/g,' ')`。用于**比较**，不用于显示。允许词内空格（`golden hour` 是一个标签），只折叠连续空白。空串返回 `''`。 |
-| `dedupeTags` | `function dedupeTags(list): string[]` | 输入任意值（非数组→`[]`）；丢弃空串与归一化后空串；按 `tagKey` 去重；**保留首次出现的显示形式**；返回新数组，不改入参。 |
-| `parseTagsInput` | `function parseTagsInput(str): string[]` | `dedupeTags(String(str??'').split(/[,，;；]+/))`。分隔符仅逗号/分号（中英文），**空格不拆分**，以支持 `golden hour` / `侧 逆 光` 类输入。UI placeholder 明确提示。 |
-| `mergeVocab` | `function mergeVocab(vocab, list): string[]` | `dedupeTags([...(vocab\|\|[]), ...(list\|\|[])])`。不可变；用于词表与素材标签的合并去重。 |
-| `migrateTags` | `function migrateTags(p): Project` | 幂等迁移：<br>1) `p.tagVocab=dedupeTags(p.tagVocab)`；<br>2) 每个 mood 项：非数组 `tags` → `m.tag ? [m.tag] : []` 后 `dedupeTags`；已有数组也再 `dedupeTags`；<br>3) `p.tagVocab=mergeVocab(p.tagVocab, p.mood.flatMap(m=>m.tags\|\|[]))`；<br>4) **不删除 `m.tag`**，不创建 `autoTags`。<br>缺失 `mood`/`tagVocab` 时按空数组处理。 |
-| `tagsForDisplay` | `function tagsForDisplay(m): string[]` | `m.tags?.length ? m.tags : (m.tag ? [m.tag] : [])`。渲染与文档输出的唯一读取口，保证旧数据不空白。 |
-| `matchByTags` | `function matchByTags(item, filter, mode): boolean` | `filter` 为空/`[]` → `true`；将 `filter` 各元素过 `tagKey`，与 `tagsForDisplay(item)` 的 `tagKey` 比较；`mode==='all'` 需全部命中，其余按 `'any'`（命中任一）。不修改任何入参。 |
-| `renameTag` | `function renameTag(p, from, to): Project` | 就地改 `p`：对**所有** mood 项（text/color/image 一视同仁），把 `tagKey(t)===tagKey(from)` 的标签显示形式替换为 `to.trim()`；随后 `p.tagVocab=mergeVocab(dedupeTags(p.tagVocab.map(t=>tagKey(t)===fk?to:t)), [to])` 保证词表同步且合并同名。`from`/`to` 归一化后为空则原样返回。**不动 `content`/`refIds`**。 |
-| `removeTag` | `function removeTag(p, tag): Project` | 就地改 `p`：所有 mood 项剔除 `tagKey(t)===tagKey(tag)` 的标签；`p.tagVocab` 同样剔除；`tag` 单值字段若归一化命中则清空为 `''`。**不动图片 key 与 `refIds`**。 |
+| `ensureV9Demo` | `async function ensureV9Demo(): Promise<void>` | 见 3.5 |
+| `copyDemoToMine` | `function copyDemoToMine(pid): void` | 找 demo → `cloneDemo(p,uid(),Date.now())` → `view.allowDemoWrite=true` → `saveP([...loadP(),copy])` → `false` → `openProject(copy.id)` → toast |
+| `copyToMineButton` | `function copyToMineButton(pid): string` | 纯字符串渲染 helper（可选）：返回 demo pactions 的按钮 HTML，供 `renderProject` 复用 |
+| `beginInlineEdit` | `function beginInlineEdit(kind,id,key): void` | `clearInlineEditState(view)` → 按 `kind∈{Node,Stuff,Todo,Note}` 置唯一指针 → `renderProject()` |
+| `cancelInlineEdit` | `function cancelInlineEdit(): boolean` | 有编辑位则清空并 `renderProject()` 返回 true；否则 false（供 Esc 链判断） |
+| `toggleFav` | `function toggleFav(type,id): void` | `updateCur(p=>{const it=(p[type]\|\|[]).find(x=>x.id===id); if(it) it.fav=!isFav(it);})`；随后按当前页 `renderProject()` 或 `renderShots(cur())`；demo 项目由 `updateCur` 自动拦截 |
+| `openFavorites/renderFavorites` | `function openFavorites(): void` / `function renderFavorites(): void` | `view=freshView({mode:'favorites'})`；`#app` 渲染分组视图 |
+| `jumpToFav` | `function jumpToFav(type,pid,id): void` | 见 4.2 ⑤ |
+| `refNav` | `function refNav(delta): void` | 从 `view.refViewer` 取 `shotId/ri`，`openRefViewer(shotId,(ri+delta+N)%N)`；无 viewer 时 no-op |
 
-> 依赖内置：`Set`（`dedupeTags`/`mergeVocab`）、`Array.prototype.flatMap`（`migrateTags`）、`String.prototype.normalize`（`tagKey`）。Node 与所有目标浏览器均支持；测试 ctx 需补 `Set`（见 2.2）。
-
-### 3.3 AI 接口桩（`suggestTags` 精确写法）
-
-放在 `toast` 之前（约 1328 行），**不得出现 `fetch` / `XMLHttpRequest` / `axios` / `import(` 任何字样**：
+### 3.3 `updateCur` 守卫与 `allowDemoWrite` 的精确写法
 
 ```js
-/* ===== AI 打标签：接口预留（本期恒关闭，零网络） ===== */
-const AI_TAGGING_ENABLED = false;                 // 编译期总开关，本期不改
-const TagProviders = Object.create(null);         // 注册表：{ [name]: { suggest(req,cfg):Promise<TagSuggestRes> } }
-let aiConfig = (()=>{                             // 仅会话配置，不入库不导出
-  const def={enabled:false,endpoint:'',apiKey:'',model:'',timeoutMs:8000};
-  try{ return Object.assign(def, JSON.parse(sessionStorage.getItem('sf_ai_cfg_v1'))||{}); }
-  catch(e){ return def; }
-})();
-function setAiConfig(k,v){
-  aiConfig[k]=v;
-  try{ sessionStorage.setItem('sf_ai_cfg_v1', JSON.stringify(aiConfig)); }catch(e){}
+/* 基线 526–529 改为 */
+function freshView(patch){
+  const d={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',
+    moodFilter:[],moodFilterMode:'any',shotDraft:{},poseCat:null,editingShotId:null,replaceIdx:-1,
+    allowDemoWrite:false,editingNodeId:null,editingStuffId:null,editingStuffKey:null,
+    editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null};
+  return Object.assign(d,patch||{});
 }
-function registerTagProvider(name, provider){
-  const n=String(name||'').trim();
-  if(!n || !provider || typeof provider.suggest!=='function') return false;
-  TagProviders[n]=provider; return true;
-}
-async function suggestTags(req, cfg){
-  // 1) 总开关关闭：直接空返回，连注册表都不查——绝无网络
-  if(!AI_TAGGING_ENABLED) return { tags:[], source:'ai' };
-  // 2) 开关打开但未注册 provider：抛错给调用层降级，仍不发网络
-  const prov=TagProviders[(cfg&&cfg.provider)||'default'];
-  if(!prov) throw new Error('AI_TAGGING_PROVIDER_MISSING');
-  const out=await prov.suggest(req, cfg);
-  // 3) provider 结果也要过归一化；只产出建议，绝不写回手工标签
-  return { tags:dedupeTags(out&&out.tags), confidence:out&&out.confidence, source:'ai' };
-}
-function applyAiSuggestion(moodId){                // 预留 UI：用户确认后才合并
-  const p=cur(), m=(p&&p.mood||[]).find(x=>x.id===moodId);
-  if(!m || !m.autoTags || !m.autoTags.length) return;
-  updateCur(pp=>{
-    const mm=pp.mood.find(x=>x.id===moodId);
-    mm.tags=mergeVocab(mm.tags, mm.autoTags);      // 合并，不覆盖手工标签
-    mm.tag=mm.tags[0]||'';                          // 兼容字段同步
-    pp.tagVocab=mergeVocab(pp.tagVocab, mm.tags);
-    mm.autoTags=[];
-  });
-  renderProject(); toast('已采纳建议标签');
+let view=freshView();
+const cur=()=>loadP().find(p=>p.id===view.pid);
+function updateCur(fn){
+  const a=loadP(), p=a.find(x=>x.id===view.pid);
+  if(!p) return;
+  // 唯一 demo 写拦截点：覆盖勾选/收藏/编辑/标签/元数据/概念/删除等全部写路径
+  if(p.demo&&!view.allowDemoWrite){ toast('示例项目为只读，可点「复制为我的项目」后再修改'); return; }
+  fn(p); p.updatedAt=Date.now(); saveP(a);
 }
 ```
 
-**调用层降级约定（本期无真实调用点，写给未来实现者）**：
+- `allowDemoWrite` 默认 `false`；**只有** `copyDemoToMine` 用 `try/finally` 短暂置 `true`（且它并不调用 `updateCur`，只 `saveP`；保留该字段作为唯一受控逃生阀）。
+- `openProject`（843）、`applyImport`（1769）、`clearAll`（1784）必须改用 `freshView(...)`，否则新字段丢失会让守卫/编辑态失效。
 
-```js
-// try { const r = await suggestTags(req, cfg); if(r.tags.length) /* 展示候选，等用户确认 */; }
-// catch(e){ toast('AI 打标签暂不可用，已跳过（可手动添加标签）'); }
-```
+### 3.4 示例完整性与注入策略（`ensureV9Demo`）
 
-四道红线：① 失败降级返回空 tags 并 toast，绝不静默吞错；② 绝不覆盖手工 `tags`；③ 建议词先落 `autoTags`，只有 `applyAiSuggestion` 经用户点击才进 `tags`；④ `apiKey` 只在 `aiConfig` 内存/sessionStorage，不进 `exportJSON` / `exportProject` / `openDoc` / `exportProposalFile`。
+**5 个新示例 spec（待拍摄列沿用旧「城市漫游者」）**
 
-### 3.4 素材来源常量（轻量入口）
+| # | status | name（示意） | mood（≥3，含图） | shots≥2 | schedule≥2 | scenes+items≥3 | budget≥2 | notes≥2 | todos≥2 | 特殊 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 灵感期 | 微光肖像 · 暗调练习 | 3（2 文 + 1 图） | 2 | 2 | 3 | 2 | 2 | 2 | — |
+| 2 | 策划中 | 城市漫游者 · 胶片提案 | 5（2 文 + 3 图） | 3 | 3 | 4 | 3 | 2 | 3 | **第 1 条分镜 refIds 挂满 3 张图** |
+| 3 | 待拍摄 | 夏末海边 · 情侣写真 | 4（2 文 + 1 色 + 1 图） | 3 | 3 | 4 | 2 | 3 | 2 | — |
+| 4 | 后期中 | 山野旅拍 · 秋色 | 4（2 文 + 2 图） | 2 | 2 | 3 | 2 | 2 | 2 | — |
+| 5 | 已交付 | 咖啡馆品牌 · 秋冬上新 | 4（2 文 + 1 色 + 1 图） | 3 | 3 | 4 | 3 | 3 | 3 | status=已交付，验证「已归档」筛选包含它 |
+| 6 | 已归档 | 旧城改造 · 建筑记录 | 3（1 文 + 2 图） | 2 | 2 | 3 | 2 | 2 | 2 | status=已归档 |
 
-```js
-const MATERIAL_SOURCES = [
-  { name:'shisei · 人像姿势参考', url:'https://github.com/wquguru/shisei',
-    lic:'图片 CC0 1.0 · 代码 Apache-2.0',
-    note:'280 姿势 × 5 视角，四语说明；线稿整包约 36.5MB。可下载后从「上传图片」导入本项目。' },
-  { name:'RuiC-PoseAtlas · AI 人台线稿', url:'https://github.com/HRuiCcc/RuiC-PoseAtlas',
-    lic:'代码 MIT · 图片不在 MIT 内，禁止再分发',
-    note:'288 组 / 1439 张，仓库约 798MB。仅作外链浏览参考，勿内置或随提案分发图片。' },
-  { name:'alt-cinematography-reference · 分类维度参考', url:'TODO_CONFIRM_URL',
-    lic:'无许可证',
-    note:'仅借鉴 shot size / camera angle / lighting / composition 维度做标签词表，不复制仓库内容。' }
-];
-const TAG_SUGGESTIONS = [
-  '站姿','坐姿','行走','回眸','侧身','倚靠','手部动作','跳跃','蹲姿',   // 动作维度（本期重点）
-  '远景','全景','中景','近景','特写','大特写',                          // shot size
-  '平视','俯拍','仰拍','过肩','低机位','鸟瞰',                          // camera angle
-  '顺光','侧光','侧逆光','逆光','顶光','窗光','黄金时刻','剪影',        // lighting
-  '居中','三分法','引导线','框架构图','留白','对称',                    // composition
-  '胶片感','暖调','冷调','松弛感','生活流','氛围感'                     // 调性
-];
-```
+- 所有 spec 的 `concept` 六字段均非空；每个 spec 由 `favType/favIndex` 指定**至少 1 条 `fav:true`**。
+- 待拍摄列的示例是 `seed()` 的「城市漫游者 · 人像写真」：`demo:true` + 首条 mood `fav:true`；若老数据里它没有 image 类型，`ensureV9Demo` **追加**一张 SVG 图 mood（不改任何既有字段）。
 
-渲染方式：`renderMood` 骨架尾部输出一个原生 `<details class="src-panel"><summary>素材来源与常用标签</summary>…</details>`，内部分两块——来源列表（`<a href target="_blank" rel="noopener">` + `.src-lic` 版权标注 + `.src-note`）与常用词 chip（点击把词追加进 `#m_tag`，不自动写库）。无 JS 状态、无网络请求、不打包素材。
+**幂等策略（精确到步骤）**
 
-### 3.5 类图（同时存于 `docs/class-diagram.mermaid`）
+1. `const flag = localStorage.getItem('wb_sf_demo_v9')==='1'`（try/catch 包裹，隐私模式降级为 false）。
+2. `const a=loadP()`；若 `flag===true || a.some(p=>p.demo&&p.v9===1)` → **立即 return**（双 guard 防止 `saveP` 200ms 崩溃导致重复注入）。
+3. 找到 `!p.demo && p.name.indexOf('城市漫游者')===0` 的旧项目：只写 `p.demo=true`，缺图时追加一张 SVG mood，缺 fav 时给首条 mood 写 `fav:true`；**其余字段一个不动**。
+4. `demoSpecs().forEach(spec=>a.push(buildDemoProject(spec,()=>uid(),Date.now())))`。
+5. `saveP(a)` 后立即 `localStorage.setItem('wb_sf_demo_v9','1')`（先标记再 await 图片写入）。
+6. 所有 SVG dataURL：`imgCache[key]=data` 且 `await idb.put(key,data)`（逐张 try/catch，失败仍保留内存图）。
+7. 全程不调用 `seed()`；`LS_SEED='wb_sf_seeded'` 语义不变。
+
+### 3.5 类图
+
+见 `docs/class-diagram.mermaid`（同步嵌于第 4 节前，此处仅列关系要点）：
 
 ```mermaid
 classDiagram
-    class MoodItem {
-        +string id
-        +string type
-        +string content
-        +string tag
-        +string[] tags
-        +string[] autoTags
-    }
+    class FavItem { <<interface 八类条目统一>> +boolean fav }
     class Project {
         +string id
-        +string name
+        +string status
+        +boolean demo
+        +number v9
         +MoodItem[] mood
         +Shot[] shots
-        +string[] tagVocab
-    }
-    class Shot {
-        +string id
-        +string[] refIds
-        +string name
+        +Node[] schedule
+        +Scene[] scenes
+        +Item[] items
+        +Budget[] budget
+        +Note[] notes
+        +Todo[] todos
     }
     class ViewState {
-        +string tab
-        +string[] moodFilter
-        +string moodFilterMode
+        +boolean allowDemoWrite
+        +string editingNodeId
+        +string editingStuffId
+        +string editingStuffKey
+        +string editingTodoId
+        +string editingNoteId
+        +Object refViewer
+        +Object focusRef
     }
-    class TagPureFunctions {
+    class V9PureFunctions {
         <<module 纯函数层>>
-        +tagKey(s) string
-        +dedupeTags(list) string[]
-        +parseTagsInput(str) string[]
-        +mergeVocab(vocab, list) string[]
-        +migrateTags(p) Project
-        +tagsForDisplay(m) string[]
-        +matchByTags(item, filter, mode) boolean
-        +renameTag(p, from, to) Project
-        +removeTag(p, tag) Project
+        +freshView(patch) ViewState
+        +migrateFav(p) Project
+        +favCount(list) number
+        +collectFavorites(projects) FavEntry[]
+        +matchBoardScope(p, scope) boolean
+        +parseMultiImage(e) File[]
+        +slugPreview(label, palette) string
+        +cloneDemo(p, newId, now) Project
+        +buildDemoProject(spec, mkId, now) Project
     }
-    class Persistence {
-        <<module 状态层>>
-        +loadP() Project[]
-        +saveP(a) void
-        +updateCur(fn) void
-        +migrate(p) Project
-        +idb Object
-    }
-    class MoodRenderer {
-        <<module 渲染层>>
-        +renderMood(p) void
-        +renderMoodGrid(p) void
-        +addMood(type) void
-        +addMoodImg(e) void
-        +openTagEditor(moodId) void
-        +saveTagEditor(moodId) void
-        +delTagFromVocab(tag) void
-    }
-    class ShotRenderer {
-        <<module 渲染层>>
-        +renderShots(p) void
-        +toggleRef(id) void
-        +addShot() void
-    }
-    class AIService {
-        <<module AI 桩 恒关闭>>
-        +boolean AI_TAGGING_ENABLED
-        +Object TagProviders
-        +Object aiConfig
-        +registerTagProvider(name, provider) boolean
-        +suggestTags(req, cfg) Promise
-        +applyAiSuggestion(moodId) void
-    }
-    class DocOutput {
-        <<module 文档输出>>
-        +openDoc(kind) void
-        +exportProposalFile() void
-    }
-    class MaterialSources {
-        <<module 常量 轻量入口>>
-        +Object[] MATERIAL_SOURCES
-        +string[] TAG_SUGGESTIONS
-    }
-    Project "1" *-- "0..*" MoodItem : mood
-    Project "1" *-- "0..*" Shot : shots
-    ViewState ..> TagPureFunctions : 提供筛选条件
-    Persistence ..> TagPureFunctions : migrate 调用 migrateTags
-    MoodRenderer ..> TagPureFunctions : 归一化/合并/重命名
-    MoodRenderer ..> Persistence : updateCur 持久化
-    MoodRenderer ..> AIService : applyAiSuggestion 需确认
-    ShotRenderer ..> TagPureFunctions : matchByTags
-    ShotRenderer ..> ViewState : 读取 moodFilter
-    ShotRenderer ..> MoodItem : content 作为 refIds
-    DocOutput ..> TagPureFunctions : tagsForDisplay
-    MoodRenderer ..> MaterialSources : 常用词/来源入口
+    class Persistence { <<module 状态层>> +updateCur(fn) void +saveP(a) void +migrate(p) Project }
+    class DemoFactory { <<module 状态层>> +ensureV9Demo() Promise +copyDemoToMine(pid) void }
+    class BoardRenderer { <<module 渲染层>> +renderBoard() void +renderFavorites() void +jumpToFav(t,p,i) void }
+    class ProjectRenderer { <<module 渲染层>> +renderProject() void +timelineHtml(p,d) string +renderStuff(p) void +renderNotes(p) void }
+    class ShotRenderer { <<module 渲染层>> +renderShots(p) Promise +addShotImg(e) Promise +openRefViewer(s,i) void }
+    class EditHandlers { <<module 渲染层>> +beginInlineEdit(k,i,k2) void +toggleFav(t,i) void }
+    Project "1" o-- "0..*" FavItem : 八类条目统一 fav
+    ViewState ..> V9PureFunctions
+    Persistence ..> V9PureFunctions : migrateFav
+    Persistence ..> ViewState : allowDemoWrite 守卫
+    DemoFactory ..> V9PureFunctions : slugPreview / buildDemoProject / cloneDemo
+    DemoFactory ..> Persistence : saveP / idb.put
+    BoardRenderer ..> V9PureFunctions : matchBoardScope / collectFavorites / backupItemCount
+    ProjectRenderer ..> Persistence : updateCur
+    ShotRenderer ..> V9PureFunctions : parseMultiImage
+    EditHandlers ..> Persistence : updateCur
 ```
+
+> 注：完整类图（含 8 类条目、FavEntry、DemoSpec、DocOutput 及全部关系）以 `docs/class-diagram.mermaid` 为准；上面是本设计文档的精简视图。
+
+### 3.6 八类条目的渲染契约（统一约定，工程师逐行照抄）
+
+| 类型 | 规范渲染函数 / 基线行号 | 行容器属性 | 按钮顺序 | 编辑范围 |
+|---|---|---|---|---|
+| `mood` | `renderMoodGrid` 972–983 | `data-fid` 加在 `.mood-item` | 既有 `del/✎(标签)` + **新增 ☆/★** | 只保留 v6 标签编辑，不编辑素材内容 |
+| `shots` | `renderShots` 1154–1160 | `data-fid` 加在 `.shot` | `drag→chk→refs→文案→☆→🗑` | 不编辑正文；仅参考图操作 |
+| `schedule` | `timelineHtml` 1398–1402（仅 `_t==='node'`） | `data-fid` 加在 `.tl-item` | `chk→✎→☆→🗑` | type/title/start/end/note；不改 date/done |
+| `scenes` | `renderStuff('scenes')` 1419–1422 | `data-fid` 加在行 `div.row` | `chk→✎→☆→🗑` | name/note；不改 done |
+| `items` | `renderStuff('items_s'/'items_g')` 同上 | 同上 | 同上 | name/note；不改 kind/done |
+| `budget` | `renderBudget` 1453–1456 | `data-fid` 加在 `.brow` | `paid→☆→🗑` | **不提供 ✎** |
+| `notes` | `renderNotes` 1497–1504 | `data-fid` 加在 `.note-item` | `✎→☆→🗑` | kind/content；**保留 ts** |
+| `todos` | `renderNotes` 1480–1488 | `data-fid` 加在行 `div.row` | `chk→✎→☆→🗑` | title/owner/due；不改 done |
+
+- ☆/★ 输出统一：`isFav(it)?'★':'☆'`；button `title="收藏/取消收藏"`、`onclick="toggleFav('type',id)"`。
+- ✎ 输出统一：`onclick="beginInlineEdit('Node'|'Stuff'|'Todo'|'Note',id,'key')"`（仅 Stuff 传第三参）。
+- 删除沿用 `askConfirm` 的既有函数（分镜/清单/日程/预算/协作有；mood 无确认，保持现状）。
 
 ---
 
 ## 4. 程序调用流程
 
-### 4.1 时序图（同时存于 `docs/sequence-diagram.mermaid`）
+### 4.1 时序图
+
+完整 Mermaid 见 `docs/sequence-diagram.mermaid`（下列为同一流程的精简主干）：
 
 ```mermaid
 sequenceDiagram
     actor U as 用户
-    participant V as view(会话状态)
-    participant M as renderMood/renderMoodGrid
-    participant T as 标签纯函数层
+    participant V as view
+    participant T as v9 纯函数层
     participant S as updateCur/saveP
     participant D as IndexedDB
-    participant R as renderShots
-    participant A as suggestTags(桩)
+    participant B as renderBoard/renderFavorites
+    participant P as renderProject/各页签
+    participant R as renderShots/灯箱
+    participant F as DemoFactory
 
-    Note over U,D: ① 上传图片并打标签
-    U->>M: 选文件 + 填 m_tag「逆光,中景,回眸」
-    M->>M: 同步读取 tagInput（异步前）
-    M->>T: parseTagsInput(tagInput)
-    T-->>M: tags[]
-    M->>M: FileReader→canvas 800px/.72→idb.put(imgId,data)
-    M->>D: put images[imgId]
-    M->>T: mergeVocab(p.tagVocab, tags)
-    T-->>M: newVocab[]
-    M->>S: updateCur(p=>push mood{id,image,content:imgId,tag:tags[0],tags}; tagVocab=newVocab)
-    S->>D: saveP 200ms 合并写 projects
-    M->>M: renderProject()→renderMood(p)→renderMoodGrid(p)
+    Note over U,D: 启动与示例注入
+    U->>B: 打开应用
+    B->>S: await initData()（migrateFav 已挂钩）
+    B->>F: seed() → await ensureV9Demo()
+    F->>T: demoSpecs/buildDemoProject/slugPreview
+    F->>D: put 内联 SVG 图
+    F->>S: saveP([旧项目原样, 5 个新 demo])
+    B->>B: renderBoard()（过滤/统计/备份数走纯函数）
 
-    Note over U,S: ② 卡片编辑标签（增删改）
-    U->>M: 点卡片 ✎ → openTagEditor(moodId)
-    U->>M: 改「回眸」为「侧身」→ saveTagEditor
-    M->>T: parseTagsInput + mergeVocab
-    M->>S: updateCur 写回 tags/tag/tagVocab
-    S->>D: 200ms 合并写
-    M->>M: renderProject() 全量重绘
+    Note over U,R: R1 多图上传
+    U->>R: s_img(multiple) 选 N 张 → addShotImg(e)
+    R->>T: parseMultiImage(e)
+    loop 顺序 for...of await
+        R->>D: ingestImageFile → idb.put(imgId,data)
+        R->>S: updateCur(p=>p.mood.push(fav:false))
+    end
+    alt 新增态
+        R->>V: selRefs 补到 3，超出仅入库
+    else 编辑替换 i
+        R->>S: updateCur(p=>s.refIds[i]=okIds[0])
+    else 编辑追加
+        R->>S: updateCur(p=>s.refIds 补到 3)
+    end
+    R->>U: 汇总 toast（成功/失败/仅入库）
+    R->>R: renderShots(cur()) 一次
 
-    Note over U,S: ③ 词表重命名 / 删除
-    U->>M: 点词表 chip ✎ → startRenameTag(from) → commitRenameTag
-    M->>T: renameTag(p, from, to)
-    T-->>M: 全量 mood + tagVocab 已同步
-    M->>S: updateCur(p=>...) → renderProject()
-    U->>M: 点 chip × → delTagFromVocab(tag) → askConfirm
-    M->>T: removeTag(p, tag)
-    M->>S: updateCur → renderProject()（refIds 完全未动）
+    Note over U,P: R3-R5 行内编辑
+    U->>P: ✎ → beginInlineEdit(kind,id,key)
+    P->>T: clearInlineEditState(view)
+    U->>P: 保存 → save*Edit → 校验 → updateCur → renderProject
+    U->>P: 取消 / Esc → cancelInlineEdit → 丢弃
 
-    Note over U,R: ④ 按标签筛选 → 分镜引用
-    U->>V: m_filter 输入 / 点词表 chip → moodFilter[]
-    V->>M: renderMoodGrid(p)（只换两个容器，输入框不丢焦点）
-    M->>T: matchByTags(m, moodFilter, moodFilterMode)
-    T-->>M: 命中子集
-    U->>R: 切到分镜页 renderShots(p)
-    R->>T: matchByTags 过滤 moodImgs
-    R->>V: 读取 moodFilter 决定 ref picker 显示
-    U->>R: toggleRef(content) 选 ≤3 张 → addShot 写 refIds
-    R->>S: updateCur 写 shots[].refIds（机制不变）
+    Note over U,B: R6-R7 收藏与定位
+    U->>P: ☆/★ → toggleFav → updateCur
+    U->>B: 「★ 已收藏 N」→ renderFavorites
+    U->>B: 条目 → jumpToFav → focusRef(3s) → 高亮 + scrollIntoView
 
-    Note over U,A: ⑤ AI 建议（本期仅接口，未接线）
-    U->>A: （未来）suggestTags(req, cfg)
-    A-->>U: AI_TAGGING_ENABLED=false → {tags:[],source:'ai'}
-    Note over A: 零 fetch / 零密钥入库 / 不覆盖手工标签
-    U->>A: （未来）用户确认候选 → applyAiSuggestion(moodId)
-    A->>S: updateCur 合并 autoTags 进 tags 后清空
+    Note over U,F: R8 只读与复制
+    U->>S: demo 项目任意写 → updateCur 守卫 toast + return
+    U->>F: 复制为我的项目 → cloneDemo（删 demo/v9，新 id/名字/时间）
+    F->>S: saveP([...,copy]) → openProject(copy.id)
 ```
 
-### 4.2 关键分支规则（编号补充）
+### 4.2 关键流程编号步骤（可直接对照验收）
 
-1. **上传打标签**：标签为空时 `tags=[]`、`tag=''`，仍允许上传（与现有行为一致，不阻断）。
-2. **卡片编辑**：`saveTagEditor` 中若解析后为空数组，允许清空全部标签（不弹确认）；词表由 `delTagFromVocab` 单独显式清理。
-3. **词表重命名冲突**：若 `to` 与已有词归一化后相同，`renameTag` 自动合并为一个（保留 `to` 的显示形式），不产生重复 chip。
-4. **筛选模式**：`moodFilterMode='any'` 默认；点词表 chip 时若该 key 已在 `moodFilter` 中则移除（toggle）；`clearMoodFilter()` 一键清空。
-5. **筛选与已选参考图**：筛选只决定 ref picker **显示哪些图**，不清空 `selRefs`；因此筛选掉某图不会让待添加分镜丢失已选引用。
-6. **删 mood 项**：`delMood` 仍只删项，`p.tagVocab` 保留历史词（可复用）；提供显式「清理未使用标签」由 `delTagFromVocab` 完成。
-7. **文档输出**：`kind==='manual'` 的执行手册显示 `#标签`；`proposal` 与 `exportProposalFile` 不显示，保持对外视觉与 v5 一致。
+**① 启动 / 示例注入（2080–2085、717–767、`ensureV9Demo`）**
+1. `await initData()`（678）读 IDB → 逐项 `migrate`（653：`migrateFav` + `migrateTags`）→ 写回。
+2. `seed()`（717）：首装写「城市漫游者」，`demo:true` + 首 mood `fav:true`。
+3. `await ensureV9Demo()`：按 3.4 双 guard → 补旧项目的 demo/图/fav → `buildDemoProject` ×6 → `saveP` → 写 flag → `idb.put` SVG 图。
+4. `renderBoard()`（770）：`matchBoardScope` 过滤、`backupItemCount` 预算提醒、demo 角标。
+5. `shiseiInitReady=true; startShiseiSync()`（2084）不变。
+
+**② R1 多图上传 → 挂图（1107、1213–1234）**
+1. `s_img` 选 N 张 → `addShotImg(e)` 同步取 `view.editingShotId/replaceIdx`（1215）。
+2. `parseMultiImage(e)` 得有序 `files[]`；`e.target.value=''` 立即清 input（可重复选同图）。
+3. `for (const f of files){ const id=await ingestImageFile(f,[]); id?okIds.push(id):failN++; }`（单张失败仅 toast 后继续）。
+4. 新增态：`need=3-selRefs.length`，`selRefs.push(...okIds.slice(0,need))`，其余只入库。
+5. 编辑替换态：`s.refIds[replaceIdx]=okIds[0]`（其余只入库）；编辑追加态：`need=3-s.refIds.length`，逐个 push。
+6. 汇总 toast（例：`已存入情绪板 5 张，挂到分镜 3 张，失败 1 张`），`renderShots(cur())` 一次；`selRefs` 条显示 `k/3`。
+
+**③ R2 灯箱 / 换图 / 移除（1198–1212、1169–1196）**
+1. 点分镜缩略图 → `openRefViewer(shotId,ri)`，记录 `view.refViewer`，渲染「第 ri+1/N 张」+ ‹/› + 更换/移除/关闭。
+2. `shisei:` 且 `imgCache[key]` 为空 → 只渲染占位文字（1205），不渲染 `<img>`；更换/移除照常可用。
+3. `refNav(±1)` 环形切换；`openShotRefEditor` 进入选图态并置 `replaceIdx=ri`（1188–1191）。
+4. `toggleRef` 的 `replaceIdx>=0` 分支只写 `s.refIds[ri]`（1174）；`removeShotRef` 只 `splice` 该分镜（1193–1196）；情绪板原图与其它分镜不受影响。
+
+**④ R3-R5 编辑保存（1383–1412、1415–1438、1470–1520）**
+1. ✎ → `beginInlineEdit(...,id,key)` 先清空五个指针 → 只设一个 → `renderProject()`。
+2. 输入保存在 DOM 中，未点保存前不写库；Esc 由 `cancelInlineEdit()` 丢弃。
+3. 保存校验：日程 title 非空且 `toMin(end)>toMin(start)`（1339）；清单/待办 title 非空；沟通 content 非空。
+4. `updateCur(p=>Object.assign(target,白名单字段))` → done/date/fav/ts/kind(物品)/owner 等不在白名单的字段保持原值。
+5. `clearInlineEditState(view)` → `renderProject()`；日程 `schedDate`（1304）未动，重叠由 `dayItems`（1341）重算，**不调用 `cascadeShift`**。
+
+**⑤ R6-R7 收藏与跳转（渲染契约 3.6、`renderFavorites`/`jumpToFav`）**
+1. ☆/★ → `toggleFav(type,id)` → `updateCur` 写 `fav` → 当前页重绘；demo 项目被 529 守卫拦截并 toast。
+2. 看板/项目页按钮调用 `collectFavorites(loadP()).length` 显示「★ 已收藏 N」。
+3. `openFavorites()` → `view=freshView({mode:'favorites'})` → `renderFavorites()` 按项目→模块分组，行显示 `FAV_ICON[type] + summary40 + module + '定位›'`。
+4. `jumpToFav(type,pid,id)`：`freshView({mode:'project',pid,tab:FAV_TAB[type]})`；日程先把 `schedDate` 设为 `FavEntry.date||p.shootDate||todayStr()`。
+5. `view.focusRef={type,id,until:Date.now()+3000}` → `await cacheProjectImages(p)` → `renderProject()` → 遍历 `[data-fid]` 比对 `dataset.fid` → 加 `.fav-focus` + `scrollIntoView({block:'center'})`。
+6. `setTimeout(3000)` 重新查询 DOM、按 id 复核清 class 与 `focusRef`；期间用户切页也不会清错元素。
+
+**⑥ R8 demo 只读 / 复制（529、863–866、969–986、`copyDemoToMine`）**
+1. demo 项目：看板卡片与项目标题显示「示例」角标；pactions 只有「导出此案」「复制为我的项目」「★ 已收藏 N」，隐藏拍摄日模式；元数据/概念输入 disabled。
+2. 任意漏网写路径（如 ☆、勾选、标签 ✎）到 `updateCur` 统一 toast + return。
+3. 点「复制为我的项目」→ `copyDemoToMine(pid)` → `cloneDemo(p,uid(),Date.now())`（删 demo/v9、新 id、名字加「（副本）」、刷新时间、图片 key 共享）。
+4. `allowDemoWrite=true` → `saveP([...a,copy])` → `false` → `openProject(copy.id)` → toast；副本所有编辑能力恢复。
+
+**⑦ Esc 优先级（2075–2077）**
+1. `refViewer.show` → `closeRefViewer()` 并 return。
+2. 否则 `confirmModal.show` → `closeConfirm()` 并 return。
+3. 否则 `cancelInlineEdit()` 返回 true → 已丢弃编辑，return。
+4. 否则 `closeDoc(); closeShootDay();`。
+
+**⑧ 看板筛选（770–833）**
+1. `ps=all.filter(p=>matchBoardScope(p,view.boardScope) && 搜索命中)`。
+2. `active/todayShoots/卡片倒计时` 全部用 `isActiveStatus/matchBoardScope`。
+3. `backupItemCount(all)` 排除 demo 后决定 `#backupTip.show`（831）。
 
 ---
 
-## 5. 待明确事项
+## 5. Anything UNCLEAR（默认决策，无需阻塞评审）
 
-以下 5 点为 PM 定稿未覆盖的实现细节，已给出**默认决策**；如主理人/管理员无异议即按默认执行，不需额外评审。其中第 1 项为硬阻塞外链展示，需一个准确 URL。
-
-| # | 事项 | 默认决策 | 是否需回复 |
+| # | 事项 | 默认决策 | 备注 |
 |---|---|---|---|
-| 1 | `alt-cinematography-reference` 的 owner / 完整 URL 未确认（PM 调研只给仓库名） | 常量里先写 `url:'TODO_CONFIRM_URL'`；渲染时若 URL 以 `TODO_` 开头则降级为纯文字说明（不可点击），不影响其余两条外链 | **需**：给准确 URL，或同意本期只展示 2 条外链 |
-| 2 | 客户提案 / 提案文件是否展示标签 | 不展示；仅执行手册展示。理由：标签是内部检索词，对外文档保持 v5 视觉 | 可选 |
-| 3 | 多标签筛选默认 `any` 还是 `all` | 默认 `any`（命中任一），UI 提供 `any/all` 切换按钮 | 可选 |
-| 4 | 删除词表标签时是否同时从所有素材移除 | 同时移除（otherwise 词表与素材不一致）；`askConfirm` 文案明确「不影响已引用参考图」 | 可选 |
-| 5 | `autoTags` 字段是否本期就在 `migrate` 里预置空数组 | 不预置，字段留可选；避免所有旧项目凭空膨胀。AI 启用后由写路径创建 | 可选 |
+| 1 | 「已收藏 N」是否统计 demo 项目里历史遗留的 `fav:true` | **统计**（数据如实呈现），条目在已收藏视图显示「示例」角标，跳转后仍只读 | 用户无法在 demo 中新增收藏；若主理人希望完全隐藏，只需在 `collectFavorites` 加 `if(p.demo) return;` |
+| 2 | 第 6 色具体色值与类名 | `STATUS_TAG[5]='ink'`，CSS 追加 `.tag.ink`（灰墨底）；`.dot.st-5/.pcard.st-5::before=#9c9389` | 副作用：`NODE_COLORS`（1303）的 `'其他'` 也用 `ink`，会由默认主色变为灰墨，属视觉修正 |
+| 3 | demo 概念页输入如何处理 | 与元数据卡一致加 `disabled`（避免逐字输入触发只读 toast） | 用户项目概念页自动保存行为不变 |
+| 4 | demo 图存储方式 | `uid()` 作 key + 内联 SVG dataURL 写 `images` store + `imgCache` 预热 | 不改 `cacheProjectImages`/渲染函数；导出备份会包含这些极小图片 |
+| 5 | 示例幂等标记 | `localStorage['wb_sf_demo_v9']` 为主，项目上 `v9:1` 为辅（崩溃恢复）；`cloneDemo` 删除 `v9` | 不新增状态枚举，不影响 UI |
+| 6 | 项目页「★ 已收藏 N」点击行为 | 与看板同款：进入全局 `favorites` 视图 | 不做项目内收藏筛选（边界外） |
+| 7 | 日程时间轴里的分镜行是否加 ☆ | 不加；分镜的 ☆ 只在分镜页规范行出现 | 避免同一条目两处入口状态不同步 |
+| 8 | 发布时 SW 是否必须 bump | **必须**：`shotflow-sw.js:1` `shotflow-v8`→`shotflow-v9` | 否则 PWA 用户因缓存拿不到 v9 |
+
+> 以上 8 项均已在设计中给出可直接执行的默认值；**无需要主理人额外决策的阻塞项**。如主理人否决其中某项，仅影响对应单点，不改任务划分。
 
 ---
 
@@ -450,120 +532,130 @@ sequenceDiagram
 
 ## 6. 所需依赖包
 
-**无第三方依赖。** 本项目为单文件全内联、零构建、零 npm 包工具，本设计不引入任何包。
+**无第三方依赖、无构建步骤。**
 
-- 运行时：`shotflow.html`（原生 DOM / IndexedDB / Canvas / FileReader，`String.prototype.normalize` 为 ES6 内置）
-- 测试：`node tests/logic.test.mjs`（Node 内置 `node:fs` / `node:vm`，无 npm install）
-- 不新增：`package.json`、 bundler、UI 库、AI SDK、HTTP 客户端
+- 运行时：仅 `shotflow.html`（原生 DOM / IndexedDB / Canvas / FileReader / `encodeURIComponent` / 内联 SVG dataURL）
+- 测试：`node tests/logic.test.mjs`（Node 内置 `node:fs`、`node:vm`；直接运行，无需 npm install）
+- 明确不新增：`package.json`、bundler、UI 库、图片文件、外链脚本/样式、任何服务端依赖
 
-## 7. 任务列表（按依赖排序，共 5 条）
+## 7. 任务列表（按依赖排序，共 5 条；每条 ≥3 个改动区域）
 
-> 说明：本项目只有一个运行时文件，"源文件"列按**函数/行号区域**标注（等价于模块化项目中的文件分组）；每条任务含 ≥3 个改动区域。T01 承担"基础设施"角色（常量 + 纯函数 + 迁移挂钩 + 测试框架），对应模板中的项目基础设施任务。
+> 本项目只有一个运行时文件，"源文件"列按**函数/行号区域**标注（等价于模块化项目中的文件分组）。T01 承担"项目基础设施"角色：常量 + 测试框架 + 纯函数层 + 迁移挂钩 + 全局 CSS，全部收敛在一个任务。
 
-### T01 · 基础设施：标签纯函数层 + 迁移挂钩 + 测试框架（P0，依赖：无）
-
-**改动区域**
-1. `shotflow.html` 数据层常量（306–309 后）：新增 `AI_TAGGING_ENABLED` / `TagProviders` / `aiConfig` / `MATERIAL_SOURCES` / `TAG_SUGGESTIONS`
-2. `shotflow.html` `migrate` 之前（434 行处）：新增 9 个具名纯函数（3.2 节）
-3. `shotflow.html` `migrate`（435–448）：`return p` 前插入 `migrateTags(p)`
-4. `shotflow.html` `view`（430）：加 `moodFilter:[]` / `moodFilterMode:'any'`
-5. `tests/logic.test.mjs`：第 17 行 ctx 注入 `Set`；第 18 行追加 9 个函数名；新增纯函数断言
-
-**验收点**
-- `node tests/logic.test.mjs` 原有 22 项**全部仍 PASS**（尤其 `migrate refId→refIds`、duration、initData 迁移三项）
-- 新增断言全过：`tagKey` 全半角/大小写/空白折叠；`dedupeTags` 保留首次显示形式；`parseTagsInput` 不拆词内空格；`mergeVocab` 不可变；`migrateTags` 旧 `tag`→`tags` 且**连续两次结果 JSON 相等**（幂等）；`matchByTags` any/all + 空 filter + 旧 tag 回退；`renameTag`/`removeTag` 不改 `content`/`refIds`
-- `suggestTags()` 在默认开关下返回 `{tags:[],source:'ai'}`；测试 ctx 注入 `fetch=()=>{throw new Error('NETWORK')}` 后调用不抛错（证明零网络）
-- 全部新增函数为 `function name(){}` 具名声明，可被 `fn()` 抽取
-
-### T02 · 情绪板标签编辑 + 词表管理 + 素材来源入口（P0，依赖：T01）
+### T01 · 基础设施：v9 常量 / 纯函数层 / 迁移挂钩 / 测试框架 / 全局 CSS（P0，依赖：无）
 
 **改动区域**
-1. `shotflow.html` CSS（45–52 后、127–143 后）：追加 `.tagchip` / `.tag-cloud` / `.tag-editor` / `.tag-rename` / `.src-*` 类，复用现有 CSS 变量
-2. `shotflow.html` `renderMood`（694–711）：重写骨架（多值输入 `#m_tag` + `#tagCloud` + `#moodGrid` + `<details>` 素材来源/常用词）
-3. `shotflow.html` `addMood`（712–717）/ `addMoodImg`（718–732）：写 `tags` + `tag` + `tagVocab`；异步前同步读输入；压缩策略与 `idb.put` 不动
-4. `shotflow.html` 新增 `renderMoodGrid` / `openTagEditor` / `saveTagEditor` / `startRenameTag` / `commitRenameTag` / `delTagFromVocab` / `clearMoodFilter`
-5. `shotflow.html` `delMood`（733）：核对保持不改（不加自动清词表逻辑）
+1. `shotflow.html` 359、485–486：`LS_DEMO_V9`、`FAV_KINDS/FAV_META/FAV_ICON/FAV_TAB`、`STATUSES`/`STATUS_TAG` 第 6 项
+2. `shotflow.html` 526–529：`freshView()` + `view=freshView()` + `updateCur` demo 守卫
+3. `shotflow.html` 651 行处：16 个 v9 具名纯函数（3.2）
+4. `shotflow.html` 653–667：`migrate` 插入 `migrateFav(p)`
+5. `shotflow.html` CSS 45–49/97/103/296–313：`.tag.ink`、`.st-5`、`.rowbtn`、`.inline-edit`、`.selrefs`、`.badge.demo`、`.fav-focus`、`:disabled`、移动端常显
+6. `tests/logic.test.mjs` 17–18、64–95 后、153：ctx 注入 `encodeURIComponent`；追加 16 个抽取名；新增 15 项断言；RESULT 44→59
 
 **验收点**
-- 上传文字/色彩/图片三类均可打多标签（`逆光, 中景, golden hour` 正确拆成 3 个，`golden hour` 不被拆）
-- 卡片 ✎ 可增删改标签；词表 chip ✎ 重命名后**所有素材同步更新**；× 删除经 `askConfirm` 后全局移除且不改 `refIds`
-- 所有动态文本经 `esc()`；标签 chip 渲染为 `#` + `esc(tag)`；颜色值仍 `esc(m.content)`
-- 素材来源 `<details>` 展示 3 条（第 3 条按 T01 常量的 `TODO_` 降级为纯文字）；点击常用词只追加到输入框、不直接入库
-- 空态文案与第 6 节完全一致；旧数据（只有 `tag`）在卡片和词表均正常显示
+- `node tests/logic.test.mjs` 原有 **44 项全 PASS**（尤其 `migrate refId→refIds`、`migrate 补 duration`、`initData 迁移旧数据` 三项）
+- 15 项新增全过（逐项）：① `freshView` 默认值/patch；② `clearInlineEditState` 五指针清空；③ `migrateFav` 八数组 + demo 默认 false；④ `migrateFav` 保留 true 且二次 JSON 相等；⑤ `isFav`+`favCount` 混合数组；⑥ `summary40` 40 字截断与空白折叠；⑦ `favSummary` 8 类映射；⑧ `collectFavorites` 字段与排除非 fav；⑨ `backupItemCount` 排除 demo；⑩ `matchBoardScope` 三档；⑪ `isActiveStatus` 六状态；⑫ `parseMultiImage` 伪事件过滤；⑬ `slugPreview` dataURL 前缀且零 `http`；⑭ `cloneDemo` 深拷贝/删 demo+v9/新 id/名字/时间且原对象不变；⑮ `demoSpecs().length===5` 且 `buildDemoProject` 对 5 spec 均满足 7 页签非空 + mood≥3 含图 + 1 个 3 图 refIds + ≥1 fav
+- 全部新增纯函数可由 `fn(name)` 抽取（具名 `function`），且无 `document/window/idb/view/toast`
+- 44+15=59，`RESULT pass=59 fail=0`，退出码 0
 
-### T03 · 标签筛选 + 分镜参考图选择器改造（P1，依赖：T01；与 T02 仅 CSS 有交集）
+### T02 · 示例数据层 + 看板/项目页壳改造（P0，依赖：T01）
 
 **改动区域**
-1. `shotflow.html` `renderMoodGrid`（T02 新增）：按 `matchByTags` 过滤 `#moodGrid` 与 `#tagCloud`，只替换容器 innerHTML
-2. `shotflow.html` `renderShots`（738–774，重点 739、753–756）：`moodImgs` 增加筛选；ref-opt 加 `.ref-tag`；空态新文案
-3. `shotflow.html` `view`（430）：`moodFilter` toggle / `moodFilterMode` 切换按钮接线
-4. `shotflow.html` `toggleRef`（775–780）/ `addShot`（781–790）：核对保持不改
+1. `shotflow.html` 717–767 `seed()`：`demo:true`、首 mood `fav:true`（不写 `v9`）
+2. `shotflow.html` 767 后新增 `ensureV9Demo`/`copyDemoToMine`/`slugPreview` 调用与 SVG 常量；2080–2085 启动链接入
+3. `shotflow.html` 770–833 `renderBoard()`：三档过滤/统计/倒计时/备份数纯函数化、★入口、demo 角标
+4. `shotflow.html` 843 `openProject()` 与 1757–1786 `applyImport/clearAll`：view 重置改 `freshView`
+5. `shotflow.html` 856–877 `renderProject()`、899–910 `renderConcept()`：pactions、元数据与概念 disabled、demo 角标
+6. `shotflow.html` 1044–1086 新条目写 `fav:false`（mood 部分）
 
 **验收点**
-- 输入筛选词时输入框**不丢焦点**（骨架未被重建）；清空后恢复全部
-- `any` / `all` 语义正确；`moodFilter=[]` 显示全部
-- 筛选后 `selRefs` 不清空；`toggleRef` 仍最多 3 张并 toast；`addShot` 写入的 `refIds` 仍是 image content key
-- 分镜页空态文案含「动作 / 景别 / 光线」「素材来源」提示；无图片时不再只写「可先去上传」
+- 老数据首次打开只注入一次：刷新页面后项目数不再增加；`localStorage.wb_sf_demo_v9==='1'`；手动删 flag 但保留 `v9:1` 项目也不会重复注入
+- 共 6 个示例（5 新 + 城市漫游者），每个 7 页签非空，mood≥3 含至少 1 图，分镜≥2、日程≥2、清单≥3、预算≥2、沟通≥2、待办≥2；至少 1 个示例首分镜 `refIds.length===3`；每个示例 ≥1 `fav:true`
+- 示例图离线可见：断网打开仍能显示内联 SVG；情绪板/分镜引用/导出提案均显示正常
+- 旧「城市漫游者」用户字段（名称/客户/分镜/预算等）逐项对比无改动，仅新增 `demo:true`/一张图/一条 fav
+- demo 项目：看板与项目页显示「示例」角标；pactions 无「进入拍摄日模式」、有「复制为我的项目」与「导出此案」；元数据与概念输入 disabled；任意 ☆/勾选/编辑触发只读 toast 且数据不变
+- 「进行中」= 4 态；「已归档」= 已交付 + 已归档（两个示例都出现）；备份提醒条数不含 6 个示例
+- 复制为我的项目：名字以「（副本）」结尾、id 新鲜、无 demo/v9、可自由编辑、图片仍显示
 
-### T04 · AI 接口桩 + 配置隔离（P1，依赖：T01）
+### T03 · R1/R2 分镜多图上传与参考图交互（P0，依赖：T01；只改 `renderShots` 区域，不与 T04 冲突）
 
 **改动区域**
-1. `shotflow.html` `registerTagProvider` / `suggestTags` / `setAiConfig` / `applyAiSuggestion`（1328 行前，代码见 3.3）
-2. `shotflow.html` `aiConfig` 与 `sessionStorage['sf_ai_cfg_v1']` 读写封装
-3. `tests/logic.test.mjs`：追加零网络 / 关闭路径断言（与 T01 共用地 `suggestTags` 抽取）
-4. `shotflow.html` 情绪板卡片：预留 `autoTags` 非空时才显示的「采纳建议」按钮（桩恒返回空，故 UI 默认永不出现）
+1. `shotflow.html` 1107：`s_img` 加 `multiple`
+2. `shotflow.html` 1129–1142：`renderShots` 增「已选参考图（k/3）」条（缩略图+序号+×取消，不动情绪板）
+3. `shotflow.html` 1143–1161：分镜行按钮序 `drag→chk→refs→文案→☆→🗑`、加 `data-fid` 与 `toggleFav('shots',id)`
+4. `shotflow.html` 1169–1196：`toggleRef` 替换/追加分支与 `removeShotRef` 核对（只改目标 `refIds`）
+5. `shotflow.html` 1198–1212：`openRefViewer` 记 `view.refViewer`、加 `refNav(±1)`、`shisei:` 占位禁大图
+6. `shotflow.html` 1213–1234：`addShotImg` 改为 `parseMultiImage` + 顺序 await + 三种挂图模式 + 汇总 toast
+7. `shotflow.html` 1235–1244：`addShot` 新条目 `fav:false`
 
 **验收点**
-- 全文件搜索 `fetch(` / `XMLHttpRequest` / `apiKey` 的**使用点**：`fetch`/`XHR` 零命中；`apiKey` 仅出现在 `aiConfig` 的常量与 `setAiConfig`，不出现在 `exportJSON`/`exportProject`/`openDoc`/`exportProposalFile`
-- 关闭开关时 `suggestTags` 不访问 `TagProviders`；开关被外部改 true 但无 provider 时抛 `AI_TAGGING_PROVIDER_MISSING`，仍零网络
-- 失败路径 toast 文案为「AI 打标签暂不可用，已跳过（可手动添加标签）」
-- `applyAiSuggestion` 用 `mergeVocab` 合并，**不覆盖**手工 `tags`；确认后清空 `autoTags`
-- `sessionStorage` 不可用时（try/catch）功能不崩
+- 一次选 5 张：情绪板按选择顺序新增 5 条 image；新增分镜 `selRefs` 恰好前 3 张；toast 说明「入库 5 / 挂载 3」；条上 × 只取消选择，情绪板原图仍在
+- 已有 2 张的**已创建**分镜再传 4 张：只补 1 张到 3，其余 3 张仅入库；替换第 i 张时只有 `refIds[i]` 变化，`i` 之外与情绪板原图不变
+- 5 张中第 3 张损坏：跳过它继续处理第 4/5 张，最终 toast 含失败数；其余 4 张正常入库
+- 灯箱显示「第 2/3 张」；‹/› 环形切换；`shisei:` 占位无 `<img>` 但「更换/移除」可用；更换只改一个下标，移除只改该分镜
+- 3 张上限在所有路径生效；`addShot` 写入 `refIds` 仍是 image content key；拖拽排序、`ord`、时间重叠标记不回归
 
-### T05 · 文档输出兼容 + 文档更新 + 全量回归（P1，依赖：T02、T03、T04）
+### T04 · R3-R7 行内编辑 + 八类收藏 + 已收藏视图 / 跳转（P0，依赖：T01；不改 `renderShots` 与看板壳）
 
 **改动区域**
-1. `shotflow.html` `openDoc`（1159–1211，仅 1181 行）：manual 分支文字项追加 `#标签`
-2. `shotflow.html` `exportProposalFile`（1215–1247）：核对保持不改（对外不显示标签、不写 AI 配置）
-3. `shotflow.html` `collectImages`/`importJSON`/`applyImport`（1255–1312）：核对标签随项目 JSON 自动流转，无需改码
-4. `README.md`（37–38、103–115、126–139）与 `overview.md`（4、12、25–36）按第 2.3/2.4 节更新
-5. `shotflow-app/shotflow.html` 同步；`node tests/logic.test.mjs` 全量回归
+1. `shotflow.html` 940–986 `renderMoodGrid`：mood 行 `data-fid` + ☆/★（保留 v6 标签 ✎）
+2. `shotflow.html` 1302–1412 `NODE_TYPES` 之后：`saveNodeEdit`、`beginInlineEdit`/`cancelInlineEdit`，`timelineHtml` 节点行 ✎/☆、`addNode` 写 `fav:false`
+3. `shotflow.html` 1415–1438 `renderStuff`：三区块 ✎/☆ 与 `saveStuffEdit`；`addStuff` 写 `fav:false`
+4. `shotflow.html` 1442–1465 `renderBudget`：只加 ☆/★ + `data-fid`；`addBudget` 写 `fav:false`
+5. `shotflow.html` 1470–1520 `renderNotes`：待办/沟通 ✎/☆、`saveTodoEdit`/`saveNoteEdit`；新增写 `fav:false`
+6. `shotflow.html` 833 后新增 `openFavorites/renderFavorites/jumpToFav/highlightFav`；`doc keydown` 2075–2077 改 Esc 优先级
+7. `shotflow.html` `toggleFav`（建议置于 529 之后）：八类共用写 `fav`
 
 **验收点**
-- 测试总数 36、`pass=36 fail=0`、退出码 0
-- 导出 JSON：项目对象含 `tags`/`tagVocab`；全文不含 `endpoint`/`apiKey`/`sf_ai_cfg_v1`；`images` 键与 `refIds` 完全一致
-- 执行手册里文字灵感显示 `#逆光 #中景`；客户提案与发送提案文件的视觉与 v5 截图无差异
-- `shotflow.html` 与 `shotflow-app/shotflow.html` 内容一致（`diff` 为空）
-- 手动回归：新建项目 → 上传图打标签 → 筛选 → 分镜引用 → 导出 → 导入，全链路无报错
+- 日程/场景/物品/待办/沟通均可行内编辑并保存；同一时刻仅一行有输入态（点开第二行第一行自动退出）；取消与 Esc 均丢弃
+- 日程 `end<=start` 或标题为空时 toast 并保留编辑态；保存后 `schedDate` 不变、done 不变、重叠标记按 `dayItems` 重算、无级联顺延
+- 沟通记录编辑后 `ts` 与原值完全相同（按时间倒序位置不变）；待办 done 不被编辑影响；预算无 ✎、分镜正文无 ✎、情绪板素材内容无 ✎
+- 八类 ☆/★ 切换即写 `fav`，刷新后保持；按钮序符合 3.6；hover 显现、★ 常亮、移动端 14px 常显
+- 「★ 已收藏 N」在看板与项目页均显示且与 `collectFavorites` 长度一致；favorites 视图按项目→模块分组，行摘要≤40 字
+- 点击已收藏日程条目：切到目标项目日程页且 `schedDate` 指向该条目日期；高亮出现并滚入视野，3 秒后消失；不产生任何跨项目复制；demo 条目跳转后仍只读
+
+### T05 · 文档更新 + 部署同步 + 全量回归（P1，依赖：T02、T03、T04）
+
+**改动区域**
+1. `README.md` 28–30、32–42、66、74–76、115、124–125、127–135、137–145（按 2.3）
+2. `overview.md` 4、9–21、27–42、40–41（按 2.4）
+3. `shotflow-sw.js:1`：`shotflow-v8` → `shotflow-v9`
+4. `shotflow-app/shotflow.html`：从源文件整体同步，`diff` 为空
+5. `tests/logic.test.mjs` 全量回归 + 手动端到端清单（本节验收点）
+
+**验收点**
+- `node tests/logic.test.mjs`：`pass=59 fail=0`，退出码 0；44 项旧断言一字未删
+- 手动全链路：新用户首次打开 → 7 示例出现 → 打开 demo 验证只读 → 复制副本 → 副本多图上传/行内编辑/收藏 → 已收藏跳转高亮 → 导出备份 → 清空 → 导入恢复（fav/demo 字段正确）
+- 导出 JSON：项目含 `fav/demo/v9`，`images` 键覆盖 demo SVG key；提案/Call Sheet/执行手册视觉与 v8 一致（不出现 ☆/示例角标/收藏模块）
+- `shotflow-sw.js` 版本号为 `shotflow-v9`；`shotflow.html` 与 `shotflow-app/shotflow.html` 内容完全一致；全库搜索无 `fetch` 新增（AI 桩仍零网络）、无第三方导入语句
 
 ## 8. 共享知识 / 约定
 
-1. **命名**：纯函数一律 `动词+Tag(s)` / `tag+名词`（`tagKey`、`dedupeTags`、`matchByTags`）；DOM id 用 `m_` 前缀（`m_tag`/`m_filter`）与 `tg_` 前缀（`tgEdit`）；CSS 类用 `.tagchip`/`.tag-cloud`/`.ref-tag`/`.src-*`；事件沿用内联 `onclick="fn('id')"` 风格，不引入事件总线。
-2. **转义铁律**：任何用户数据进 `innerHTML` 必须 `esc()`；标签显示固定格式 `'#'+esc(t)`；`href` 只允许来自 `MATERIAL_SOURCES` 常量且带 `rel="noopener"`；不得把 `aiConfig` 任何字段拼进 HTML。
-3. **持久化时机**：所有写走 `updateCur(fn)`（内部自动 `updatedAt` + 200ms 合并 `saveP`）；禁止直接改 `projectsCache`；筛选状态与 AI 配置**永不**进 `saveP`。
-4. **纯函数可测性**：新纯函数不得引用 `document`/`window`/`idb`/`view`/`toast`；只用内置对象。测试 ctx 已注入 `Set`。
-5. **旧 `tag` 兼容边界**：`tag` 只读，永不删除；读一律走 `tagsForDisplay(m)`；新写路径写 `tag=tags[0]||''`；`migrateTags` 负责补齐缺失 `tags` 与 `tagVocab`；提案模板/旧导出文件仍可读。
-6. **词表顺序**：按首次出现顺序（数组插入序），不做字典序排序，避免用户认知跳变。
-7. **空态文案（逐字使用）**：
-   - 情绪板无素材：`还没有素材。上传图片 / 写文字 / 取色彩时可在「标签」框输入，逗号分隔（如：逆光, 中景, 回眸）。`
-   - 分镜 ref picker 无图：`情绪板还没有可用图片。先上传并设置标签（动作 / 景别 / 光线…），或到「素材来源」找可商用线稿自行下载。`
-   - 筛选无结果：`没有命中所选标签的素材，换个标签或清空筛选。`
-   - 素材来源版权条：`以下为外部参考站与素材包，本工具不内置任何图片。请遵守各站许可证；标注「禁止再分发」的仅可浏览，不得复制到项目或随提案交付。`
-8. **AI 红线**：默认关闭、零网络、失败降级 toast、不覆盖手工标签、建议需用户确认才写入、密钥只存内存/sessionStorage。
-9. **不动清单**：`refIds` 机制、800px/JPEG `.72` 压缩、IndexedDB 库/表结构、`exportJSON` 版本号字段、PWA 注册逻辑、7 个页签结构——本次一律不改。
-10. **发布流程**：改完源文件 `cp shotflow.html shotflow-app/shotflow.html`，按既有流程递增 SW 缓存版本后部署 `shotflow-app/`；源码一律相对路径，不写任何平台访问码。
+1. **命名**：纯函数 `动词+名词`（`migrateFav`/`collectFavorites`/`backupItemCount`/`matchBoardScope`）；view 编辑字段固定 `editing{Node,Stuff,Todo,Note}Id` + `editingStuffKey`；DOM id 前缀：行内编辑 `en_`（日程/沟通）、`es_`（清单）、`et_`（待办）；CSS 类新增 `.rowbtn/.inline-edit/.selrefs/.badge.demo/.fav-focus/.tag.ink`。
+2. **转义铁律**：所有动态文本进 `innerHTML` 必须 `esc()`；内联事件字符串参数必须 `jstr()`；`slugPreview` 因需被 vm 抽取，**不能调用 `esc`**，用自带白名单 `replace(/[<>&"']/g,'')`；demo 文案全部来自代码常量，无用户输入。
+3. **持久化**：一切写走 `updateCur(fn)`（自动 `updatedAt` + 200ms 合并 `saveP`）；禁止直接改 `projectsCache`（例外：`saveP` 本身与 `ensureV9Demo`/`copyDemoToMine` 的一次性追加）；`view`、`focusRef`、`schedDate`、`selRefs` 永不入库/导出。
+4. **纯函数可测性**：新纯函数不得引用 `document/window/idb/view/toast/localStorage`；只用 `Array/Object/JSON/String/Number/Date/Set/encodeURIComponent`；测试 ctx 第 17 行已含 `encodeURIComponent`。
+5. **demo 边界**：`p.demo && !view.allowDemoWrite` 是**唯一**写守卫；禁止在业务函数里再散写 `if(p.demo)`（渲染层决定按钮显隐/disabled 除外）；`ensureV9Demo` 只追加、只给旧「城市漫游者」补 3 个字段（demo/一张图/一条 fav）；不做在线更新与单条删除；`cloneDemo` 是唯一让 demo 变可写的入口。
+6. **状态过滤单一真源**：所有「进行中/已归档」判定走 `matchBoardScope`/`isActiveStatus`；禁止再手写 `p.status!=='已交付'`。
+7. **inline edit 生命周期**：`beginInlineEdit` 先 `clearInlineEditState`；保存白名单之外的字段（done/date/ts/fav/kind/ord/refIds）一律不动；Esc 优先 `refViewer → confirmModal → 行内编辑 → 其它弹窗`。
+8. **focusRef 生命周期**：只在 `jumpToFav` 设置；3 秒定时清除；清除时按 `id` 重新查询 DOM，不能持有旧元素引用；不跨项目复制条目；日程跳转先设 `schedDate`。
+9. **参考图 3 张上限**：`selRefs` 与 `s.refIds` 都 ≤3；替换态只写一个下标；`shisei:` 占位可换可删不可看大图；多图上传失败单张跳过、汇总提示。
+10. **发布**：`cp shotflow.html shotflow-app/shotflow.html` → `shotflow-sw.js` bump 到 v9 → 部署 `shotflow-app/`；源码一律相对路径、不写平台访问码。
+11. **不做清单**：跨项目复制收藏、概念页收藏/新编辑、预算编辑、分镜正文编辑、情绪板素材内容编辑、编辑后级联顺延、>3 张、新增状态、示例在线更新/单条删除、服务端同步、第三方库/构建链。
 
 ## 9. 任务依赖图
 
 ```mermaid
 graph LR
-    T01["T01 基础设施<br/>纯函数+migrate+测试框架<br/>P0"] --> T02["T02 情绪板标签编辑<br/>词表+素材来源入口<br/>P0"]
-    T01 --> T03["T03 标签筛选<br/>分镜 ref picker<br/>P1"]
-    T01 --> T04["T04 AI 接口桩<br/>配置隔离<br/>P1"]
-    T02 --> T05["T05 文档输出+文档更新<br/>全量回归<br/>P1"]
+    T01["T01 基础设施<br/>常量/纯函数/migrate/CSS/测试框架<br/>P0"] --> T02["T02 示例数据层<br/>看板+项目页壳+只读+复制<br/>P0"]
+    T01 --> T03["T03 分镜多图+参考图<br/>灯箱/换图/移除/收藏<br/>P0"]
+    T01 --> T04["T04 行内编辑+八类收藏<br/>已收藏视图+跳转高亮<br/>P0"]
+    T02 --> T05["T05 文档+SW+同步<br/>全量回归<br/>P1"]
     T03 --> T05
     T04 --> T05
     style T01 fill:#f3e9da,stroke:#9a6a33
     style T02 fill:#f3e9da,stroke:#9a6a33
+    style T03 fill:#f3e9da,stroke:#9a6a33
+    style T04 fill:#f3e9da,stroke:#9a6a33
     style T05 fill:#e8f2eb,stroke:#3c7a57
 ```

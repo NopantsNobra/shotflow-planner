@@ -14,8 +14,9 @@ function fn(name) {
   }
   throw new Error('unbalanced fn ' + name);
 }
-const ctx = vm.createContext({ console, Date, Math, String, Number, Array, Object, JSON, RegExp, Set });
+const ctx = vm.createContext({ console, Date, Math, String, Number, Array, Object, JSON, RegExp, Set, encodeURIComponent });
 for (const n of ['addMin', 'toMin', 'fmtMin', 'dayItems', 'cascadeShift', 'tagKey', 'dedupeTags', 'parseTagsInput', 'mergeVocab', 'migrateTags', 'tagsForDisplay', 'matchByTags', 'renameTag', 'removeTag', 'shiseiItemKey', 'shiseiEntrySame', 'parseCatalog', 'diffCatalog', 'nextPendingBatch', 'mergeShiseiMeta', 'migrate']) vm.runInContext(fn(n), ctx);
+for (const n of ['freshView', 'clearInlineEditState', 'migrateFav', 'isFav', 'favCount', 'favSummary', 'summary40', 'collectFavorites', 'backupItemCount', 'matchBoardScope', 'isActiveStatus', 'parseMultiImage', 'slugPreview', 'cloneDemo', 'demoSpecs', 'buildDemoProject']) vm.runInContext(fn(n), ctx);
 vm.runInContext(fn('suggestTags'), ctx);
 vm.runInContext('const AI_TAGGING_ENABLED=false; const TagProviders=Object.create(null);', ctx);
 vm.runInContext('globalThis.__initData = (' + fn('initData') + ')', ctx);
@@ -149,6 +150,98 @@ captured = vm.runInContext('CAPTURE', ctx);
 check('initData 迁移旧数据', Array.isArray(captured) && captured.length === 1, JSON.stringify(captured));
 check('initData 转换 refId', captured?.[0]?.shots?.[0]?.refIds?.[0] === 'img1');
 check('initData 清理旧 localStorage key', vm.runInContext('REMOVED', ctx) === 'wb_sf_projects');
+
+// v9：fav / demo / 示例 / 收藏 / 筛选纯函数
+const v = 'wb_v9_';
+const fv = vm.runInContext('freshView({mode:"project",pid:"p1"})', ctx);
+check('v9 freshView 默认与覆盖', fv.mode === 'project' && fv.pid === 'p1' && fv.boardScope === '全部'
+  && fv.allowDemoWrite === false && fv.refViewer === null && fv.focusRef === null
+  && fv.editingNodeId === null && fv.editingStuffKey === null);
+check('v9 clearInlineEditState 五指针清空', vm.runInContext(`(() => {
+  const v={editingNodeId:'n',editingStuffId:'s',editingStuffKey:'scenes',editingTodoId:'t',editingNoteId:'x',editingShotId:'keep'};
+  clearInlineEditState(v);
+  return !v.editingNodeId&&!v.editingStuffId&&!v.editingStuffKey&&!v.editingTodoId&&!v.editingNoteId&&v.editingShotId==='keep';
+})()`, ctx));
+check('v9 migrateFav 八数组/demo 默认/true 保留且幂等', vm.runInContext(`(() => {
+  const a=migrateFav({shots:[{id:'a'}],demo:'true'});
+  const okArrays=['mood','shots','schedule','scenes','items','budget','notes','todos'].every(k=>Array.isArray(a[k]))
+    &&a.shots[0].fav===false&&a.demo===false;
+  const p=migrateFav({demo:true,mood:[{id:'m',fav:true},{id:'n',fav:'true'}],v9:1});
+  const before=JSON.stringify(p); migrateFav(p);
+  return okArrays&&p.demo===true&&p.mood[0].fav===true&&p.mood[1].fav===false&&p.v9===1&&before===JSON.stringify(p);
+})()`, ctx));
+check('v9 isFav + favCount 混合数组', vm.runInContext(`(() => {
+  const list=[{fav:true},{fav:false},{fav:'true'},{},null];
+  return isFav(list[0])===true&&isFav(list[2])===false&&isFav(null)===false&&favCount(list)===1&&favCount(null)===0;
+})()`, ctx));
+check('v9 summary40 截断与空白折叠', vm.runInContext(`(() => {
+  const s=summary40('  a\\n  b   ');
+  const long=summary40('x'.repeat(45));
+  return s==='a b'&&long.length===41&&long.slice(-1)==='…';
+})()`, ctx));
+check('v9 favSummary 八类映射', vm.runInContext(`(() => {
+  const m={mood:favSummary('mood',{type:'text',content:'灵感'}),img:favSummary('mood',{type:'image',content:'k'}),
+    shots:favSummary('shots',{name:'分镜'}),schedule:favSummary('schedule',{title:'日程'}),
+    scenes:favSummary('scenes',{name:'场景'}),items:favSummary('items',{name:'物品'}),
+    budget:favSummary('budget',{item:'费用'}),notes:favSummary('notes',{content:'沟通'}),
+    todos:favSummary('todos',{title:'待办'})};
+  return m.mood==='灵感'&&m.img==='图片'&&m.shots==='分镜'&&m.schedule==='日程'&&m.scenes==='场景'
+    &&m.items==='物品'&&m.budget==='费用'&&m.notes==='沟通'&&m.todos==='待办';
+})()`, ctx));
+const vfav = vm.runInContext(`collectFavorites([{id:'p',name:'X',demo:true,mood:[{id:'m',type:'text',content:'灵感',fav:true},{id:'n',content:'普通'}],todos:[{id:'t',title:'待办',fav:true}]}])`, ctx);
+check('v9 collectFavorites 字段与排除非 fav', vfav.length === 2
+  && vfav[0].type === 'mood' && vfav[0].pid === 'p' && vfav[0].id === 'm'
+  && vfav[0].module === '情绪板' && vfav[0].summary === '灵感' && vfav[0].date === ''
+  && vfav[1].type === 'todos' && vfav[1].module === '协作');
+check('v9 backupItemCount 排除 demo', vm.runInContext(`backupItemCount([
+  {demo:false,shots:[1],mood:[1],items:[1],budget:[1,2],todos:[1],notes:[1,2,3]},
+  {demo:true,shots:[1,2,3],mood:[1],items:[1],budget:[1],todos:[1],notes:[1]}
+])`, ctx) === 9);
+check('v9 matchBoardScope 三档', vm.runInContext(`(() => {
+  const done={status:'已交付'}, arch={status:'已归档'}, live={status:'策划中'};
+  return matchBoardScope(done,'全部')&&matchBoardScope(done,'已归档')&&matchBoardScope(arch,'已归档')
+    &&!matchBoardScope(live,'已归档')&&matchBoardScope(live,'进行中')
+    &&!matchBoardScope(done,'进行中')&&!matchBoardScope(arch,'进行中');
+})()`, ctx));
+check('v9 isActiveStatus 六状态', vm.runInContext(`(() => {
+  const st=['灵感期','策划中','待拍摄','后期中','已交付','已归档'];
+  return st.map(s=>isActiveStatus({status:s})).join(',')==='true,true,true,true,false,false';
+})()`, ctx));
+check('v9 parseMultiImage 伪事件过滤', vm.runInContext(`parseMultiImage({target:{files:[
+  {type:'image/png'},{type:''},{type:'text/plain'},{}
+]}}).length`, ctx) === 3);
+const vslug = vm.runInContext(`slugPreview('<b>测试</b>',['#123456','#abcdef'])`, ctx);
+check('v9 slugPreview dataURL 且零 http', vslug.startsWith('data:image/svg+xml;charset=utf-8,')
+  && vslug.indexOf('http') < 0 && vslug.indexOf('%3Cb%3E') < 0);
+check('v9 cloneDemo 深拷贝/删标记/新 id 与时间', vm.runInContext(`(() => {
+  const p={id:'old',name:'示例',demo:true,v9:1,v3:9,concept:{theme:'原'},createdAt:1,updatedAt:2};
+  const c=cloneDemo(p,'new',999); const before=JSON.stringify(p);
+  c.concept.theme='改';
+  return c.id==='new'&&c.name==='示例（副本）'&&c.demo===undefined&&c.v9===undefined
+    &&c.v3===1&&c.createdAt===999&&c.updatedAt===999&&before===JSON.stringify(p)&&p.concept.theme==='原';
+})()`, ctx));
+const vdemo = vm.runInContext(`(() => {
+  let n=0; const specs=demoSpecs(); const rows=specs.map(spec=>{
+    const p=buildDemoProject(spec,tag=>'id_'+(n++),1780000000000);
+    const kinds=['mood','shots','schedule','scenes','items','budget','notes','todos'];
+    return {status:p.status,
+      mood:p.mood.length,hasImg:p.mood.some(m=>m.type==='image'&&!!m.content),
+      shots:p.shots.length,sched:p.schedule.length,
+      stuff:p.scenes.length+p.items.length,budget:p.budget.length,
+      notes:p.notes.length,todos:p.todos.length,
+      concept:Object.keys(p.concept).every(k=>!!p.concept[k]),
+      fav:kinds.reduce((s,k)=>s+p[k].filter(x=>x.fav===true).length,0),
+      refs:p.shots[0].refIds.length,demo:p.demo===true&&p.v9===1};
+  });
+  return {count:specs.length,rows};
+})()`, ctx);
+check('v9 demoSpecs 五项且示例七页签非空/含图/含 fav', vdemo.count === 5
+  && ['灵感期','策划中','后期中','已交付','已归档'].every(s => vdemo.rows.some(r => r.status === s))
+  && vdemo.rows.every(r => r.status !== '待拍摄')
+  && vdemo.rows.every(r =>
+    r.mood >= 3 && r.hasImg && r.shots >= 2 && r.sched >= 2 && r.stuff >= 3
+    && r.budget >= 2 && r.notes >= 2 && r.todos >= 2 && r.concept && r.fav >= 1 && r.demo));
+check('v9 buildDemoProject 满 3 张参考图', vdemo.rows.some(r => r.refs === 3));
 
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

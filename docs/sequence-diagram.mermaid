@@ -1,57 +1,108 @@
 sequenceDiagram
     actor U as 用户
-    participant V as view(会话状态)
-    participant M as renderMood/renderMoodGrid
-    participant T as 标签纯函数层
-    participant S as updateCur/saveP
+    participant V as view / freshView
+    participant T as v9 纯函数层
+    participant S as updateCur / saveP
     participant D as IndexedDB
-    participant R as renderShots
-    participant A as suggestTags(桩)
+    participant B as renderBoard / renderFavorites
+    participant P as renderProject / 各页签
+    participant R as renderShots / 灯箱
+    participant E as 行内编辑处理器
+    participant F as DemoFactory
 
-    Note over U,D: ① 上传图片并打标签
-    U->>M: 选文件 + 填 m_tag「逆光,中景,回眸」
-    M->>M: 同步读取 tagInput（异步前）
-    M->>T: parseTagsInput(tagInput)
-    T-->>M: tags[]
-    M->>M: FileReader→canvas 800px/.72→idb.put(imgId,data)
-    M->>D: put images[imgId]
-    M->>T: mergeVocab(p.tagVocab, tags)
-    T-->>M: newVocab[]
-    M->>S: updateCur(p=>push mood{id,image,content:imgId,tag:tags[0],tags}; tagVocab=newVocab)
-    S->>D: saveP 200ms 合并写 projects
-    M->>M: renderProject()→renderMood(p)→renderMoodGrid(p)
+    Note over U,D: ① 启动：initData → seed → ensureV9Demo → renderBoard
+    U->>B: 打开应用（2080-2085）
+    B->>S: await initData()（678-694，已含 migrateFav）
+    S->>D: getProjects / putProjects
+    B->>F: seed()（717-767，城市漫游者 demo:true）
+    B->>F: await ensureV9Demo()
+    F->>T: demoSpecs() / buildDemoProject / slugPreview / cloneDemo 无关
+    T-->>F: 6 个完整 demo（7 页签非空、≥1 fav、1 个 3 图分镜）
+    F->>D: put 内联 SVG dataURL 到 images
+    F->>S: saveP([...旧项目不变, 新 demo])
+    F->>V: localStorage['wb_sf_demo_v9']='1'
+    B->>B: renderBoard()（过滤/统计/角标/备份数均走纯函数）
 
-    Note over U,S: ② 卡片编辑标签（增删改）
-    U->>M: 点卡片 ✎ → openTagEditor(moodId)
-    U->>M: 改「回眸」为「侧身」→ saveTagEditor
-    M->>T: parseTagsInput + mergeVocab
-    M->>S: updateCur 写回 tags/tag/tagVocab
-    S->>D: 200ms 合并写
-    M->>M: renderProject() 全量重绘
+    Note over U,R: ② R1 多图上传 → 按顺序入库并挂图
+    U->>R: s_img（1107，multiple）选 N 张 → addShotImg(e)（1213）
+    R->>T: parseMultiImage(e)
+    T-->>R: files[]（过滤非 image）
+    loop 顺序处理每张（for...of await）
+        R->>R: ingestImageFile(f,[])（1054-1078：800px/JPEG .72 不变）
+        R->>D: idb.put(imgId,data)
+        R->>S: updateCur(p=>p.mood.push({...fav:false}))
+        alt 成功
+            R->>R: okIds.push(imgId)
+        else 单张失败
+            R->>R: failN++ 后 continue（不中断）
+        end
+    end
+    alt 新增态（editingShotId 为空）
+        R->>V: selRefs 补到 3 张，超出仅入库
+    else 编辑替换第 i 张（replaceIdx>=0）
+        R->>S: updateCur(p=>s.refIds[i]=okIds[0])（仅改该下标）
+    else 编辑追加
+        R->>S: updateCur(p=>s.refIds 补到 3 张)
+    end
+    R->>U: 汇总 toast（成功 X / 失败 Y / 仅入库 Z）
+    R->>R: renderShots(cur()) 一次（含 selRefs 条 0..3）
 
-    Note over U,S: ③ 词表重命名 / 删除
-    U->>M: 点词表 chip ✎ → startRenameTag(from) → commitRenameTag
-    M->>T: renameTag(p, from, to)
-    T-->>M: 全量 mood + tagVocab 已同步
-    M->>S: updateCur(p=>...) → renderProject()
-    U->>M: 点 chip × → delTagFromVocab(tag) → askConfirm
-    M->>T: removeTag(p, tag)
-    M->>S: updateCur → renderProject()（refIds 完全未动）
+    Note over U,R: ③ R2 参考图灯箱 / 上一张下一张 / 换图 / 移除
+    U->>R: 点已创建分镜缩略图 → openRefViewer(shotId,ri)（1198）
+    R->>V: refViewer={shotId,ri}
+    R->>U: 第 i/N 张 + shisei 占位禁大图 + 更换/移除/关闭/‹ ›
+    U->>R: refNav(delta)
+    R->>R: openRefViewer(shotId,(ri+delta+N)%N)
+    U->>R: 更换这张 → openShotRefEditor + replaceIdx=ri（1188）
+    U->>R: 点新图 → toggleRef（1169，replaceIdx>=0 只改 refIds[i]）
+    U->>R: 从分镜移除 → removeShotRef（1193，只改该分镜 refIds）
+    R->>S: updateCur 写回 → renderShots(cur())
 
-    Note over U,R: ④ 按标签筛选 → 分镜引用
-    U->>V: m_filter 输入 / 点词表 chip → moodFilter[]
-    V->>M: renderMoodGrid(p)（只换两个容器，输入框不丢焦点）
-    M->>T: matchByTags(m, moodFilter, moodFilterMode)
-    T-->>M: 命中子集
-    U->>R: 切到分镜页 renderShots(p)
-    R->>T: matchByTags 过滤 moodImgs
-    R->>V: 读取 moodFilter 决定 ref picker 显示
-    U->>R: toggleRef(content) 选 ≤3 张 → addShot 写 refIds
-    R->>S: updateCur 写 shots[].refIds（机制不变）
+    Note over U,E: ④ R3-R5 行内编辑（同一时刻只允许一行）
+    U->>E: 点某行 ✎ → beginInlineEdit(kind,id,key)
+    E->>T: clearInlineEditState(view)
+    E->>V: 只置 editingNodeId / editingStuffId+Key / editingTodoId / editingNoteId 之一
+    E->>P: renderProject() 重绘该行为输入框
+    U->>E: 保存 → saveNodeEdit / saveStuffEdit / saveTodoEdit / saveNoteEdit
+    E->>E: 校验（标题非空；日程 end>start；沟通保留原 ts）
+    E->>S: updateCur(fn)（只改白名单字段，done/date/fav/ts 不变）
+    E->>T: clearInlineEditState(view)
+    E->>P: renderProject()（日程 schedDate 保持；重叠由 dayItems 重算）
+    U->>E: 取消或 Esc → cancelInlineEdit()
+    E->>P: renderProject() 丢弃未保存输入
 
-    Note over U,A: ⑤ AI 建议（本期仅接口，未接线）
-    U->>A: （未来）suggestTags(req, cfg)
-    A-->>U: AI_TAGGING_ENABLED=false → {tags:[],source:'ai'}
-    Note over A: 零 fetch / 零密钥入库 / 不覆盖手工标签
-    U->>A: （未来）用户确认候选 → applyAiSuggestion(moodId)
-    A->>S: updateCur 合并 autoTags 进 tags 后清空
+    Note over U,B: ⑤ R6-R7 收藏切换 / 已收藏视图 / 定位高亮
+    U->>P: 点任意条目 ☆/★ → toggleFav(type,id)
+    P->>S: updateCur(p=>it.fav=!it.fav)
+    P->>P: renderProject() 或 renderShots(cur())
+    U->>B: 点「★ 已收藏 N」（看板 784 前 / 项目页 pactions）
+    B->>T: collectFavorites(loadP())
+    T-->>B: FavEntry[]（按项目→模块分组，摘要 40 字）
+    B->>U: view.mode='favorites' → renderFavorites()
+    U->>B: 点条目 → jumpToFav(type,pid,id)
+    B->>V: freshView({mode:'project',pid,tab:FAV_TAB[type]})
+    B->>B: 日程先把 schedDate 设为该条目 date
+    B->>V: focusRef={type,id,until:now+3000}
+    B->>S: cacheProjectImages(p) → renderProject()
+    B->>U: 遍历 [data-fid] 找 id → .fav-focus + scrollIntoView
+    B->>B: 3000ms 后按 id 复核清除高亮与 focusRef
+
+    Note over U,F: ⑥ R8 示例只读 / 复制为我的项目
+    U->>P: 打开 demo 项目 → 元数据/概念输入 disabled
+    U->>P: 尝试任意写（含 ☆/编辑/勾选）
+    P->>S: updateCur(fn)
+    S->>V: if(p.demo && !view.allowDemoWrite) → toast + return（唯一拦截点）
+    U->>F: 点「复制为我的项目」→ copyDemoToMine(pid)
+    F->>T: cloneDemo(p,uid(),Date.now())（深拷贝/删 demo/新 id/名字+（副本）/刷新时间）
+    T-->>F: 新项目对象（图片 content 键共享，不复制图片）
+    F->>V: allowDemoWrite=true（仅本次 saveP 期间）
+    F->>S: saveP([...a,copy])
+    F->>V: allowDemoWrite=false → openProject(copy.id)
+    F->>U: toast('已复制为我的项目，可自由编辑')
+
+    Note over U,B: ⑦ Esc 优先级与看板筛选
+    U->>B: 按 Escape
+    B->>B: refViewer.show ? closeRefViewer() : confirmModal.show ? closeConfirm() : cancelInlineEdit() ? 止步 : closeDoc()+closeShootDay()
+    U->>B: 切换「进行中 / 已归档」
+    B->>T: matchBoardScope(p,scope)（已归档 = {已交付,已归档}）
+    T-->>B: 过滤结果 → 6 列看板 + 统计 + 备份提醒（排除 demo）
