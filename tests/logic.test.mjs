@@ -15,7 +15,7 @@ function fn(name) {
   throw new Error('unbalanced fn ' + name);
 }
 const ctx = vm.createContext({ console, Date, Math, String, Number, Array, Object, JSON, RegExp, Set });
-for (const n of ['addMin', 'toMin', 'fmtMin', 'dayItems', 'cascadeShift', 'tagKey', 'dedupeTags', 'parseTagsInput', 'mergeVocab', 'migrateTags', 'tagsForDisplay', 'matchByTags', 'renameTag', 'removeTag', 'migrate']) vm.runInContext(fn(n), ctx);
+for (const n of ['addMin', 'toMin', 'fmtMin', 'dayItems', 'cascadeShift', 'tagKey', 'dedupeTags', 'parseTagsInput', 'mergeVocab', 'migrateTags', 'tagsForDisplay', 'matchByTags', 'renameTag', 'removeTag', 'shiseiItemKey', 'shiseiEntrySame', 'parseCatalog', 'diffCatalog', 'nextPendingBatch', 'mergeShiseiMeta', 'migrate']) vm.runInContext(fn(n), ctx);
 vm.runInContext(fn('suggestTags'), ctx);
 vm.runInContext('const AI_TAGGING_ENABLED=false; const TagProviders=Object.create(null);', ctx);
 vm.runInContext('globalThis.__initData = (' + fn('initData') + ')', ctx);
@@ -93,6 +93,49 @@ vm.runInContext('globalThis.fetch=()=>{throw new Error("NETWORK")};globalThis.XM
 let aiOk = false;
 try { const r = await vm.runInContext('suggestTags({})', ctx); aiOk = r.tags.length === 0 && r.source === 'ai'; } catch (e) { aiOk = false; }
 check('suggestTags 默认关闭且零网络', aiOk);
+
+// v7 shisei 图库：catalog 映射 / diff / 游标 / meta 合并
+const parsed = vm.runInContext(`parseCatalog([
+  {id:'P001',class_cn:'坐姿',name_cn:'后仰坐',name_en:'Sitting',name_jp:'座り',views:{front:'std_P001_front.webp',diag:null}},
+  {id:'P002',class_en:'Standing',name_en:'Standing pose',views:{side:'std_P002_side.webp'}}
+])`, ctx);
+check('parseCatalog 映射真实 views 字段', parsed.length === 2
+  && parsed[0].pid === 'P001' && parsed[0].view === 'front' && parsed[0].cat === '坐姿'
+  && parsed[0].zh === '后仰坐' && parsed[0].en === 'Sitting' && parsed[0].ja === '座り'
+  && parsed[0].url === 'images/line/w300/std_P001_front.webp');
+const parsedFallback = vm.runInContext(`parseCatalog([
+  {id:'U009',views:{front:'upper_U009_front.webp'}}
+])`, ctx);
+check('parseCatalog 缺省字段回退', parsedFallback.length === 1 && parsedFallback[0].cat === '未分类'
+  && parsedFallback[0].zh === 'U009' && parsedFallback[0].en === '' && parsedFallback[0].ja === '');
+const diffed = vm.runInContext(`(() => {
+  const local=[
+    {pid:'P001',view:'front',cat:'坐姿',zh:'旧',en:'old',ja:'',url:'images/line/w300/old.webp'},
+    {pid:'P009',view:'front',cat:'躺姿',zh:'删',en:'',ja:'',url:'x'}
+  ];
+  const remote=[
+    {pid:'P001',view:'front',cat:'坐姿',zh:'新',en:'new',ja:'',url:'images/line/w300/new.webp'},
+    {pid:'P002',view:'side',cat:'站姿',zh:'加',en:'add',ja:'',url:'images/line/w300/add.webp'}
+  ];
+  return diffCatalog(local,remote);
+})()`, ctx);
+check('diffCatalog 新增变更删除', JSON.stringify(diffed) === '{"toAdd":[{"pid":"P002","view":"side","cat":"站姿","zh":"加","en":"add","ja":"","url":"images/line/w300/add.webp"}],"toUpdate":[{"pid":"P001","view":"front","cat":"坐姿","zh":"新","en":"new","ja":"","url":"images/line/w300/new.webp"}],"toRemove":["shisei:P009:front"]}');
+const diffSame = vm.runInContext(`(() => {
+  const remote=[{pid:'P001',view:'front',cat:'坐姿',zh:'同',en:'',ja:'',url:'u'}];
+  return diffCatalog(remote,remote);
+})()`, ctx);
+check('diffCatalog 无变化', diffSame.toAdd.length === 0 && diffSame.toUpdate.length === 0 && diffSame.toRemove.length === 0);
+const batch1 = vm.runInContext('nextPendingBatch({pending:["a","b","c"],cursor:0},2)', ctx);
+check('nextPendingBatch 截断批次', JSON.stringify(batch1.items.map(x=>x.key)) === '["a","b"]' && batch1.cursor === 2 && batch1.done === false);
+const batch2 = vm.runInContext('nextPendingBatch({pending:["a","b","c"],cursor:1},2)', ctx);
+check('nextPendingBatch 游标推进至完成', JSON.stringify(batch2.items.map(x=>x.key)) === '["b","c"]' && batch2.cursor === 3 && batch2.done === true);
+const batch3 = vm.runInContext('nextPendingBatch({pending:["a"],cursor:5},2)', ctx);
+check('nextPendingBatch 游标越界安全', batch3.items.length === 0 && batch3.cursor === 5 && batch3.done === true);
+const metaBase = vm.runInContext('({version:"v1",pending:["a"],failStreak:0})', ctx);
+vm.runInContext('globalThis.META = ' + JSON.stringify(metaBase), ctx);
+const metaMerged = vm.runInContext('mergeShiseiMeta(META,{cursor:2,version:"v2",paused:true})', ctx);
+check('mergeShiseiMeta 不可变合并', metaBase.version === 'v1' && metaBase.cursor === undefined && metaBase.pending.length === 1
+  && metaMerged.version === 'v2' && metaMerged.cursor === 2 && metaMerged.paused === true && metaMerged.failStreak === 0);
 
 // 数据迁移：旧 localStorage → IndexedDB
 const legacy = JSON.stringify([{ id: 'p1', name: '旧案', shots: [{ id: 's1', refId: 'img1' }], mood: [], items: [], budget: [], schedule: [], notes: [], todos: [] }]);

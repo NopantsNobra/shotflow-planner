@@ -156,9 +156,15 @@ svg{display:inline-block;vertical-align:middle}
 .src-list a{color:var(--accent-ink);text-decoration:underline;text-underline-offset:2px}
 .src-words{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
 .src-words .chip{min-height:26px;padding:3px 9px;font-size:11px}
+.src-sync{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);font-size:12px}
 
 /* 参考图选择器 */
 .ref-picker{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px}
+.ref-group{margin-top:8px}
+.ref-group-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px;font-size:12px;color:var(--ink2)}
+.ref-group-head .chips{display:flex;gap:5px;flex-wrap:wrap}
+.ref-group-head .chip{min-height:24px;padding:2px 8px;font-size:10.5px}
+.ref-group-head .chip.on{background:var(--ink);border-color:var(--ink);color:#fcf9f2}
 .ref-opt{width:56px;height:56px;border-radius:9px;border:2px solid var(--line);overflow:hidden;cursor:pointer;position:relative;flex-shrink:0;transition:border-color .15s}
 .ref-opt:hover{border-color:var(--line2)}
 .ref-opt img{width:100%;height:100%;object-fit:cover;display:block}
@@ -345,8 +351,8 @@ const MATERIAL_SOURCES=[
     lic:'图片 CC0 1.0 · 代码 Apache-2.0',
     note:'280 姿势 × 5 视角，四语说明；线稿整包约 36.5MB。可下载后从「上传图片」导入本项目。'},
   {name:'RuiC-PoseAtlas · AI 人台线稿',url:'https://github.com/HRuiCcc/RuiC-PoseAtlas',
-    lic:'代码 MIT · 图片不在 MIT 内，禁止再分发',
-    note:'288 组 / 1439 张，仓库约 798MB。仅作外链浏览参考，勿内置或随提案分发图片。'},
+    lic:'代码 MIT · 图片版权归原作者，可个人创作参考；再分发图片数据本身需自行核实许可',
+    note:'288 组 / 1439 张，仓库约 798MB。仅作外链浏览参考，勿随提案分发图片。'},
   {name:'alt-cinematography-reference · 分类维度参考',url:'https://github.com/patipanpealt/alt-cinematography-reference',
     lic:'无许可证 · 仅借鉴分类维度',
     note:'6 部分 53 项摄影语法（景别 / 机位 / 运动 / 光线 / 构图），含 25 张 WebP 照片。仅借鉴分类维度做标签词表，不复制仓库内容。'}
@@ -456,12 +462,14 @@ const STATUSES=['灵感期','策划中','待拍摄','后期中','已交付'];
 const STATUS_TAG=['gray','blue','red','purple','green'];
 const CITIES=[['北京',39.90,116.40],['上海',31.23,121.47],['广州',23.13,113.26],['深圳',22.54,114.06],['南京',32.06,118.78],['杭州',30.27,120.16],['成都',30.57,104.07],['西安',34.34,108.94]];
 
-/* IndexedDB：图片 + 项目主存储（v4 起项目不再存 localStorage） */
+/* IndexedDB：图片 + 项目主存储 + 姿势图库（v4 起项目不再存 localStorage） */
 const idb={db:null,
-  open(){return new Promise((res,rej)=>{const r=indexedDB.open('shotflow',2);
+  open(){return new Promise((res,rej)=>{const r=indexedDB.open('shotflow',3);
     r.onupgradeneeded=e=>{const db=e.target.result;
       if(!db.objectStoreNames.contains('images')) db.createObjectStore('images');
       if(!db.objectStoreNames.contains('projects')) db.createObjectStore('projects');
+      if(!db.objectStoreNames.contains('shisei_meta')) db.createObjectStore('shisei_meta');
+      if(!db.objectStoreNames.contains('shisei_images')) db.createObjectStore('shisei_images');
     };
     r.onsuccess=e=>{idb.db=e.target.result;res();};r.onerror=rej;});},
   put(k,v){return new Promise((res,rej)=>{const t=idb.db.transaction('images','readwrite');t.objectStore('images').put(v,k);t.oncomplete=res;t.onerror=rej;});},
@@ -470,7 +478,19 @@ const idb={db:null,
   keys(){return new Promise((res,rej)=>{const r=idb.db.transaction('images').objectStore('images').getAllKeys();r.onsuccess=()=>res(r.result);r.onerror=rej;});},
   getProjects(){return new Promise((res,rej)=>{const r=idb.db.transaction('projects').objectStore('projects').get('all');r.onsuccess=()=>res(r.result);r.onerror=rej;});},
   putProjects(a){return new Promise((res,rej)=>{const t=idb.db.transaction('projects','readwrite');t.objectStore('projects').put(a,'all');t.oncomplete=res;t.onerror=()=>rej(t.error);});},
-  clearProjects(){return new Promise((res,rej)=>{const t=idb.db.transaction('projects','readwrite');t.objectStore('projects').delete('all');t.oncomplete=res;t.onerror=rej;});}
+  clearProjects(){return new Promise((res,rej)=>{const t=idb.db.transaction('projects','readwrite');t.objectStore('projects').delete('all');t.oncomplete=res;t.onerror=rej;});},
+  /* 姿势图库：meta + 缩略图 */
+  getShiseiMeta(k){return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_meta').objectStore('shisei_meta').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
+  putShiseiMeta(k,v){return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_meta','readwrite');t.objectStore('shisei_meta').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});},
+  putShiseiImg(k,v){return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_images','readwrite');t.objectStore('shisei_images').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});},
+  getShiseiImg(k){return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_images').objectStore('shisei_images').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
+  delShiseiImg(k){return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_images','readwrite');t.objectStore('shisei_images').delete(k);t.oncomplete=res;t.onerror=rej;});},
+  shiseiImgKeys(){return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_images').objectStore('shisei_images').getAllKeys();r.onsuccess=()=>res(r.result);r.onerror=rej;});},
+  shiseiIndex(){return new Promise((res,rej)=>{const out=[];const r=idb.db.transaction('shisei_images').objectStore('shisei_images').openCursor();
+    r.onsuccess=e=>{const c=e.target.result; if(!c){res(out);return;} const v=c.value||{}; out.push({key:c.key,pid:v.pid,cat:v.cat,view:v.view,zh:v.zh,en:v.en,ja:v.ja}); c.continue();};r.onerror=rej;});},
+  shiseiImgStats(){return new Promise((res,rej)=>{let count=0,bytes=0;const r=idb.db.transaction('shisei_images').objectStore('shisei_images').openCursor();
+    r.onsuccess=e=>{const c=e.target.result; if(!c){res({count,bytes,avg:count?Math.round(bytes/count):0});return;} const v=c.value||{}; count++; bytes+=String(v.data||'').length; c.continue();};r.onerror=rej;});},
+  clearShisei(){return new Promise((res,rej)=>{const t=idb.db.transaction(['shisei_meta','shisei_images'],'readwrite');t.objectStore('shisei_meta').clear();t.objectStore('shisei_images').clear();t.oncomplete=res;t.onerror=()=>rej(t.error);});}
 };
 const imgCache={};
 async function cacheProjectImages(p){
@@ -550,6 +570,58 @@ function removeTag(p,tag){
   const vocab=Array.isArray(p.tagVocab)?p.tagVocab:[];
   p.tagVocab=dedupeTags(vocab.filter(t=>tagKey(t)!==k));
   return p;
+}
+
+/* ===== 姿势图库纯函数层：只做 catalog 映射、diff 与游标计算，不碰 DOM/idb ===== */
+function shiseiItemKey(e){
+  if(e&&e.key) return String(e.key);
+  return 'shisei:'+String((e&&e.pid)||'')+':'+String((e&&e.view)||'');
+}
+function parseCatalog(raw){
+  const list=Array.isArray(raw)?raw:(Array.isArray(raw&&raw.items)?raw.items:[]);
+  const views=['front','diag','side','above','below'], out=[];
+  (list||[]).forEach(e=>{
+    if(!e||!e.id) return;
+    views.forEach(v=>{
+      const file=(e.views&&e.views[v])||(e.maps&&e.maps[v]);
+      if(!file) return;
+      out.push({pid:String(e.id),cat:String(e.class_cn||e.class_en||'未分类'),view:v,
+        zh:String(e.name_cn||e.name_en||e.id),en:String(e.name_en||e.name_cn||''),ja:String(e.name_jp||''),
+        url:'images/line/w300/'+String(file).replace(/^\/+/,'')});
+    });
+  });
+  return out;
+}
+function shiseiEntrySame(a,b){
+  return String((a&&a.cat)||'')===String((b&&b.cat)||'')
+    &&String((a&&a.zh)||'')===String((b&&b.zh)||'')
+    &&String((a&&a.en)||'')===String((b&&b.en)||'')
+    &&String((a&&a.ja)||'')===String((b&&b.ja)||'')
+    &&String((a&&a.url)||'')===String((b&&b.url)||'');
+}
+function diffCatalog(localEntries,remoteEntries){
+  const local=Array.isArray(localEntries)?localEntries:[], remote=Array.isArray(remoteEntries)?remoteEntries:[];
+  const lm=new Map(local.map(e=>[shiseiItemKey(e),e])), rm=new Map(remote.map(e=>[shiseiItemKey(e),e]));
+  const toAdd=[],toUpdate=[];
+  remote.forEach(e=>{ const k=shiseiItemKey(e), old=lm.get(k);
+    if(!old) toAdd.push(e);
+    else if(!shiseiEntrySame(old,e)) toUpdate.push(e);
+  });
+  const toRemove=[];
+  local.forEach(e=>{ const k=shiseiItemKey(e); if(!rm.has(k)) toRemove.push(k); });
+  return {toAdd,toUpdate,toRemove};
+}
+function nextPendingBatch(meta,batch){
+  const size=Math.max(1,Math.trunc(+batch||0)||1);
+  const pending=(meta&&Array.isArray(meta.pending))?meta.pending:[];
+  const cursor=Math.max(0,Math.trunc((meta&&meta.cursor)||0));
+  const items=pending.slice(cursor,cursor+size).map(x=>typeof x==='string'?{key:x}:x);
+  const next=cursor+items.length;
+  return {items,cursor:next,done:next>=pending.length};
+}
+function mergeShiseiMeta(meta,patch){
+  const base=(meta&&typeof meta==='object')?meta:{};
+  return Object.assign({},base,(patch&&typeof patch==='object')?patch:{});
 }
 
 /* v3 数据迁移：旧项目补齐新字段 */
@@ -831,12 +903,14 @@ function renderMood(p){
     +'<div id="tagCloud" class="tag-cloud"></div>'
     +'<div id="moodGrid" class="mood-grid"></div>'
     +'<details class="src-panel"><summary>素材来源与常用标签</summary>'
-    +'<p class="src-note">以下为外部参考站与素材包，本工具不内置任何图片。请遵守各站许可证；标注「禁止再分发」的仅可浏览，不得复制到项目或随提案交付。</p>'
+    +'<p class="src-note">本工具不内置任何图片；你可自行下载用于个人创作参考。再分发图片数据本身是否允许，以各站许可为准（PoseAtlas 允许创作参考、禁止再分发图片本身）。</p>'
     +'<div class="src-list">'+MATERIAL_SOURCES.map(s=>'<div><a href="'+esc(s.url)+'" target="_blank" rel="noopener">'+esc(s.name)+'</a>'
       +'<span class="src-lic">'+esc(s.lic)+'</span><div class="muted">'+esc(s.note)+'</div></div>').join('')+'</div>'
+    +'<div id="shiseiSyncBox"></div>'
     +'<div class="src-words">'+TAG_SUGGESTIONS.map(t=>'<button class="chip" onclick="addTagWord('+jstr(t)+')">+ '+esc(t)+'</button>').join('')+'</div>'
     +'</details></div>';
   renderMoodGrid(p);
+  renderShiseiSyncStatus();
 }
 function renderMoodGrid(p){
   p=p||cur(); if(!p) return;
@@ -975,13 +1049,33 @@ function delMood(id){ updateCur(p=>p.mood=p.mood.filter(m=>m.id!==id)); renderPr
 /* ---- 分镜（中枢） ---- */
 let selRefs=[];
 function shotSortKey(s){ return (s.date||'9999')+'|'+(s.ord!=null?'o'+String(s.ord).padStart(6,'0'):'s'+(s.slot||'99:99')); }
-function renderShots(p){
+async function renderShots(p){
+  if(!p) return;
+  await ensureShiseiRefs(p);
   const moodImgs=p.mood.filter(m=>m.type==='image'&&matchByTags(m,view.moodFilter,view.moodFilterMode));
+  let gallery=[];
+  try{ gallery=await idb.shiseiIndex(); }catch(e){ gallery=[]; }
+  const shiseiCats=['全部',...[...new Set(gallery.map(r=>r.cat).filter(Boolean))]];
+  const galleryRows=shiseiCat==='全部'?gallery:gallery.filter(r=>r.cat===shiseiCat);
   const kw=(view.shotFilter||'').trim().toLowerCase();
   const sorted=[...p.shots].sort((a,b)=>shotSortKey(a)<shotSortKey(b)?-1:1)
     .filter(s=>!kw||(s.name||'').toLowerCase().includes(kw)||(s.note||'').toLowerCase().includes(kw)||(p.scenes.find(x=>x.id===s.sceneId)||{}).name&&(p.scenes.find(x=>x.id===s.sceneId)||{}).name.toLowerCase().includes(kw));
+  const mineHtml=moodImgs.length?'<div class="ref-group"><div class="ref-group-head"><span>我的素材</span></div><div class="ref-picker">'
+      +moodImgs.map(m=>
+        '<div class="ref-opt '+(selRefs.includes(m.content)?'on':'')+'" title="'+esc(tagsForDisplay(m).join(' / '))+'" onclick="toggleRef('+jstr(m.content)+')"><img src="'+esc(imgCache[m.content]||'')+'">'
+        +(tagsForDisplay(m).length?'<span class="ref-tag">'+tagsForDisplay(m).map(t=>'#'+esc(t)).join(' ')+'</span>':'')
+        +(selRefs.includes(m.content)?'<span class="ord">'+(selRefs.indexOf(m.content)+1)+'</span>':'')+'</div>').join('')
+      +'<span class="muted" style="align-self:center">点击选参考图（最多 3 张）</span></div></div>':'';
+  const galleryHtml=galleryRows.length?'<div class="ref-group"><div class="ref-group-head"><span>姿势图库</span><div class="chips">'
+      +shiseiCats.map(c=>'<button class="chip '+(shiseiCat===c?'on':'')+'" onclick="setShiseiCat('+jstr(c)+')">'+esc(c)+'</button>').join('')
+      +'</div></div><div class="ref-picker">'+galleryRows.map(r=>
+        '<div class="ref-opt '+(selRefs.includes(r.key)?'on':'')+'" data-shisei-key="'+esc(r.key)+'" title="'+esc(r.zh+' · '+r.cat)+'" onclick="toggleRef('+jstr(r.key)+')">'
+        +'<img src="'+esc(imgCache[r.key]||'')+'" alt="'+esc(r.zh)+'">'
+        +'<span class="ref-tag">#'+esc(r.cat)+' · '+esc(r.zh)+'</span>'
+        +(selRefs.includes(r.key)?'<span class="ord">'+(selRefs.indexOf(r.key)+1)+'</span>':'')+'</div>').join('')
+      +'<span class="muted" style="align-self:center">图库引用同样最多 3 张</span></div></div>':'';
   document.getElementById('tabBody').innerHTML='<div class="card"><h2>分镜表 · 数据中枢</h2>'
-    +'<p class="muted" style="margin-bottom:12px">每条分镜可挂 1-3 张参考图（来自情绪板）+ 场景 + 日期时段。拖动左侧手柄排序，拖到另一日期分组会自动改期。</p>'
+    +'<p class="muted" style="margin-bottom:12px">每条分镜可挂 1-3 张参考图（我的素材 + 姿势图库）+ 场景 + 日期时段。拖动左侧手柄排序，拖到另一日期分组会自动改期。</p>'
     +'<div class="row" style="margin-bottom:6px">'
     +'<input id="s_name" class="grow" placeholder="分镜内容，如：巷口逆光回眸（中景）">'
     +'<input type="date" id="s_date" style="max-width:150px" value="'+(p.shootDate||todayStr())+'">'
@@ -990,18 +1084,14 @@ function renderShots(p){
     +'<select id="s_scene" style="max-width:150px"><option value="">— 场景 —</option>'+p.scenes.map(s=>'<option value="'+s.id+'">'+esc(s.name)+'</option>').join('')+'</select>'
     +'<input id="s_note" class="grow" placeholder="备注（机位 / 光线 / 姿势…）">'
     +'<button class="btn btn-primary" onclick="addShot()">添加分镜</button></div>'
-    +(moodImgs.length?'<div class="ref-picker" id="refPicker">'+moodImgs.map(m=>
-        '<div class="ref-opt '+(selRefs.includes(m.content)?'on':'')+'" title="'+esc(tagsForDisplay(m).join(' / '))+'" onclick="toggleRef('+jstr(m.content)+')"><img src="'+esc(imgCache[m.content]||'')+'">'
-        +(tagsForDisplay(m).length?'<span class="ref-tag">'+tagsForDisplay(m).map(t=>'#'+esc(t)).join(' ')+'</span>':'')
-        +(selRefs.includes(m.content)?'<span class="ord">'+(selRefs.indexOf(m.content)+1)+'</span>':'')+'</div>').join('')
-      +'<span class="muted" style="align-self:center">点击选参考图（最多 3 张）</span></div>'
-      :'<p class="muted" style="margin-bottom:10px">'+(p.mood.some(m=>m.type==='image')?'没有命中所选标签的素材，换个标签或清空筛选。':'情绪板还没有可用图片。先上传并设置标签（动作 / 景别 / 光线…），或到「素材来源」找可商用线稿自行下载。')+'</p>')
+    +((mineHtml||galleryHtml)?mineHtml+galleryHtml
+      :'<p class="muted" style="margin-bottom:10px">'+(p.mood.some(m=>m.type==='image')?'没有命中所选标签的素材，换个标签或清空筛选。':'情绪板还没有可用图片。先上传并设置标签（动作 / 景别 / 光线…），或到「素材来源」开启姿势图库同步 / 自行下载线稿。')+'</p>')
     +'<div class="row" style="margin-bottom:12px"><input id="s_filter" class="grow" placeholder="搜索分镜 / 场景 / 备注…" value="'+esc(view.shotFilter)+'" oninput="view.shotFilter=this.value;renderShots(cur())"></div>'
     +(sorted.length? '<div id="shotList">'+sorted.map(s=>{
         const scene=p.scenes.find(x=>x.id===s.sceneId);
         const clash=dayItems(p,s.date).some(x=>x.id===s.id&&x._conflict);
-        const refs=s.refIds.filter(r=>imgCache[r]);
-        const refHtml=refs.length? refs.map(r=>'<img src="'+imgCache[r]+'">').join('')+(refs.length>2?'<div class="more">+'+(refs.length-2)+'</div>':'')
+        const refs=s.refIds.filter(r=>imgCache[r]||String(r||'').startsWith('shisei:'));
+        const refHtml=refs.length? refs.map(r=>imgCache[r]?'<img src="'+esc(imgCache[r])+'">':'<div class="noref">图库原图已更新</div>').join('')+(refs.length>2?'<div class="more">+'+(refs.length-2)+'</div>':'')
           :'<div class="noref-single">无参考图</div>';
         return '<div class="shot '+(s.done?'done':'')+'" data-id="'+s.id+'">'
           +'<span class="drag-handle" title="拖拽排序"><svg width="12" height="18" viewBox="0 0 12 18" fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></svg></span>'
@@ -1012,8 +1102,10 @@ function renderShots(p){
           +'<button class="iconbtn" onclick="delShot(\''+s.id+'\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
       }).join('')+'</div>' : '<p class="muted">'+(kw?'没有匹配的分镜。':'还没有分镜。添加第一条，把素材挂上来。')+'</p>')
     +'</div>';
+  galleryRows.forEach(r=>ensureShiseiImage(r.key));
   attachDrag();
 }
+function setShiseiCat(cat){ shiseiCat=String(cat||'全部'); renderShots(cur()); }
 function toggleRef(id){
   const i=selRefs.indexOf(id);
   if(i>=0) selRefs.splice(i,1);
@@ -1312,8 +1404,9 @@ let sdDate=null;
 function openShootDay(){ const p=cur(); sdDate=p.shootDate||todayStr(); renderShootDay(); document.getElementById('sdOverlay').classList.add('show'); }
 function closeShootDay(){ document.getElementById('sdOverlay').classList.remove('show'); renderProject(); }
 function sdSetDate(d){ sdDate=d; renderShootDay(); }
-function renderShootDay(){
+async function renderShootDay(){
   const p=cur(); if(!p) return;
+  await ensureShiseiRefs(p);
   const shots=p.shots.filter(s=>s.date===sdDate);
   const items=dayItems(p,sdDate);
   const done=items.filter(x=>x.done).length;
@@ -1341,9 +1434,9 @@ function renderShootDay(){
       const cflag=x._conflict?' <span class="tag red" style="border:1px solid #a32d2d">重叠</span>':'';
       if(x._t==='shot'){
         const scene=p.scenes.find(s=>s.id===x.sceneId);
-        const refs=(x.refIds||[]).filter(r=>imgCache[r]);
+        const refs=(x.refIds||[]).filter(r=>imgCache[r]||String(r||'').startsWith('shisei:'));
         h+='<div class="sd-shot '+(x.done?'done':'')+' '+(x.id===currentId?'now':'')+'">'
-          +(refs.length?refs.map(r=>'<img src="'+imgCache[r]+'">').join(''):'')
+          +(refs.length?refs.map(r=>imgCache[r]?'<img src="'+esc(imgCache[r])+'">':'<div style="width:68px;height:68px;border-radius:9px;border:1px solid #2c2822;background:#12100c;color:#a99e8c;font-size:10px;display:flex;align-items:center;justify-content:center;text-align:center;padding:4px">图库原图已更新</div>').join(''):'')
           +'<div style="flex:1;min-width:120px"><div class="sd-name">'+esc(x.name)+cflag+'</div>'
           +'<div class="sd-meta">'+(scene?esc(scene.name)+' · ':'')+'约 '+x.duration+' 分钟'+(x.note?' · '+esc(x.note):'')+'</div>'
           +((overdue||x._conflict)?'<button class="sd-btn" style="margin-top:8px" onclick="sdPostpone(\''+x.id+'\')">顺延后续 1 小时</button>':'')
@@ -1398,8 +1491,9 @@ function callSheetHtml(p){
     +'<h2>沟通要点</h2><ul>'+notes+'</ul>'
     +(p.concept&&p.concept.note?'<p class="muted">创意备注：'+esc(p.concept.note)+'</p>':'');
 }
-function openDoc(kind){
-  const p=cur();
+async function openDoc(kind){
+  const p=cur(); if(!p) return;
+  await ensureShiseiRefs(p);
   if(kind==='callsheet'){
     document.getElementById('docBody').innerHTML=callSheetHtml(p);
     document.getElementById('docModal').classList.add('show');
@@ -1455,7 +1549,11 @@ function closeDoc(){ document.getElementById('docModal').classList.remove('show'
 
 /* 导出可发送的提案 HTML 文件（图片内嵌，微信可直接发） */
 function exportProposalFile(){
-  const p=cur(); const c=p.concept;
+  const p=cur(); if(!p) return;
+  ensureShiseiRefs(p).then(()=>writeProposalFile(p));
+}
+async function writeProposalFile(p){
+  const c=p.concept;
   const moodImgs=p.mood.filter(m=>m.type==='image'), moodTexts=p.mood.filter(m=>m.type==='text'), moodColors=p.mood.filter(m=>m.type==='color');
   const total=p.budget.reduce((s,b)=>s+(+b.amount||0),0);
   const sun=sunTimes(p.shootDate,p.lat,p.lng);
@@ -1498,7 +1596,7 @@ function collectImages(ps){
   const ids=new Set();
   ps.forEach(p=>{
     (p.mood||[]).filter(m=>m.type==='image').forEach(m=>ids.add(m.content));
-    (p.shots||[]).forEach(s=>(s.refIds||[]).forEach(r=>ids.add(r)));
+    (p.shots||[]).forEach(s=>(s.refIds||[]).forEach(r=>{ if(!String(r||'').startsWith('shisei:')) ids.add(r); }));
   });
   return ids;
 }
@@ -1557,7 +1655,7 @@ function askConfirm(t,d,cb){ document.getElementById('confirmTitle').textContent
 function closeConfirm(){ document.getElementById('confirmModal').classList.remove('show'); confirmCb=null; }
 document.getElementById('confirmOk').onclick=()=>{ const cb=confirmCb; closeConfirm(); if(cb) cb(); };
 function clearAll(){
-  askConfirm('清空全部数据？','不可恢复！将删除所有策划案与图片，建议先导出备份。',async()=>{
+  askConfirm('清空全部数据？','不可恢复！将删除所有策划案与图片，建议先导出备份。姿势图库缓存不受影响，可在情绪板 → 素材来源中单独清除。',async()=>{
     localStorage.removeItem(LS_PROJ);
     await idb.clearProjects();
     const keys=await idb.keys(); for(const k of keys) await idb.del(k);
@@ -1613,6 +1711,218 @@ function applyAiSuggestion(moodId){
   renderProject(); toast('已采纳建议标签');
 }
 
+/* ===== shisei 姿势图库：空闲自动同步（零密钥，只用公开 CDN） ===== */
+const SHISEI_CATALOG_URL='https://cdn.jsdelivr.net/gh/wquguru/shisei@main/data/catalog.json';
+const SHISEI_CDN_BASE='https://cdn.jsdelivr.net/gh/wquguru/shisei@main/';
+const SHISEI_META_KEY='catalog', SHISEI_SYNC_INTERVAL=24*60*60*1000, SHISEI_BATCH=3;
+let shiseiInitReady=false, shiseiCat='全部';
+let shiseiState={running:false,paused:false,total:0,done:0};
+function shiseiSyncEnabled(){
+  try{ return localStorage.getItem('wb_sf_shisei_sync')!=='0'; }catch(e){ return true; }
+}
+function shiseiCanStart(force){
+  if(!shiseiInitReady||!shiseiSyncEnabled()||!navigator.onLine) return false;
+  if(!force&&document.visibilityState!=='visible') return false;
+  if(document.querySelector('.modal-mask.show')||document.getElementById('sdOverlay').classList.contains('show')) return false;
+  return true;
+}
+function shiseiCatalogVersion(text){
+  const s=String(text||''); let h=5381;
+  for(let i=0;i<s.length;i++) h=(((h<<5)+h)+s.charCodeAt(i))>>>0;
+  return s.length+'-'+h.toString(36);
+}
+function fetchShiseiWithTimeout(url,ms){
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),ms);
+  return fetch(url,{signal:ctrl.signal,mode:'cors'}).finally(()=>clearTimeout(timer));
+}
+function shiseiBlobToDataURL(blob){
+  return new Promise((res,rej)=>{
+    const rd=new FileReader();
+    rd.onload=()=>res(String(rd.result||''));
+    rd.onerror=()=>rej(rd.error||new Error('BLOB_READ_FAILED'));
+    rd.readAsDataURL(blob);
+  });
+}
+async function fetchShiseiImage(entry){
+  let lastErr=null;
+  for(let attempt=0;attempt<3;attempt++){
+    try{
+      const r=await fetchShiseiWithTimeout(SHISEI_CDN_BASE+String(entry.url||'').replace(/^\/+/,''),20000);
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const data=await shiseiBlobToDataURL(await r.blob());
+      if(!data) throw new Error('EMPTY_IMAGE');
+      return data;
+    }catch(e){ lastErr=e; }
+  }
+  throw lastErr||new Error('IMAGE_FETCH_FAILED');
+}
+function startShiseiSync(force){
+  if(shiseiState.running) return;
+  const schedule=window.requestIdleCallback?window.requestIdleCallback:cb=>setTimeout(cb,5000);
+  schedule(async()=>{
+    if(!shiseiCanStart(!!force)) { renderShiseiSyncStatus(); return; }
+    try{
+      const meta=await idb.getShiseiMeta(SHISEI_META_KEY);
+      if(!force&&meta&&meta.failStreak>=3) return;
+      const resumable=meta&&Array.isArray(meta.pending)&&meta.pending.length&&meta.cursor>0;
+      if(!force&&meta&&meta.checkedAt&&!resumable&&Date.now()-meta.checkedAt<SHISEI_SYNC_INTERVAL) return;
+      await runShiseiSync(!!force);
+    }catch(e){ renderShiseiSyncStatus(); }
+  });
+}
+async function runShiseiSync(force){
+  if(shiseiState.running||(!force&&!shiseiSyncEnabled())) return;
+  shiseiState={running:true,paused:false,total:0,done:0};
+  renderShiseiSyncStatus();
+  try{
+    const r=await fetchShiseiWithTimeout(SHISEI_CATALOG_URL,15000);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const text=await r.text();
+    const raw=JSON.parse(text);
+    const remote=parseCatalog(raw), version=shiseiCatalogVersion(text);
+    const local=await idb.shiseiIndex();
+    const diff=diffCatalog(local,remote);
+    for(const k of diff.toRemove){ await idb.delShiseiImg(k); if(imgCache[k]) delete imgCache[k]; }
+    const remoteByKey=new Map(remote.map(e=>[shiseiItemKey(e),e]));
+    let meta=await idb.getShiseiMeta(SHISEI_META_KEY);
+    let pending=diff.toAdd.concat(diff.toUpdate).map(shiseiItemKey);
+    let cursor=0;
+    if(meta&&meta.version===version&&Array.isArray(meta.pending)&&meta.pending.length
+      &&meta.pending.join('|')===pending.join('|')&&meta.cursor>0){
+      pending=meta.pending; cursor=Math.min(meta.cursor,pending.length);
+    }
+    meta=mergeShiseiMeta(meta||{},{
+      version,fetchedAt:Date.now(),checkedAt:Date.now(),total:remote.length,
+      pending,cursor,failStreak:0,paused:false
+    });
+    await idb.putShiseiMeta(SHISEI_META_KEY,meta);
+    if(!pending.length){ await finishShiseiSync(meta); return; }
+    shiseiState.total=pending.length; shiseiState.done=cursor;
+    while(cursor<pending.length){
+      if(shiseiState.paused||!navigator.onLine||document.visibilityState!=='visible') break;
+      const batch=nextPendingBatch({pending,cursor},SHISEI_BATCH);
+      const results=await Promise.allSettled(batch.items.map(item=>{
+        const entry=remoteByKey.get(item.key)||shiseiItemEntry(item.key,remoteByKey);
+        return entry?fetchShiseiImage(entry).then(data=>{
+          const rec={key:item.key,pid:entry.pid,cat:entry.cat,view:entry.view,zh:entry.zh,en:entry.en,ja:entry.ja,data,syncedAt:Date.now()};
+          return idb.putShiseiImg(item.key,rec).then(()=>({ok:true,key:item.key,data}));
+        }):Promise.reject(new Error('CATALOG_ENTRY_MISSING'));
+      }));
+      let failed=0, quotaHit=false;
+      for(let i=0;i<results.length;i++){
+        const item=batch.items[i], out=results[i];
+        if(out.status==='fulfilled'&&out.value&&out.value.data){
+          imgCache[item.key]=out.value.data;
+        } else {
+          failed++;
+          const reason=out.reason;
+          quotaHit=quotaHit||(reason&&(reason.name==='QuotaExceededError'||/quota/i.test(String(reason.message||reason.name||''))));
+        }
+      }
+      cursor=batch.cursor;
+      shiseiState.done=cursor;
+      meta=mergeShiseiMeta(meta,{cursor,failStreak:(meta.failStreak||0)+failed});
+      if(failed>=3) meta.paused=true;
+      await idb.putShiseiMeta(SHISEI_META_KEY,meta);
+      if(quotaHit) throw Object.assign(new Error('本地空间不足'),{name:'QuotaExceededError'});
+      renderShiseiSyncStatus();
+      if(meta.paused) break;
+      await new Promise(res=>setTimeout(res,30)); // 空闲节流
+    }
+    if(shiseiState.paused||!navigator.onLine||document.visibilityState!=='visible'){
+      await idb.putShiseiMeta(SHISEI_META_KEY,mergeShiseiMeta(meta,{paused:true,checkedAt:Date.now()}));
+      shiseiState.paused=true;
+    } else {
+      await finishShiseiSync(meta);
+    }
+  }catch(e){
+    let meta=await idb.getShiseiMeta(SHISEI_META_KEY);
+    const failStreak=((meta&&meta.failStreak)||0)+1;
+    meta=mergeShiseiMeta(meta||{},{
+      failStreak,checkedAt:Date.now(),
+      paused:e&&e.name==='QuotaExceededError'?true:(failStreak>=3?true:(meta&&meta.paused)||false)
+    });
+    await idb.putShiseiMeta(SHISEI_META_KEY,meta).catch(()=>{});
+    if(e&&e.name==='QuotaExceededError') toast('本地空间不足，可在素材来源里清除姿势图库');
+    shiseiState.paused=true;
+  }finally{
+    shiseiState.running=false;
+    renderShiseiSyncStatus();
+  }
+}
+function shiseiItemEntry(key,remoteByKey){
+  const m=/^shisei:(.*):([^:]*)$/.exec(String(key||''));
+  return m?remoteByKey.get(key)||null:null;
+}
+async function finishShiseiSync(meta){
+  await idb.putShiseiMeta(SHISEI_META_KEY,mergeShiseiMeta(meta,{pending:[],cursor:0,checkedAt:Date.now(),paused:false}));
+  shiseiState.paused=false;
+}
+async function renderShiseiSyncStatus(){
+  const box=document.getElementById('shiseiSyncBox'); if(!box) return;
+  let meta=null, stats={count:0,bytes:0,avg:0};
+  try{ meta=await idb.getShiseiMeta(SHISEI_META_KEY); stats=await idb.shiseiImgStats(); }catch(e){}
+  let stat='未同步';
+  if(!shiseiSyncEnabled()) stat='已暂停';
+  else if(shiseiState.running) stat=(shiseiState.paused?'已暂停':'进行中 ')+Math.min(shiseiState.done,shiseiState.total||0)+'/'+(shiseiState.total||0);
+  else if(meta&&meta.paused) stat='已暂停';
+  else if(meta&&meta.failStreak>=3) stat='连续失败 '+meta.failStreak+' 次';
+  else if(meta&&meta.total&&stats.count) stat='已同步 '+stats.count+'/'+meta.total;
+  else if(stats.count) stat='已同步 '+stats.count+' 张';
+  const mb=(stats.bytes/1024/1024).toFixed(1), kb=(stats.avg/1024).toFixed(1);
+  box.innerHTML='<div class="src-sync"><div><b>姿势图库同步</b> <span class="muted">'+esc(stat)+' · '+stats.count+' 张'
+    +(stats.count?' · 约 '+mb+' MB（平均 '+kb+' KB）':'')+'</span></div>'
+    +'<div class="row" style="margin-top:6px">'
+    +'<button class="btn btn-ghost btn-sm" onclick="toggleShiseiSync()">'+(shiseiSyncEnabled()?'暂停':'恢复')+'</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="startShiseiSync(true)">立即同步</button>'
+    +(stats.count?'<button class="btn btn-danger btn-sm" onclick="clearShiseiGallery()">清除图库</button>':'')
+    +'</div></div>';
+}
+function toggleShiseiSync(){
+  if(shiseiSyncEnabled()){
+    try{ localStorage.setItem('wb_sf_shisei_sync','0'); }catch(e){}
+    if(shiseiState.running) shiseiState.paused=true;
+  } else {
+    try{ localStorage.removeItem('wb_sf_shisei_sync'); }catch(e){}
+    startShiseiSync(true);
+  }
+  renderShiseiSyncStatus();
+}
+function clearShiseiGallery(){
+  askConfirm('清除姿势图库？','将删除本机缓存的图库缩略图与同步进度；分镜里已引用的图库图会显示为「图库原图已更新」占位，不会改动分镜数据。',async()=>{
+    try{ await idb.clearShisei(); }catch(e){ toast('清除失败'); return; }
+    Object.keys(imgCache).forEach(k=>{ if(String(k).startsWith('shisei:')) delete imgCache[k]; });
+    shiseiState={running:false,paused:false,total:0,done:0};
+    renderShiseiSyncStatus();
+    if(view.mode==='project'&&view.tab==='shots') renderShots(cur());
+    toast('姿势图库已清除');
+  });
+}
+async function ensureShiseiImage(key){
+  if(!String(key||'').startsWith('shisei:')) return imgCache[key]||'';
+  if(imgCache[key]) return imgCache[key];
+  try{
+    const rec=await idb.getShiseiImg(key);
+    if(rec&&rec.data){
+      imgCache[key]=rec.data;
+      document.querySelectorAll('[data-shisei-key]').forEach(el=>{
+        if(el.dataset.shiseiKey===key){ const img=el.querySelector('img'); if(img) img.src=rec.data; }
+      });
+      return rec.data;
+    }
+  }catch(e){}
+  return '';
+}
+async function ensureShiseiRefs(p){
+  const keys=[...new Set(((p&&p.shots)||[]).flatMap(s=>s.refIds||[]).filter(k=>String(k||'').startsWith('shisei:')))];
+  for(const k of keys){
+    if(imgCache[k]) continue;
+    try{ const rec=await idb.getShiseiImg(k); if(rec&&rec.data) imgCache[k]=rec.data; else if(imgCache[k]) delete imgCache[k]; }
+    catch(e){}
+  }
+}
+
 /* ================= Toast ================= */
 let toastTimer=null;
 function toast(msg,ms){
@@ -1651,7 +1961,18 @@ document.addEventListener('keydown',e=>{
   document.head.insertAdjacentHTML('beforeend','<style id="cvPublicStyle">'+PUBLIC_STYLE+'</style>');
   window.addEventListener('resize',fitCovers);
   await initData(); seed(); renderBoard();
+  shiseiInitReady=true; startShiseiSync();
 })();
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible'&&shiseiState.running){ shiseiState.paused=true; renderShiseiSyncStatus(); }
+  else if(document.visibilityState==='visible'&&!shiseiState.running&&shiseiState.paused){ startShiseiSync(); }
+});
+window.addEventListener('offline',()=>{
+  if(shiseiState.running){ shiseiState.paused=true; renderShiseiSyncStatus(); }
+});
+window.addEventListener('online',()=>{
+  if(!shiseiState.running) startShiseiSync();
+});
 </script>
 </body>
 </html>
