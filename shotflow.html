@@ -50,6 +50,17 @@ svg{display:inline-block;vertical-align:middle}
 .chip{border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:11.5px;color:var(--ink2);background:var(--surface-2);min-height:30px}
 .chip:hover{border-color:var(--accent);color:var(--accent-ink)}
 .chip.on{background:var(--ink);border-color:var(--ink);color:#fcf9f2}
+.tagchip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink);font-size:10.5px;white-space:nowrap}
+.tagchip.on{background:var(--ink);color:#fcf9f2}
+.tagchip.on button{color:#fcf9f2}
+.tagchip button{color:inherit;padding:0 2px;font-size:11px;line-height:1;opacity:.65}
+.tagchip button:hover{opacity:1;color:var(--red)}
+.tag-cloud{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:12px 0 4px}
+.tag-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px}
+.tag-filter input{max-width:260px;height:34px;font-size:13px}
+.tag-editor{margin:10px 0 2px;padding:10px 12px;border:1px dashed var(--line2);border-radius:10px;background:var(--surface-2)}
+.tag-editor input{height:34px;font-size:13px}
+.ref-tag{position:absolute;left:2px;right:2px;bottom:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:8px;line-height:1.2;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.7);pointer-events:none}
 
 /* 页头 / 指标 / 看板 */
 .masthead{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;padding-bottom:20px;border-bottom:1px solid var(--line);margin-bottom:22px}
@@ -133,6 +144,18 @@ svg{display:inline-block;vertical-align:middle}
 .mood-item .mfoot{padding:7px 12px;font-size:10.5px;color:var(--ink3);border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:6px}
 .mood-item .del{position:absolute;top:8px;right:8px;background:rgba(20,17,12,.5);color:#fff;border-radius:7px;width:26px;height:26px;font-size:13px;opacity:0;transition:opacity .15s}
 .mood-item:hover .del{opacity:1}
+.mood-item .mfoot{flex-wrap:wrap;align-items:center}
+.mfoot .tagchips{display:flex;gap:4px;flex-wrap:wrap;flex:1;min-width:0}
+.mfoot .tagchip{font-size:9.5px;padding:1px 6px}
+.tag-rename{height:32px;max-width:240px}
+.src-panel{margin-top:16px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+.src-panel summary{cursor:pointer;font-size:12.5px;color:var(--ink2)}
+.src-note{font-size:11.5px;color:var(--ink2);margin:8px 0}
+.src-lic{font-size:10.5px;color:var(--accent-ink);background:var(--accent-soft);border-radius:5px;padding:1px 6px;margin-left:6px}
+.src-list{display:grid;gap:7px;font-size:12px}
+.src-list a{color:var(--accent-ink);text-decoration:underline;text-underline-offset:2px}
+.src-words{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.src-words .chip{min-height:26px;padding:3px 9px;font-size:11px}
 
 /* 参考图选择器 */
 .ref-picker{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px}
@@ -307,6 +330,35 @@ const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded';
 const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const jstr=s=>esc(JSON.stringify(String(s==null?'':s)));   // 安全注入内联事件参数
+
+/* ===== 素材标签：常量与会话配置 ===== */
+const AI_TAGGING_ENABLED=false;                 // 编译期总开关，本期恒关闭
+const TagProviders=Object.create(null);         // 可插拔建议器注册表，默认空
+let aiConfig=(()=>{                             // 仅内存 + sessionStorage，不入库不导出
+  const def={enabled:false,endpoint:'',apiKey:'',model:'',timeoutMs:8000};
+  try{ return Object.assign(def,JSON.parse(sessionStorage.getItem('sf_ai_cfg_v1'))||{}); }
+  catch(e){ return def; }
+})();
+const MATERIAL_SOURCES=[
+  {name:'shisei · 人像姿势参考',url:'https://github.com/wquguru/shisei',
+    lic:'图片 CC0 1.0 · 代码 Apache-2.0',
+    note:'280 姿势 × 5 视角，四语说明；线稿整包约 36.5MB。可下载后从「上传图片」导入本项目。'},
+  {name:'RuiC-PoseAtlas · AI 人台线稿',url:'https://github.com/HRuiCcc/RuiC-PoseAtlas',
+    lic:'代码 MIT · 图片不在 MIT 内，禁止再分发',
+    note:'288 组 / 1439 张，仓库约 798MB。仅作外链浏览参考，勿内置或随提案分发图片。'},
+  {name:'alt-cinematography-reference · 分类维度参考',url:'https://github.com/patipanpealt/alt-cinematography-reference',
+    lic:'无许可证 · 仅借鉴分类维度',
+    note:'6 部分 53 项摄影语法（景别 / 机位 / 运动 / 光线 / 构图），含 25 张 WebP 照片。仅借鉴分类维度做标签词表，不复制仓库内容。'}
+];
+const TAG_SUGGESTIONS=[
+  '站姿','坐姿','行走','回眸','侧身','倚靠','手部动作','跳跃','蹲姿',
+  '远景','全景','中景','近景','特写','大特写',
+  '平视','俯拍','仰拍','过肩','低机位','鸟瞰',
+  '顺光','侧光','侧逆光','逆光','顶光','窗光','黄金时刻','剪影',
+  '居中','三分法','引导线','框架构图','留白','对称',
+  '胶片感','暖调','冷调','松弛感','生活流','氛围感'
+];
 
 /* ===== 提案出版系统：画廊扉页封面 + 统一文档排版 ===== */
 const CV_DIAMOND = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 960 1500' fill='none'><path d='M-2000,-3500 L2000,500 M-2000,-3460 L2000,540 M-2000,-3420 L2000,580 M-2000,-3380 L2000,620 M-2000,-3340 L2000,660 M-2000,-3300 L2000,700 M-2000,-3260 L2000,740 M-2000,-3220 L2000,780 M-2000,-3180 L2000,820 M-2000,-3140 L2000,860 M-2000,-3100 L2000,900 M-2000,-3060 L2000,940 M-2000,-3020 L2000,980 M-2000,-2980 L2000,1020 M-2000,-2940 L2000,1060 M-2000,-2900 L2000,1100 M-2000,-2860 L2000,1140 M-2000,-2820 L2000,1180 M-2000,-2780 L2000,1220 M-2000,-2740 L2000,1260 M-2000,-2700 L2000,1300 M-2000,-2660 L2000,1340 M-2000,-2620 L2000,1380 M-2000,-2580 L2000,1420 M-2000,-2540 L2000,1460 M-2000,-2500 L2000,1500 M-2000,-2460 L2000,1540 M-2000,-2420 L2000,1580 M-2000,-2380 L2000,1620 M-2000,-2340 L2000,1660 M-2000,-2300 L2000,1700 M-2000,-2260 L2000,1740 M-2000,-2220 L2000,1780 M-2000,-2180 L2000,1820 M-2000,-2140 L2000,1860 M-2000,-2100 L2000,1900 M-2000,-2060 L2000,1940 M-2000,-2020 L2000,1980 M-2000,-1980 L2000,2020 M-2000,-1940 L2000,2060 M-2000,-1900 L2000,2100 M-2000,-1860 L2000,2140 M-2000,-1820 L2000,2180 M-2000,-1780 L2000,2220 M-2000,-1740 L2000,2260 M-2000,-1700 L2000,2300 M-2000,-1660 L2000,2340 M-2000,-1620 L2000,2380 M-2000,-1580 L2000,2420 M-2000,-1540 L2000,2460 M-2000,-1500 L2000,2500 M-2000,-1460 L2000,2540 M-2000,-1420 L2000,2580 M-2000,-1380 L2000,2620 M-2000,-1340 L2000,2660 M-2000,-1300 L2000,2700 M-2000,-1260 L2000,2740 M-2000,-1220 L2000,2780 M-2000,-1180 L2000,2820 M-2000,-1140 L2000,2860 M-2000,-1100 L2000,2900 M-2000,-1060 L2000,2940 M-2000,1900 L2000,-2100 M-2000,1940 L2000,-2060 M-2000,1980 L2000,-2020 M-2000,2020 L2000,-1980 M-2000,2060 L2000,-1940 M-2000,2100 L2000,-1900 M-2000,2140 L2000,-1860 M-2000,2180 L2000,-1820 M-2000,2220 L2000,-1780 M-2000,2260 L2000,-1740 M-2000,2300 L2000,-1700 M-2000,2340 L2000,-1660 M-2000,2380 L2000,-1620 M-2000,2420 L2000,-1580 M-2000,2460 L2000,-1540 M-2000,2500 L2000,-1500 M-2000,2540 L2000,-1460 M-2000,2580 L2000,-1420 M-2000,2620 L2000,-1380 M-2000,2660 L2000,-1340 M-2000,2700 L2000,-1300 M-2000,2740 L2000,-1260 M-2000,2780 L2000,-1220 M-2000,2820 L2000,-1180 M-2000,2860 L2000,-1140 M-2000,2900 L2000,-1100 M-2000,2940 L2000,-1060 M-2000,2980 L2000,-1020 M-2000,3020 L2000,-980 M-2000,3060 L2000,-940 M-2000,3100 L2000,-900 M-2000,3140 L2000,-860 M-2000,3180 L2000,-820 M-2000,3220 L2000,-780 M-2000,3260 L2000,-740 M-2000,3300 L2000,-700 M-2000,3340 L2000,-660 M-2000,3380 L2000,-620 M-2000,3420 L2000,-580 M-2000,3460 L2000,-540 M-2000,3500 L2000,-500 M-2000,3540 L2000,-460 M-2000,3580 L2000,-420 M-2000,3620 L2000,-380 M-2000,3660 L2000,-340 M-2000,3700 L2000,-300 M-2000,3740 L2000,-260 M-2000,3780 L2000,-220 M-2000,3820 L2000,-180 M-2000,3860 L2000,-140 M-2000,3900 L2000,-100 M-2000,3940 L2000,-60 M-2000,3980 L2000,-20 M-2000,4020 L2000,20 M-2000,4060 L2000,60 M-2000,4100 L2000,100 M-2000,4140 L2000,140 M-2000,4180 L2000,180 M-2000,4220 L2000,220 M-2000,4260 L2000,260 M-2000,4300 L2000,300 M-2000,4340 L2000,340 M-2000,4380 L2000,380 M-2000,4420 L2000,420 M-2000,4460 L2000,460 M-2000,4500 L2000,500 M-2000,4540 L2000,540' stroke='#8A8076' stroke-width='0.6' stroke-opacity='0.1' stroke-linecap='butt'/><path d='M-2000,-3500 L2000,500 M-2000,-3340 L2000,660 M-2000,-3180 L2000,820 M-2000,-3020 L2000,980 M-2000,-2860 L2000,1140 M-2000,-2700 L2000,1300 M-2000,-2540 L2000,1460 M-2000,-2380 L2000,1620 M-2000,-2220 L2000,1780 M-2000,-2060 L2000,1940 M-2000,-1900 L2000,2100 M-2000,-1740 L2000,2260 M-2000,-1580 L2000,2420 M-2000,-1420 L2000,2580 M-2000,-1260 L2000,2740 M-2000,-1100 L2000,2900 M-2000,1900 L2000,-2100 M-2000,2060 L2000,-1940 M-2000,2220 L2000,-1780 M-2000,2380 L2000,-1620 M-2000,2540 L2000,-1460 M-2000,2700 L2000,-1300 M-2000,2860 L2000,-1140 M-2000,3020 L2000,-980 M-2000,3180 L2000,-820 M-2000,3340 L2000,-660 M-2000,3500 L2000,-500 M-2000,3660 L2000,-340 M-2000,3820 L2000,-180 M-2000,3980 L2000,-20 M-2000,4140 L2000,140 M-2000,4300 L2000,300 M-2000,4460 L2000,460' stroke='#8A8076' stroke-width='0.9' stroke-opacity='0.16' stroke-linecap='butt'/></svg>`;
@@ -427,9 +479,78 @@ async function cacheProjectImages(p){
 }
 
 /* ================= 状态 ================= */
-let view={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部'};
+let view={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',moodFilter:[],moodFilterMode:'any'};
 const cur=()=>loadP().find(p=>p.id===view.pid);
 function updateCur(fn){ const a=loadP(); const p=a.find(x=>x.id===view.pid); if(p){fn(p); p.updatedAt=Date.now(); saveP(a);} }
+
+/* ===== 素材标签纯函数层：只依赖内置对象，可被逻辑测试直接抽取 ===== */
+function tagKey(s){
+  return String(s==null?'':s).normalize('NFKC').trim().toLocaleLowerCase('en-US').replace(/\s+/g,' ');
+}
+function dedupeTags(list){
+  if(!Array.isArray(list)) return [];
+  const seen=new Set(), out=[];
+  list.forEach(v=>{
+    const t=String(v==null?'':v).trim(), k=tagKey(t);
+    if(!k||seen.has(k)) return;
+    seen.add(k); out.push(t);
+  });
+  return out;
+}
+function parseTagsInput(str){
+  return dedupeTags(String(str==null?'':str).split(/[,，;；]+/));
+}
+function mergeVocab(vocab,list){
+  return dedupeTags([...(Array.isArray(vocab)?vocab:[]),...(Array.isArray(list)?list:[])]);
+}
+function migrateTags(p){
+  if(!p||typeof p!=='object') return p;
+  p.mood=Array.isArray(p.mood)?p.mood:[];
+  p.tagVocab=dedupeTags(p.tagVocab);
+  p.mood.forEach(m=>{
+    if(!m||typeof m!=='object') return;
+    m.tags=dedupeTags(Array.isArray(m.tags)?m.tags:(m.tag?[m.tag]:[]));
+  });
+  p.tagVocab=mergeVocab(p.tagVocab,p.mood.flatMap(m=>(m&&m.tags)||[]));
+  return p;
+}
+function tagsForDisplay(m){
+  if(!m||typeof m!=='object') return [];
+  return Array.isArray(m.tags)&&m.tags.length?m.tags:(m.tag?[m.tag]:[]);
+}
+function matchByTags(item,filter,mode){
+  const keys=dedupeTags(Array.isArray(filter)?filter.map(tagKey):[]);
+  if(!keys.length) return true;
+  const tags=tagsForDisplay(item).map(tagKey);
+  return mode==='all'?keys.every(k=>tags.includes(k)):keys.some(k=>tags.includes(k));
+}
+function renameTag(p,from,to){
+  if(!p||typeof p!=='object') return p;
+  const next=String(to==null?'':to).trim(), fk=tagKey(from);
+  if(!fk||!tagKey(next)) return p;
+  p.mood=Array.isArray(p.mood)?p.mood:[];
+  p.mood.forEach(m=>{
+    if(!m||typeof m!=='object') return;
+    m.tags=dedupeTags(tagsForDisplay(m).map(t=>tagKey(t)===fk?next:t));
+    m.tag=m.tags[0]||'';
+  });
+  const vocab=Array.isArray(p.tagVocab)?p.tagVocab:[];
+  p.tagVocab=mergeVocab(vocab.map(t=>tagKey(t)===fk?next:t),[next]);
+  return p;
+}
+function removeTag(p,tag){
+  if(!p||typeof p!=='object') return p;
+  const k=tagKey(tag); if(!k) return p;
+  p.mood=Array.isArray(p.mood)?p.mood:[];
+  p.mood.forEach(m=>{
+    if(!m||typeof m!=='object') return;
+    m.tags=dedupeTags(tagsForDisplay(m).filter(t=>tagKey(t)!==k));
+    if(tagKey(m.tag)===k) m.tag='';
+  });
+  const vocab=Array.isArray(p.tagVocab)?p.tagVocab:[];
+  p.tagVocab=dedupeTags(vocab.filter(t=>tagKey(t)!==k));
+  return p;
+}
 
 /* v3 数据迁移：旧项目补齐新字段 */
 function migrate(p){
@@ -444,6 +565,7 @@ function migrate(p){
     if(s.ord==null) s.ord=0;
   });
   p.schedule.forEach(n=>{ n.done=!!n.done; });
+  migrateTags(p);
   return p;
 }
 /* 内存缓存 + 异步持久化：UI 层仍同步读 loadP()，写通过 saveP() 合并后落 IndexedDB */
@@ -621,7 +743,7 @@ function newProject(){
   a.push(migrate({id:uid(),v3:1,name:name.trim()||'未命名拍摄项目',client:'',status:'灵感期',shootDate:'',location:'',lat:'',lng:'',createdAt:Date.now(),updatedAt:Date.now()}));
   saveP(a); openProject(a[a.length-1].id);
 }
-async function openProject(pid){ view={mode:'project',pid,tab:'shots',shotFilter:''}; await cacheProjectImages(cur()); renderProject(); }
+async function openProject(pid){ view={mode:'project',pid,tab:'shots',shotFilter:'',moodFilter:[],moodFilterMode:'any'}; await cacheProjectImages(cur()); renderProject(); }
 
 /* ================= 项目页 ================= */
 const TABS=[['concept','概念','策划'],['mood','情绪板','策划'],['shots','分镜','执行'],['schedule','日程','执行'],['stuff','清单','执行'],['budget','预算','落地'],['notes','协作','落地']];
@@ -693,30 +815,145 @@ function renderConcept(p){
 /* ---- 情绪板 ---- */
 function renderMood(p){
   document.getElementById('tabBody').innerHTML='<div class="card"><h2>情绪板</h2>'
-    +'<p class="muted" style="margin-bottom:10px">图片存于本地 IndexedDB，自动压缩至 800px。图片可在分镜里引用为参考图（每条分镜最多 3 张）。</p>'
-    +'<div class="row"><input id="m_text" class="grow" placeholder="文字灵感…"><input id="m_tag" style="max-width:110px" placeholder="标签">'
+    +'<p class="muted" style="margin-bottom:10px">图片存于本地 IndexedDB，自动压缩至 800px。图片可在分镜里引用为参考图（每条分镜最多 3 张）；文字 / 色彩 / 图片均可打多标签。</p>'
+    +'<div class="row"><input id="m_text" class="grow" placeholder="文字灵感…"><input id="m_tag" style="max-width:230px" placeholder="标签：逆光, 中景, golden hour（逗号分隔）">'
     +'<input type="color" id="m_color" value="#c8a97e" style="width:54px;height:44px;padding:4px">'
     +'<button class="btn btn-ghost" onclick="addMood(\'text\')">加文字</button>'
     +'<button class="btn btn-ghost" onclick="addMood(\'color\')">加色彩</button>'
     +'<button class="btn btn-primary" onclick="document.getElementById(\'m_img\').click()">上传图片</button>'
     +'<input type="file" id="m_img" accept="image/*" style="display:none" onchange="addMoodImg(event)"></div>'
-    +'<div class="mood-grid">'+p.mood.map(m=>{
+    +'<div id="tagEditor"></div>'
+    +'<div class="tag-filter"><input id="m_filter" placeholder="按标签筛选，逗号分隔…" value="'+esc(view.moodFilter.join(', '))+'" oninput="setMoodFilter(this.value)">'
+    +'<div class="seg"><button class="'+(view.moodFilterMode==='any'?'on':'')+'" onclick="setMoodFilterMode(\'any\')">任一命中</button>'
+    +'<button class="'+(view.moodFilterMode==='all'?'on':'')+'" onclick="setMoodFilterMode(\'all\')">全部命中</button></div>'
+    +'<button class="btn btn-ghost btn-sm" onclick="clearMoodFilter()">清空筛选</button>'
+    +'<span class="muted" id="moodCount"></span></div>'
+    +'<div id="tagCloud" class="tag-cloud"></div>'
+    +'<div id="moodGrid" class="mood-grid"></div>'
+    +'<details class="src-panel"><summary>素材来源与常用标签</summary>'
+    +'<p class="src-note">以下为外部参考站与素材包，本工具不内置任何图片。请遵守各站许可证；标注「禁止再分发」的仅可浏览，不得复制到项目或随提案交付。</p>'
+    +'<div class="src-list">'+MATERIAL_SOURCES.map(s=>'<div><a href="'+esc(s.url)+'" target="_blank" rel="noopener">'+esc(s.name)+'</a>'
+      +'<span class="src-lic">'+esc(s.lic)+'</span><div class="muted">'+esc(s.note)+'</div></div>').join('')+'</div>'
+    +'<div class="src-words">'+TAG_SUGGESTIONS.map(t=>'<button class="chip" onclick="addTagWord('+jstr(t)+')">+ '+esc(t)+'</button>').join('')+'</div>'
+    +'</details></div>';
+  renderMoodGrid(p);
+}
+function renderMoodGrid(p){
+  p=p||cur(); if(!p) return;
+  const all=Array.isArray(p.mood)?p.mood:[];
+  const freq=new Map(), order=new Map(); let seq=0;
+  const touch=(key,label)=>{
+    if(!key) return;
+    if(!order.has(key)) order.set(key,seq++);
+    if(!freq.has(key)) freq.set(key,{key,label,count:0});
+    freq.get(key).count++;
+  };
+  all.forEach(m=>tagsForDisplay(m).forEach(t=>touch(tagKey(t),t)));
+  (Array.isArray(p.tagVocab)?p.tagVocab:[]).forEach(t=>touch(tagKey(t),t));
+  const cloud=[...freq.values()].sort((a,b)=>b.count-a.count||order.get(a.key)-order.get(b.key));
+  const active=new Set(view.moodFilter.map(tagKey));
+  document.getElementById('tagCloud').innerHTML=cloud.length?cloud.map(x=>
+      '<span class="tagchip'+(active.has(x.key)?' on':'')+'">#'+esc(x.label)+' ×'+x.count
+      +'<button title="按此标签筛选" onclick="toggleMoodFilterKey('+jstr(x.key)+')">'+(active.has(x.key)?'✓':'筛')+'</button>'
+      +'<button title="重命名标签" onclick="startRenameTag('+jstr(x.label)+')">✎</button>'
+      +'<button title="删除标签" onclick="delTagFromVocab('+jstr(x.label)+')">×</button></span>').join('')
+    :'<span class="muted">还没有标签。可在上方输入框添加，或从下方常用词里点选。</span>';
+  const filtered=all.filter(m=>matchByTags(m,view.moodFilter,view.moodFilterMode));
+  const countEl=document.getElementById('moodCount'); if(countEl) countEl.textContent=filtered.length+'/'+all.length+' 张';
+  const filterInput=document.getElementById('m_filter');
+  const filterText=view.moodFilter.join(', ');
+  if(filterInput&&filterInput.value!==filterText) filterInput.value=filterText;
+  const grid=document.getElementById('moodGrid'); if(!grid) return;
+  let html='';
+  if(!all.length){
+    html='<p class="muted" style="grid-column:1/-1">还没有素材。上传图片 / 写文字 / 取色彩时可在「标签」框输入，逗号分隔（如：逆光, 中景, 回眸）。</p>';
+  } else if(!filtered.length){
+    html='<p class="muted" style="grid-column:1/-1">没有命中所选标签的素材，换个标签或清空筛选。</p>';
+  } else {
+    html=filtered.map(m=>{
       let body='';
-      if(m.type==='image') body='<img src="'+(imgCache[m.content]||'')+'">';
+      if(m.type==='image') body='<img src="'+esc(imgCache[m.content]||'')+'">';
       else if(m.type==='color') body='<div class="mcolor" style="background:'+esc(m.content)+'"></div>';
       else body='<div class="mtext">'+esc(m.content)+'</div>';
-      return '<div class="mood-item">'+body+'<button class="del" onclick="delMood(\''+m.id+'\')">×</button>'
-        +'<div class="mfoot">'+(m.type==='color'?esc(m.content)+' ':'')+(m.tag?esc(m.tag):'')+'</div></div>';
-    }).join('')+'</div></div>';
+      const tags=tagsForDisplay(m);
+      const chips=tags.length?tags.map(t=>'<button class="tagchip" title="编辑标签" onclick="openTagEditor('+jstr(m.id)+')">#'+esc(t)+'</button>').join(''):'<span class="muted">无标签</span>';
+      const suggest=(m.autoTags&&m.autoTags.length)?'<button class="tagchip" onclick="applyAiSuggestion('+jstr(m.id)+')">采纳建议</button>':'';
+      return '<div class="mood-item">'+body+'<button class="del" onclick="delMood('+jstr(m.id)+')">×</button>'
+        +'<div class="mfoot"><span class="tagchips">'+chips+'</span>'+suggest
+        +'<button class="iconbtn" title="编辑标签" onclick="openTagEditor('+jstr(m.id)+')">✎</button></div></div>';
+    }).join('');
+  }
+  grid.innerHTML=html;
+}
+function setMoodFilter(v){ view.moodFilter=dedupeTags(parseTagsInput(v).map(tagKey)); renderMoodGrid(cur()); }
+function setMoodFilterMode(mode){ if(mode!=='any'&&mode!=='all') return; view.moodFilterMode=mode; renderMoodGrid(cur()); }
+function toggleMoodFilterKey(key){
+  const k=tagKey(key), i=view.moodFilter.findIndex(x=>tagKey(x)===k);
+  if(i>=0) view.moodFilter.splice(i,1); else view.moodFilter.push(k);
+  renderMoodGrid(cur());
+}
+function clearMoodFilter(){ view.moodFilter=[]; renderMoodGrid(cur()); }
+function addTagWord(word){
+  const input=document.getElementById('m_tag'); if(!input) return;
+  input.value=parseTagsInput(input.value+','+word).join(', '); input.focus();
+}
+function openTagEditor(moodId){
+  const box=document.getElementById('tagEditor'), p=cur(); if(!box||!p) return;
+  const m=p.mood.find(x=>x.id===moodId); if(!m) return;
+  box.innerHTML='<div class="tag-editor"><div class="row"><input id="tgEdit" class="grow" value="'+esc(tagsForDisplay(m).join(', '))+'" placeholder="标签：逆光, 中景, golden hour">'
+    +'<button class="btn btn-primary btn-sm" onclick="saveTagEditor('+jstr(moodId)+')">保存</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="cancelTagEditor()">取消</button></div>'
+    +'<div class="muted">用逗号 / 分号分隔；空格不拆分，便于保留「golden hour」。</div></div>';
+  document.getElementById('tgEdit').focus();
+}
+function cancelTagEditor(){ const box=document.getElementById('tagEditor'); if(box) box.innerHTML=''; }
+function saveTagEditor(moodId){
+  const tags=parseTagsInput(gv('tgEdit'));
+  updateCur(p=>{
+    const m=p.mood.find(x=>x.id===moodId); if(!m) return;
+    m.tags=tags; m.tag=tags[0]||''; p.tagVocab=mergeVocab(p.tagVocab,tags);
+  });
+  cancelTagEditor(); renderProject();
+}
+function startRenameTag(from){
+  const box=document.getElementById('tagEditor'); if(!box) return;
+  box.innerHTML='<div class="tag-editor"><div class="row"><input id="tgRename" class="tag-rename grow" value="'+esc(from)+'" placeholder="新标签名">'
+    +'<button class="btn btn-primary btn-sm" onclick="commitRenameTag('+jstr(from)+')">确认重命名</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="cancelTagEditor()">取消</button></div>'
+    +'<div class="muted">将同步更新所有素材与词表；不影响分镜里已引用的参考图。</div></div>';
+  document.getElementById('tgRename').focus();
+}
+function commitRenameTag(from){
+  const to=gv('tgRename').trim(); if(!tagKey(to)){ toast('新标签不能为空'); return; }
+  const p=cur(); if(!p) return;
+  const n=p.mood.filter(m=>matchByTags(m,[from],'any')).length;
+  askConfirm('重命名标签？','将把 '+n+' 张素材上的 #'+from+' 改为 #'+to+'，词表同步合并同名；不影响分镜里已引用的参考图。',()=>{
+    updateCur(pp=>renameTag(pp,from,to));
+    view.moodFilter=view.moodFilter.map(k=>tagKey(k)===tagKey(from)?tagKey(to):k);
+    cancelTagEditor(); renderProject(); toast('标签已重命名');
+  });
+}
+function delTagFromVocab(tag){
+  const p=cur(); if(!p) return;
+  const n=p.mood.filter(m=>matchByTags(m,[tag],'any')).length;
+  askConfirm('删除标签？','将从 '+n+' 张素材和本项目的标签词表中移除 #'+tag+'；不影响分镜里已引用的参考图。',()=>{
+    updateCur(pp=>removeTag(pp,tag));
+    view.moodFilter=view.moodFilter.filter(k=>tagKey(k)!==tagKey(tag));
+    cancelTagEditor(); renderProject(); toast('标签已删除');
+  });
 }
 function addMood(type){
-  const tag=document.getElementById('m_tag').value.trim();
-  let content=type==='text'?document.getElementById('m_text').value.trim():document.getElementById('m_color').value;
+  const tags=parseTagsInput(gv('m_tag'));
+  let content=type==='text'?gv('m_text').trim():gv('m_color').value;
   if(type==='text'&&!content){toast('先写点灵感内容');return;}
-  updateCur(p=>p.mood.push({id:uid(),type,content,tag})); renderProject();
+  updateCur(p=>{
+    p.mood.push({id:uid(),type,content,tag:tags[0]||'',tags});
+    p.tagVocab=mergeVocab(p.tagVocab,tags);
+  }); renderProject();
 }
 function addMoodImg(e){
   const f=e.target.files[0]; if(!f) return;
+  const tagInput=gv('m_tag'), tags=parseTagsInput(tagInput);   // 异步前同步读取，避免压缩期间切页丢输入
   const rd=new FileReader();
   rd.onload=ev=>{ const img=new Image();
     img.onload=async()=>{
@@ -725,7 +962,10 @@ function addMoodImg(e){
       c.getContext('2d').drawImage(img,0,0,c.width,c.height);
       const imgId=uid(); const data=c.toDataURL('image/jpeg',.72);
       await idb.put(imgId,data); imgCache[imgId]=data;
-      updateCur(p=>p.mood.push({id:uid(),type:'image',content:imgId,tag:document.getElementById('m_tag').value.trim()}));
+      updateCur(p=>{
+        p.mood.push({id:uid(),type:'image',content:imgId,tag:tags[0]||'',tags});
+        p.tagVocab=mergeVocab(p.tagVocab,tags);
+      });
       renderProject();
     }; img.src=ev.target.result; };
   rd.readAsDataURL(f); e.target.value='';
@@ -736,7 +976,7 @@ function delMood(id){ updateCur(p=>p.mood=p.mood.filter(m=>m.id!==id)); renderPr
 let selRefs=[];
 function shotSortKey(s){ return (s.date||'9999')+'|'+(s.ord!=null?'o'+String(s.ord).padStart(6,'0'):'s'+(s.slot||'99:99')); }
 function renderShots(p){
-  const moodImgs=p.mood.filter(m=>m.type==='image');
+  const moodImgs=p.mood.filter(m=>m.type==='image'&&matchByTags(m,view.moodFilter,view.moodFilterMode));
   const kw=(view.shotFilter||'').trim().toLowerCase();
   const sorted=[...p.shots].sort((a,b)=>shotSortKey(a)<shotSortKey(b)?-1:1)
     .filter(s=>!kw||(s.name||'').toLowerCase().includes(kw)||(s.note||'').toLowerCase().includes(kw)||(p.scenes.find(x=>x.id===s.sceneId)||{}).name&&(p.scenes.find(x=>x.id===s.sceneId)||{}).name.toLowerCase().includes(kw));
@@ -751,9 +991,11 @@ function renderShots(p){
     +'<input id="s_note" class="grow" placeholder="备注（机位 / 光线 / 姿势…）">'
     +'<button class="btn btn-primary" onclick="addShot()">添加分镜</button></div>'
     +(moodImgs.length?'<div class="ref-picker" id="refPicker">'+moodImgs.map(m=>
-        '<div class="ref-opt '+(selRefs.includes(m.content)?'on':'')+'" onclick="toggleRef(\''+m.content+'\')"><img src="'+(imgCache[m.content]||'')+'">'
+        '<div class="ref-opt '+(selRefs.includes(m.content)?'on':'')+'" title="'+esc(tagsForDisplay(m).join(' / '))+'" onclick="toggleRef('+jstr(m.content)+')"><img src="'+esc(imgCache[m.content]||'')+'">'
+        +(tagsForDisplay(m).length?'<span class="ref-tag">'+tagsForDisplay(m).map(t=>'#'+esc(t)).join(' ')+'</span>':'')
         +(selRefs.includes(m.content)?'<span class="ord">'+(selRefs.indexOf(m.content)+1)+'</span>':'')+'</div>').join('')
-      +'<span class="muted" style="align-self:center">点击选参考图（最多 3 张）</span></div>':'<p class="muted" style="margin-bottom:10px">情绪板还没有图片素材，可先去上传。</p>')
+      +'<span class="muted" style="align-self:center">点击选参考图（最多 3 张）</span></div>'
+      :'<p class="muted" style="margin-bottom:10px">'+(p.mood.some(m=>m.type==='image')?'没有命中所选标签的素材，换个标签或清空筛选。':'情绪板还没有可用图片。先上传并设置标签（动作 / 景别 / 光线…），或到「素材来源」找可商用线稿自行下载。')+'</p>')
     +'<div class="row" style="margin-bottom:12px"><input id="s_filter" class="grow" placeholder="搜索分镜 / 场景 / 备注…" value="'+esc(view.shotFilter)+'" oninput="view.shotFilter=this.value;renderShots(cur())"></div>'
     +(sorted.length? '<div id="shotList">'+sorted.map(s=>{
         const scene=p.scenes.find(x=>x.id===s.sceneId);
@@ -1178,7 +1420,7 @@ function openDoc(kind){
     +'<h2>二、情绪板</h2>'
     +(moodColors.length?'<p>'+moodColors.map(m=>'<span class="swatch" style="background:'+esc(m.content)+'"></span>').join('')+'</p>':'')
     +(moodImgs.length?'<p>'+moodImgs.map(m=>'<img src="'+(imgCache[m.content]||'')+'">').join('')+'</p>':'')
-    +(moodTexts.length?'<ul>'+moodTexts.map(m=>'<li>'+esc(m.content)+(m.tag?' <b>#'+esc(m.tag)+'</b>':'')+'</li>').join('')+'</ul>':'');
+    +(moodTexts.length?'<ul>'+moodTexts.map(m=>'<li>'+esc(m.content)+(kind==='manual'?tagsForDisplay(m).map(t=>' <b>#'+esc(t)+'</b>').join(''):'')+'</li>').join('')+'</ul>':'');
   if(kind==='proposal'){
     h+='<h2>三、拍摄安排</h2><dl class="kv"><dt>拍摄日期</dt><dd>'+esc(p.shootDate||'待定')+'</dd>'
       +'<dt>拍摄地点</dt><dd>'+esc(p.location||'待定')+'</dd></dl>'
@@ -1306,7 +1548,7 @@ async function applyImport(){
     }
     if(d.images){ for(const k of Object.keys(d.images)){ await idb.put(k,d.images[k]); imgCache[k]=d.images[k]; } }
     saveP(arr);
-    view={mode:'board',pid:null,tab:'shots'}; renderBoard(); toast('导入成功，共 '+arr.length+' 个策划案');
+    view={mode:'board',pid:null,tab:'shots',moodFilter:[],moodFilterMode:'any'}; renderBoard(); toast('导入成功，共 '+arr.length+' 个策划案');
   }catch(err){ toast('导入失败：数据格式或图片异常'); }
   finally{ pendingImport=null; }
 }
@@ -1321,8 +1563,54 @@ function clearAll(){
     const keys=await idb.keys(); for(const k of keys) await idb.del(k);
     Object.keys(imgCache).forEach(k=>delete imgCache[k]);
     projectsCache=[];
-    view={mode:'board',pid:null,tab:'shots'}; renderBoard(); toast('已清空');
+    view={mode:'board',pid:null,tab:'shots',moodFilter:[],moodFilterMode:'any'}; renderBoard(); toast('已清空');
   });
+}
+
+/* ===== AI 打标签：接口预留（本期恒关闭，零网络请求） ===== */
+function setAiConfig(k,v){
+  aiConfig[k]=v;
+  try{ sessionStorage.setItem('sf_ai_cfg_v1',JSON.stringify(aiConfig)); }catch(e){}
+}
+function registerTagProvider(name,provider){
+  const n=String(name==null?'':name).trim();
+  if(!n||!provider||typeof provider.suggest!=='function') return false;
+  TagProviders[n]=provider; return true;
+}
+async function suggestTags(req,cfg){
+  if(!AI_TAGGING_ENABLED) return {tags:[],source:'ai'};
+  const prov=TagProviders[(cfg&&cfg.provider)||'default'];
+  if(!prov) throw new Error('AI_TAGGING_PROVIDER_MISSING');
+  const out=await prov.suggest(req,cfg);
+  return {tags:dedupeTags(out&&out.tags),confidence:out&&out.confidence,source:'ai'};
+}
+async function requestAiTags(req,cfg){
+  try{
+    const r=await suggestTags(req,cfg);
+    return r&&Array.isArray(r.tags)?r.tags:[];
+  }catch(e){
+    toast('AI 打标签暂不可用，已跳过（可手动添加标签）');
+    return [];
+  }
+}
+function stashAiSuggestion(moodId,tags){
+  const list=dedupeTags(tags); if(!list.length) return;
+  updateCur(p=>{
+    const m=p.mood.find(x=>x.id===moodId); if(!m) return;
+    m.autoTags=mergeVocab(m.autoTags,list);
+  });
+}
+function applyAiSuggestion(moodId){
+  const p=cur(), m=(p&&p.mood||[]).find(x=>x.id===moodId);
+  if(!m||!m.autoTags||!m.autoTags.length) return;
+  updateCur(pp=>{
+    const mm=pp.mood.find(x=>x.id===moodId); if(!mm) return;
+    mm.tags=mergeVocab(mm.tags,mm.autoTags);
+    mm.tag=mm.tags[0]||'';
+    pp.tagVocab=mergeVocab(pp.tagVocab,mm.tags);
+    mm.autoTags=[];
+  });
+  renderProject(); toast('已采纳建议标签');
 }
 
 /* ================= Toast ================= */

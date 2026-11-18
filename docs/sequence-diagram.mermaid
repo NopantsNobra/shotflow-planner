@@ -1,0 +1,57 @@
+sequenceDiagram
+    actor U as 用户
+    participant V as view(会话状态)
+    participant M as renderMood/renderMoodGrid
+    participant T as 标签纯函数层
+    participant S as updateCur/saveP
+    participant D as IndexedDB
+    participant R as renderShots
+    participant A as suggestTags(桩)
+
+    Note over U,D: ① 上传图片并打标签
+    U->>M: 选文件 + 填 m_tag「逆光,中景,回眸」
+    M->>M: 同步读取 tagInput（异步前）
+    M->>T: parseTagsInput(tagInput)
+    T-->>M: tags[]
+    M->>M: FileReader→canvas 800px/.72→idb.put(imgId,data)
+    M->>D: put images[imgId]
+    M->>T: mergeVocab(p.tagVocab, tags)
+    T-->>M: newVocab[]
+    M->>S: updateCur(p=>push mood{id,image,content:imgId,tag:tags[0],tags}; tagVocab=newVocab)
+    S->>D: saveP 200ms 合并写 projects
+    M->>M: renderProject()→renderMood(p)→renderMoodGrid(p)
+
+    Note over U,S: ② 卡片编辑标签（增删改）
+    U->>M: 点卡片 ✎ → openTagEditor(moodId)
+    U->>M: 改「回眸」为「侧身」→ saveTagEditor
+    M->>T: parseTagsInput + mergeVocab
+    M->>S: updateCur 写回 tags/tag/tagVocab
+    S->>D: 200ms 合并写
+    M->>M: renderProject() 全量重绘
+
+    Note over U,S: ③ 词表重命名 / 删除
+    U->>M: 点词表 chip ✎ → startRenameTag(from) → commitRenameTag
+    M->>T: renameTag(p, from, to)
+    T-->>M: 全量 mood + tagVocab 已同步
+    M->>S: updateCur(p=>...) → renderProject()
+    U->>M: 点 chip × → delTagFromVocab(tag) → askConfirm
+    M->>T: removeTag(p, tag)
+    M->>S: updateCur → renderProject()（refIds 完全未动）
+
+    Note over U,R: ④ 按标签筛选 → 分镜引用
+    U->>V: m_filter 输入 / 点词表 chip → moodFilter[]
+    V->>M: renderMoodGrid(p)（只换两个容器，输入框不丢焦点）
+    M->>T: matchByTags(m, moodFilter, moodFilterMode)
+    T-->>M: 命中子集
+    U->>R: 切到分镜页 renderShots(p)
+    R->>T: matchByTags 过滤 moodImgs
+    R->>V: 读取 moodFilter 决定 ref picker 显示
+    U->>R: toggleRef(content) 选 ≤3 张 → addShot 写 refIds
+    R->>S: updateCur 写 shots[].refIds（机制不变）
+
+    Note over U,A: ⑤ AI 建议（本期仅接口，未接线）
+    U->>A: （未来）suggestTags(req, cfg)
+    A-->>U: AI_TAGGING_ENABLED=false → {tags:[],source:'ai'}
+    Note over A: 零 fetch / 零密钥入库 / 不覆盖手工标签
+    U->>A: （未来）用户确认候选 → applyAiSuggestion(moodId)
+    A->>S: updateCur 合并 autoTags 进 tags 后清空

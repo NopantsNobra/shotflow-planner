@@ -1,7 +1,7 @@
 # 瞬刻摄影工作台 · Stillmark 功能索引（开发视角）
 
 ## 版本
-- 当前：v5（`shotflow.html`，单文件全内联零依赖，22 项逻辑/导出测试通过）
+- 当前：v6（`shotflow.html`，单文件全内联零依赖，36 项逻辑/导出测试通过）
 - 历史：v4（IndexedDB/导入确认/时间级联）、v1 `photo-planner.html`（表单版）、v2（分镜中枢 + 看板 + 拍摄日模式）
 
 ## v3 数据模型
@@ -9,7 +9,8 @@
 project = {
   id,name,client,studio,status,shootDate,location,lat,lng,v3,createdAt,updatedAt,
   concept:{theme,model,style,audience,usage,note},
-  mood:[{id,type:'text|color|image',content,tag}],     // image 的 content 是 IndexedDB key
+  mood:[{id,type:'text|color|image',content,tag,tags:string[],autoTags?:string[]}], // tag 只读兼容；image 的 content 是 IndexedDB key
+  tagVocab:[string],                                  // 项目级标签词表，首次出现顺序
   scenes:[{id,name,note,done}],
   shots:[{id,name,date,slot,duration,sceneId,refIds:[],note,done,ord}],  // ord=拖拽排序
   schedule:[{id,type,title,start,end,note,date,done}], // 流程节点
@@ -31,9 +32,17 @@ project = {
 - 备份：exportJSON() 全量；exportProject() 单案；importJSON() → askConfirm 二次确认 → applyImport()（单案追加，全量覆盖）
 - 文档：openDoc('proposal'|'manual'|'callsheet')，Call Sheet 为 A4 一页纸，天气/联系电话留白
 - 提案封面（v5）：`coverData()` 从项目名/概念页/元数据取值 → `coverHtml()` 生成 1080×1620 画廊扉页（双层菱形暗纹 + 天头/地脚细线 + 三栏规格表）；`fitCovers()` 按容器宽度缩放并自动收缩过长文字。弹窗预览与「发送提案文件」共用同一套 `PUBLIC_STYLE`，导出文件内嵌样式与缩放脚本，离线/微信可用
-- 测试：`tests/logic.test.mjs`（node 直接运行，22 项：时间逻辑/迁移/封面字段映射）；`verify_export` 另验导出 HTML 完整性与文件名
+- 标签体系（v6）：`tagKey` NFKC/大小写/空白归一化 → `dedupeTags` 保留首次显示形式 → `migrateTags` 幂等补齐 `tags/tagVocab` → `matchByTags` any|all 筛选（情绪板与分镜 ref picker 共用）→ `renameTag`/`removeTag` 全局同步且不触碰 `refIds`；写路径仍同步只读兼容字段 `tag`
+- AI 接口预留（v6）：`suggestTags` 恒关闭、注册表 `TagProviders` 默认空、零网络请求；失败降级 toast，建议先落 `autoTags` 并经用户确认后由 `applyAiSuggestion` 合并；`aiConfig`（含 apiKey）只在内存与 `sessionStorage`，不进项目 JSON / IndexedDB / 导出
+- 测试：`tests/logic.test.mjs`（node 直接运行，36 项：时间逻辑/迁移/封面字段映射/标签纯函数/AI 零网络桩）；`verify_export` 另验导出 HTML 完整性与文件名
 - PWA：manifest id=shotflow-planner；SW cache v5；updatefound → toast 提示刷新
 - 部署原则：源码一律相对路径，不写任何平台访问码
+
+## 文件结构
+- `shotflow.html` / `shotflow-app/shotflow.html`：源文件与部署副本（同一份内容）
+- `tests/logic.test.mjs`：36 项核心逻辑测试（node 直接运行）
+- `docs/`：设计文档（`system_design.md` / `class-diagram.mermaid` / `sequence-diagram.mermaid`）
+- `shotflow-manifest.json` / `shotflow-sw.js` / `icon-*.png`：PWA 资源
 
 ## 部署
 - 流程：改源文件 → cp 到 shotflow-app/ → 部署 shotflow-app/（静态站点，入口 shotflow.html）

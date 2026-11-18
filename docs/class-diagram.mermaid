@@ -1,0 +1,93 @@
+classDiagram
+    class MoodItem {
+        +string id
+        +string type
+        +string content
+        +string tag
+        +string[] tags
+        +string[] autoTags
+    }
+    class Project {
+        +string id
+        +string name
+        +MoodItem[] mood
+        +Shot[] shots
+        +string[] tagVocab
+    }
+    class Shot {
+        +string id
+        +string[] refIds
+        +string name
+    }
+    class ViewState {
+        +string tab
+        +string[] moodFilter
+        +string moodFilterMode
+    }
+    class TagPureFunctions {
+        <<module 纯函数层>>
+        +tagKey(s) string
+        +dedupeTags(list) string[]
+        +parseTagsInput(str) string[]
+        +mergeVocab(vocab, list) string[]
+        +migrateTags(p) Project
+        +tagsForDisplay(m) string[]
+        +matchByTags(item, filter, mode) boolean
+        +renameTag(p, from, to) Project
+        +removeTag(p, tag) Project
+    }
+    class Persistence {
+        <<module 状态层>>
+        +loadP() Project[]
+        +saveP(a) void
+        +updateCur(fn) void
+        +migrate(p) Project
+        +idb Object
+    }
+    class MoodRenderer {
+        <<module 渲染层>>
+        +renderMood(p) void
+        +renderMoodGrid(p) void
+        +addMood(type) void
+        +addMoodImg(e) void
+        +openTagEditor(moodId) void
+        +saveTagEditor(moodId) void
+        +delTagFromVocab(tag) void
+    }
+    class ShotRenderer {
+        <<module 渲染层>>
+        +renderShots(p) void
+        +toggleRef(id) void
+        +addShot() void
+    }
+    class AIService {
+        <<module AI 桩 恒关闭>>
+        +boolean AI_TAGGING_ENABLED
+        +Object TagProviders
+        +Object aiConfig
+        +registerTagProvider(name, provider) boolean
+        +suggestTags(req, cfg) Promise
+        +applyAiSuggestion(moodId) void
+    }
+    class DocOutput {
+        <<module 文档输出>>
+        +openDoc(kind) void
+        +exportProposalFile() void
+    }
+    class MaterialSources {
+        <<module 常量 轻量入口>>
+        +Object[] MATERIAL_SOURCES
+        +string[] TAG_SUGGESTIONS
+    }
+    Project "1" *-- "0..*" MoodItem : mood
+    Project "1" *-- "0..*" Shot : shots
+    ViewState ..> TagPureFunctions : 提供筛选条件
+    Persistence ..> TagPureFunctions : migrate 调用 migrateTags
+    MoodRenderer ..> TagPureFunctions : 归一化/合并/重命名
+    MoodRenderer ..> Persistence : updateCur 持久化
+    MoodRenderer ..> AIService : applyAiSuggestion 需确认
+    ShotRenderer ..> TagPureFunctions : matchByTags
+    ShotRenderer ..> ViewState : 读取 moodFilter
+    ShotRenderer ..> MoodItem : content 作为 refIds
+    DocOutput ..> TagPureFunctions : tagsForDisplay
+    MoodRenderer ..> MaterialSources : 常用词/来源入口
