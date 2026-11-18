@@ -45,6 +45,21 @@ svg{display:inline-block;vertical-align:middle}
 .tag{font-size:11px;padding:3px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink);white-space:nowrap;display:inline-block;letter-spacing:.02em}
 .tag.red{background:#fbeae7;color:var(--red)} .tag.green{background:#e8f2eb;color:var(--green)}
 .tag.blue{background:#eaf1f8;color:var(--blue)} .tag.gray{background:#f0ede6;color:var(--ink2)} .tag.purple{background:#f1eaf3;color:var(--purple)} .tag.ink{background:#eeece7;color:var(--ink3)}
+/* v10 排程引擎：自动徽标 / 新建场景行内条 / 分镜行内编辑 */
+.auto-pill{font-size:10px;padding:1px 7px;border-radius:999px;background:#eef3ee;color:var(--green);border:1px solid #d6e3d8;white-space:nowrap;margin-left:6px;letter-spacing:.02em}
+.new-scene{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 10px;padding:8px 10px;background:var(--accent-soft);border:1px dashed var(--line2);border-radius:10px}
+.new-scene input{height:34px;font-size:13px;max-width:240px}
+.shot .inline-edit{margin:0}
+.shot .inline-edit input,.shot .inline-edit select{height:32px;font-size:12.5px}
+/* v10 多日拍摄：拍摄日 tab / 分镜按日期分组 */
+.day-tabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.day-tab{font-size:12px;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink2);min-height:34px;letter-spacing:.02em}
+.day-tab:hover{border-color:var(--accent);color:var(--accent-ink)}
+.day-tab.on{background:var(--ink);border-color:var(--ink);color:#fcf9f2}
+.day-tab.add{border-style:dashed;color:var(--accent-ink)}
+.day-tab.del{color:var(--red);border-color:#ead3ce}
+.day-group{margin-bottom:14px}
+.day-head{font-size:12px;font-weight:600;letter-spacing:.03em;color:var(--accent-ink);background:var(--accent-soft);border-radius:8px;padding:6px 12px;margin:4px 0 9px;font-variant-numeric:tabular-nums}
 .iconbtn{color:#b3a997;padding:5px;border-radius:6px;display:inline-flex}
 .iconbtn:hover{color:var(--red);background:#fbf1ef}
 .rowbtn{color:#b3a997;padding:4px 6px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;opacity:0;transition:opacity .15s,color .15s,background .15s}
@@ -272,6 +287,7 @@ svg{display:inline-block;vertical-align:middle}
 .sd-shot img{width:68px;height:68px;border-radius:9px;object-fit:cover;flex-shrink:0}
 .sd-shot .sd-name{font-size:17px;font-weight:600;line-height:1.45}
 .sd-shot .sd-meta{font-size:12px;color:#a99e8c;margin-top:4px;line-height:1.5}
+.sd-tag{display:inline-block;font-size:10px;letter-spacing:.08em;color:#12100c;background:#d9a55f;border-radius:999px;padding:1px 8px;margin-right:8px;vertical-align:2px;font-weight:600}
 .sd-chk{width:50px;height:50px;border-radius:12px;border:1.5px solid #4f4638;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;color:transparent;background:#12100c;transition:background .15s,border-color .15s}
 .sd-chk.on{background:#d9a55f;border-color:#d9a55f;color:#12100c}
 .sd-chk.sm{width:42px;height:42px;font-size:18px;border-radius:10px}
@@ -409,6 +425,9 @@ const TAG_SUGGESTIONS=[
   '居中','三分法','引导线','框架构图','留白','对称',
   '胶片感','暖调','冷调','松弛感','生活流','氛围感'
 ];
+/* v10：分镜「机位」「光线」固定选项（不进 tagVocab，避免污染素材标签词表） */
+const POSITION_OPTS=['平视','俯拍','仰拍','过肩','低机位','鸟瞰','侧背','正面'];
+const LIGHT_OPTS=['顺光','侧光','侧逆光','逆光','顶光','窗光','黄金时刻','剪影','蓝调'];
 
 /* ===== 提案出版系统：画廊扉页封面 + 统一文档排版 ===== */
 const CV_DIAMOND = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 960 1500' fill='none'><path d='M-2000,-3500 L2000,500 M-2000,-3460 L2000,540 M-2000,-3420 L2000,580 M-2000,-3380 L2000,620 M-2000,-3340 L2000,660 M-2000,-3300 L2000,700 M-2000,-3260 L2000,740 M-2000,-3220 L2000,780 M-2000,-3180 L2000,820 M-2000,-3140 L2000,860 M-2000,-3100 L2000,900 M-2000,-3060 L2000,940 M-2000,-3020 L2000,980 M-2000,-2980 L2000,1020 M-2000,-2940 L2000,1060 M-2000,-2900 L2000,1100 M-2000,-2860 L2000,1140 M-2000,-2820 L2000,1180 M-2000,-2780 L2000,1220 M-2000,-2740 L2000,1260 M-2000,-2700 L2000,1300 M-2000,-2660 L2000,1340 M-2000,-2620 L2000,1380 M-2000,-2580 L2000,1420 M-2000,-2540 L2000,1460 M-2000,-2500 L2000,1500 M-2000,-2460 L2000,1540 M-2000,-2420 L2000,1580 M-2000,-2380 L2000,1620 M-2000,-2340 L2000,1660 M-2000,-2300 L2000,1700 M-2000,-2260 L2000,1740 M-2000,-2220 L2000,1780 M-2000,-2180 L2000,1820 M-2000,-2140 L2000,1860 M-2000,-2100 L2000,1900 M-2000,-2060 L2000,1940 M-2000,-2020 L2000,1980 M-2000,-1980 L2000,2020 M-2000,-1940 L2000,2060 M-2000,-1900 L2000,2100 M-2000,-1860 L2000,2140 M-2000,-1820 L2000,2180 M-2000,-1780 L2000,2220 M-2000,-1740 L2000,2260 M-2000,-1700 L2000,2300 M-2000,-1660 L2000,2340 M-2000,-1620 L2000,2380 M-2000,-1580 L2000,2420 M-2000,-1540 L2000,2460 M-2000,-1500 L2000,2500 M-2000,-1460 L2000,2540 M-2000,-1420 L2000,2580 M-2000,-1380 L2000,2620 M-2000,-1340 L2000,2660 M-2000,-1300 L2000,2700 M-2000,-1260 L2000,2740 M-2000,-1220 L2000,2780 M-2000,-1180 L2000,2820 M-2000,-1140 L2000,2860 M-2000,-1100 L2000,2900 M-2000,-1060 L2000,2940 M-2000,1900 L2000,-2100 M-2000,1940 L2000,-2060 M-2000,1980 L2000,-2020 M-2000,2020 L2000,-1980 M-2000,2060 L2000,-1940 M-2000,2100 L2000,-1900 M-2000,2140 L2000,-1860 M-2000,2180 L2000,-1820 M-2000,2220 L2000,-1780 M-2000,2260 L2000,-1740 M-2000,2300 L2000,-1700 M-2000,2340 L2000,-1660 M-2000,2380 L2000,-1620 M-2000,2420 L2000,-1580 M-2000,2460 L2000,-1540 M-2000,2500 L2000,-1500 M-2000,2540 L2000,-1460 M-2000,2580 L2000,-1420 M-2000,2620 L2000,-1380 M-2000,2660 L2000,-1340 M-2000,2700 L2000,-1300 M-2000,2740 L2000,-1260 M-2000,2780 L2000,-1220 M-2000,2820 L2000,-1180 M-2000,2860 L2000,-1140 M-2000,2900 L2000,-1100 M-2000,2940 L2000,-1060 M-2000,2980 L2000,-1020 M-2000,3020 L2000,-980 M-2000,3060 L2000,-940 M-2000,3100 L2000,-900 M-2000,3140 L2000,-860 M-2000,3180 L2000,-820 M-2000,3220 L2000,-780 M-2000,3260 L2000,-740 M-2000,3300 L2000,-700 M-2000,3340 L2000,-660 M-2000,3380 L2000,-620 M-2000,3420 L2000,-580 M-2000,3460 L2000,-540 M-2000,3500 L2000,-500 M-2000,3540 L2000,-460 M-2000,3580 L2000,-420 M-2000,3620 L2000,-380 M-2000,3660 L2000,-340 M-2000,3700 L2000,-300 M-2000,3740 L2000,-260 M-2000,3780 L2000,-220 M-2000,3820 L2000,-180 M-2000,3860 L2000,-140 M-2000,3900 L2000,-100 M-2000,3940 L2000,-60 M-2000,3980 L2000,-20 M-2000,4020 L2000,20 M-2000,4060 L2000,60 M-2000,4100 L2000,100 M-2000,4140 L2000,140 M-2000,4180 L2000,180 M-2000,4220 L2000,220 M-2000,4260 L2000,260 M-2000,4300 L2000,300 M-2000,4340 L2000,340 M-2000,4380 L2000,380 M-2000,4420 L2000,420 M-2000,4460 L2000,460 M-2000,4500 L2000,500 M-2000,4540 L2000,540' stroke='#8A8076' stroke-width='0.6' stroke-opacity='0.1' stroke-linecap='butt'/><path d='M-2000,-3500 L2000,500 M-2000,-3340 L2000,660 M-2000,-3180 L2000,820 M-2000,-3020 L2000,980 M-2000,-2860 L2000,1140 M-2000,-2700 L2000,1300 M-2000,-2540 L2000,1460 M-2000,-2380 L2000,1620 M-2000,-2220 L2000,1780 M-2000,-2060 L2000,1940 M-2000,-1900 L2000,2100 M-2000,-1740 L2000,2260 M-2000,-1580 L2000,2420 M-2000,-1420 L2000,2580 M-2000,-1260 L2000,2740 M-2000,-1100 L2000,2900 M-2000,1900 L2000,-2100 M-2000,2060 L2000,-1940 M-2000,2220 L2000,-1780 M-2000,2380 L2000,-1620 M-2000,2540 L2000,-1460 M-2000,2700 L2000,-1300 M-2000,2860 L2000,-1140 M-2000,3020 L2000,-980 M-2000,3180 L2000,-820 M-2000,3340 L2000,-660 M-2000,3500 L2000,-500 M-2000,3660 L2000,-340 M-2000,3820 L2000,-180 M-2000,3980 L2000,-20 M-2000,4140 L2000,140 M-2000,4300 L2000,300 M-2000,4460 L2000,460' stroke='#8A8076' stroke-width='0.9' stroke-opacity='0.16' stroke-linecap='butt'/></svg>`;
@@ -545,9 +564,9 @@ async function cacheProjectImages(p){
 /* ================= 状态 ================= */
 function freshView(patch){
   const d={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',
-    moodFilter:[],moodFilterMode:'any',shotDraft:{},poseCat:null,editingShotId:null,replaceIdx:-1,
+    moodFilter:[],moodFilterMode:'any',shotDraft:{},poseCat:null,editingShotId:null,editingShotEditId:null,replaceIdx:-1,
     allowDemoWrite:false,editingNodeId:null,editingStuffId:null,editingStuffKey:null,
-    editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null};
+    editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null,lastShift:null,newDay:false};
   return Object.assign(d,patch||{});
 }
 let view=freshView();
@@ -686,6 +705,7 @@ function clearInlineEditState(v){
   if(!v||typeof v!=='object') return v;
   v.editingNodeId=null; v.editingStuffId=null; v.editingStuffKey=null;
   v.editingTodoId=null; v.editingNoteId=null;
+  v.editingShotEditId=null;                 // v10 分镜行内编辑指针（editingShotId 属参考图选图态，不得在此清理）
   return v;
 }
 function migrateFav(p){
@@ -789,7 +809,7 @@ function demoSpecs(){
       noteTexts:['客户希望画面更克制，减少装饰元素','打样图已确认，正式拍摄按此执行'],
       todoTitles:['确认产品到货时间','出灯光布景图','预约摄影师档期'],
       fullRefShot:true,favType:'mood',favIndex:0},
-    {status:'后期中',name:'海边日落 · 情侣写真',theme:'海边日落 · 情侣写真',label:'海边日落',
+    {status:'后期中',name:'海边日落 · 情侣写真',theme:'海边日落 · 情侣写真',label:'海边日落',days:2,
       art:[['#c57b4c','#f9e9d7'],['#6d7f96','#e9eef3']],colors:[],
       moodTexts:['黄金时刻最后 20 分钟，逆光勾出轮廓','自然互动，避免长时间摆姿'],
       shotNames:['沙滩牵手背影（远景）','浪花边相拥（中景）'],
@@ -823,7 +843,13 @@ function demoSpecs(){
 }
 function buildDemoProject(spec,mkId,now){
   const s=spec||{}, stamp=Number(now)||Date.now();
-  const day=new Date(stamp).toISOString().slice(0,10);
+  const d0=new Date(stamp);
+  const fmtDay=dt=>dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+  const day=fmtDay(d0);
+  /* v10 多日拍摄：spec.days>1 时生成连续多天（本地日期构造，与 addDays 同语义；本函数会被 vm 单独抽取，故不引用 addDays） */
+  const dayCount=Math.max(1,Math.min(7,Math.round(+s.days||0)||1));
+  const days=[day];
+  for(let i=1;i<dayCount;i++) days.push(fmtDay(new Date(d0.getFullYear(),d0.getMonth(),d0.getDate()+i)));
   const p={id:mkId('p'),v3:1,name:s.name||'示例策划案',client:s.label||'示例客户',
     studio:'瞬刻摄影工作室',status:s.status||'灵感期',shootDate:day,
     location:s.label||'本地',lat:32.06,lng:118.78,createdAt:stamp,updatedAt:stamp,
@@ -831,7 +857,8 @@ function buildDemoProject(spec,mkId,now){
     concept:{theme:s.theme||'',model:'示例模特',style:'胶片感 / 自然光 / 松弛叙事',
       audience:'25-40 岁都市人群',usage:'作品集与客户交付',
       note:'这是一份只读示例，点「复制为我的项目」后即可自由编辑。'},
-    mood:[],shots:[],schedule:[],scenes:[],items:[],budget:[],notes:[],todos:[],tagVocab:['示例','参考']};
+    mood:[],shots:[],schedule:[],scenes:[],items:[],budget:[],notes:[],todos:[],tagVocab:['示例','参考'],
+    shootDates:days.slice(),dayInit:days.slice()};
   (s.art||[]).forEach((pal,i)=>{
     p.mood.push({id:mkId('im'+i),type:'image',content:mkId('img'+i),tag:'示例图',tags:['示例','参考']});
   });
@@ -846,17 +873,32 @@ function buildDemoProject(spec,mkId,now){
     p.scenes.push({id,name,note:'示例场景：'+name,done:i===0});
     return id;
   });
-  (s.shotNames||[]).forEach((name,i)=>{
-    const slot=String(14+Math.floor(i/2)).padStart(2,'0')+':'+(i%2?'40':'00');
-    p.shots.push({id:mkId('sh'+i),name,date:day,slot,duration:20,
-      sceneId:sceneIds[i%Math.max(1,sceneIds.length)]||'',refIds:[],note:'示例分镜 '+name,done:false,ord:i});
+  const posPool=['平视','俯拍','仰拍','过肩'],lightPool=['顺光','侧光','逆光','黄金时刻'];
+  const shotNames=s.shotNames||[];
+  const perDay=Math.max(1,Math.ceil(shotNames.length/days.length));   // 多日示例：分镜均分到各天
+  shotNames.forEach((name,i)=>{
+    /* v10：分镜不再写死时间，slot 由 rescheduleDay 从 10:00 起顺序派生 */
+    p.shots.push({id:mkId('sh'+i),name:name,date:days[Math.min(days.length-1,Math.floor(i/perDay))],
+      duration:20,sceneId:sceneIds[i%Math.max(1,sceneIds.length)]||'',
+      position:posPool[i%posPool.length],light:lightPool[i%lightPool.length],
+      refIds:[],note:'示例分镜 '+name,done:false,ord:i,fav:false});
   });
   const imgs=p.mood.filter(m=>m.type==='image').map(m=>m.content);
   if(s.fullRefShot&&p.shots.length&&imgs.length>=3) p.shots[0].refIds=imgs.slice(0,3);
+  /* v10：每一天都有自己的「集合」（auto:'call'）与「收工」（auto:'wrap'），时间由 planDay 接管；
+     其余环节是用户输入的位置节点，不自动改写，只在插入/编辑时把其后的节点链式顺延。业务环节只放在首日。 */
+  days.forEach(function(d){
+    p.schedule.push({id:mkId('ndc'),type:'集合',title:'集合 · 器材清点与出发',start:'09:30',end:'10:00',
+      note:'示例流程',date:d,done:true,fav:false,auto:'call'});
+  });
   (s.nodeTitles||[]).forEach((title,i)=>{
     const start=String(13+i).padStart(2,'0')+':00';
-    p.schedule.push({id:mkId('nd'+i),type:i===0?'集合':(i===(s.nodeTitles||[]).length-1?'收工':'拍摄'),
-      title,start,end:String(13+i).padStart(2,'0')+':30',note:'示例流程',date:day,done:false});
+    p.schedule.push({id:mkId('nd'+i),type:i===0?'拍摄':'转场',title:title,start:start,
+      end:String(13+i).padStart(2,'0')+':30',note:'示例流程',date:days[0],done:false,fav:false});
+  });
+  days.forEach(function(d){
+    p.schedule.push({id:mkId('ndw'),type:'收工',title:'收工 · 素材备份与复盘',start:'18:00',end:'18:15',
+      note:'',date:d,done:false,fav:false,auto:'wrap'});
   });
   (s.itemNames||[]).forEach((name,i)=>{
     p.items.push({id:mkId('it'+i),kind:i%2?'器材':'服装道具',name,note:'示例物资',done:false});
@@ -871,6 +913,8 @@ function buildDemoProject(spec,mkId,now){
     p.todos.push({id:mkId('td'+i),title,owner:'我',due:day,done:false});
   });
   migrate(p);
+  /* 物化 slot / 收工时间；vm 逻辑测试里只抽取本函数，没有 rescheduleDay，用 typeof 守卫跳过 */
+  if(typeof rescheduleDay==='function') days.forEach(function(d){ rescheduleDay(p,d); });
   const target=(p[({mood:'mood',shots:'shots',schedule:'schedule',scenes:'scenes',items:'items',budget:'budget',notes:'notes',todos:'todos'})[s.favType]||'shots']||[])[s.favIndex||0];
   if(target) target.fav=true;
   return p;
@@ -880,13 +924,23 @@ function buildDemoProject(spec,mkId,now){
 function migrate(p){
   p.mood=p.mood||[]; p.scenes=p.scenes||[]; p.shots=p.shots||[]; p.items=p.items||[]; p.budget=p.budget||[];
   p.schedule=p.schedule||[]; p.notes=p.notes||[]; p.todos=p.todos||[];
+  p.dayInit=Array.isArray(p.dayInit)?p.dayInit:[];        // v10：已完成默认项初始化的日期（删掉集合/收工后不复活）
+  /* v10 多日拍摄：shootDates 为真源，shootDate 恒等于 shootDates[0]（看板倒计时 / Call Sheet 等消费方零改动）。
+     与 normalizeShootDates 同源逻辑，因 migrate 会被 tests 单独抽取进 vm，这里必须自包含。 */
+  p.shootDates=(Array.isArray(p.shootDates)?p.shootDates:[])
+    .filter(function(d){ return /^\d{4}-\d{2}-\d{2}$/.test(String(d==null?'':d)); });
+  if(!p.shootDates.length&&p.shootDate) p.shootDates=[p.shootDate];
+  p.shootDates=Array.from(new Set(p.shootDates)).sort();
+  p.shootDate=p.shootDates[0]||'';
   p.concept=p.concept||{theme:'',style:'',audience:'',usage:'',note:'',model:''};
   if(p.concept.model===undefined) p.concept.model='';
   p.shots.forEach(s=>{
     if(s.refId!==undefined&&!s.refIds) s.refIds=s.refId?[s.refId]:[];
     s.refIds=s.refIds||[]; delete s.refId;
-    if(s.duration==null) s.duration=20;
+    if(s.duration==null) s.duration=20;                   // 历史数据兜底 20（新分镜默认 10 在表单 / addShot / planDay）
     if(s.ord==null) s.ord=0;
+    if(s.position==null) s.position='';                   // v10：机位
+    if(s.light==null) s.light='';                         // v10：光线
   });
   p.schedule.forEach(n=>{ n.done=!!n.done; });
   migrateFav(p);
@@ -959,17 +1013,18 @@ function seed(){
       {id:scene1,name:'五道营胡同',note:'15:00-17:00 光线最佳，避开周末',done:true},
       {id:scene2,name:'Metal Hands 咖啡馆',note:'已沟通拍摄许可，点单即可',done:false}
     ],
+    dayInit:[t],shootDates:[t],
     shots:[
-      {id:uid(),name:'巷口逆光回眸（中景）',date:t,slot:'15:00',duration:20,sceneId:scene1,refIds:[],note:'等一束侧逆光',done:false,ord:0},
-      {id:uid(),name:'胡同行走背影（远景）',date:t,slot:'15:40',duration:20,sceneId:scene1,refIds:[],note:'',done:true,ord:1},
-      {id:uid(),name:'咖啡馆窗边侧脸（特写）',date:t,slot:'16:30',duration:30,sceneId:scene2,refIds:[],note:'85mm 大光圈',done:false,ord:2},
-      {id:uid(),name:'天台黄昏剪影（全景）',date:t,slot:'18:10',duration:40,sceneId:'',refIds:[],note:'看日落时间调整',done:false,ord:3}
+      {id:uid(),name:'巷口逆光回眸（中景）',date:t,duration:20,sceneId:scene1,position:'平视',light:'侧逆光',refIds:[],note:'等一束侧逆光',done:false,ord:0},
+      {id:uid(),name:'胡同行走背影（远景）',date:t,duration:20,sceneId:scene1,position:'侧背',light:'逆光',refIds:[],note:'',done:true,ord:1},
+      {id:uid(),name:'咖啡馆窗边侧脸（特写）',date:t,duration:30,sceneId:scene2,position:'平视',light:'窗光',refIds:[],note:'85mm 大光圈',done:false,ord:2},
+      {id:uid(),name:'天台黄昏剪影（全景）',date:t,duration:40,sceneId:'',position:'仰拍',light:'剪影',refIds:[],note:'看日落时间调整',done:false,ord:3}
     ],
     schedule:[
-      {id:uid(),type:'集合',title:'地铁口集合，检查器材',start:'14:30',end:'14:50',note:'带备用电池 ×2',done:true},
-      {id:uid(),type:'化妆造型',title:'化妆师到场，妆造 45 分钟',start:'14:50',end:'15:00',note:'妆造在胡同口阴凉处',done:false},
-      {id:uid(),type:'转场',title:'胡同 → 咖啡馆（步行 10 分钟）',start:'16:20',end:'16:30',note:'',done:false},
-      {id:uid(),type:'收工',title:'复盘当日素材，确认交片时间',start:'19:00',end:'19:30',note:'',done:false}
+      {id:uid(),type:'集合',title:'地铁口集合，检查器材',start:'09:30',end:'10:00',note:'带备用电池 ×2',done:true,auto:'call'},
+      {id:uid(),type:'化妆造型',title:'化妆师到场，妆造 45 分钟',start:'10:00',end:'10:45',note:'妆造在胡同口阴凉处',done:false},
+      {id:uid(),type:'转场',title:'胡同 → 咖啡馆（步行 10 分钟）',start:'12:30',end:'12:40',note:'',done:false},
+      {id:uid(),type:'收工',title:'复盘当日素材，确认交片时间',start:'18:00',end:'18:15',note:'',done:false,auto:'wrap'}
     ],
     items:[
       {id:uid(),kind:'服装',name:'燕麦色廓形风衣',note:'客户自备',done:true},
@@ -990,6 +1045,7 @@ function seed(){
       {id:uid(),title:'检查 SD 卡并格式化',owner:'我',due:todayStr(),done:true},
       {id:uid(),title:'预约精修排期（交片 10 月 30 日前）',owner:'',due:'',done:false}
     ]});
+  rescheduleDay(demo,t);   // 预置示例同样走排程引擎：slot 从集合结束起顺序派生，收工按最晚结束 +15
   saveP([demo]);
   localStorage.setItem(LS_SEED,'1');
 }
@@ -1183,7 +1239,7 @@ function newProject(){
   a.push(migrate({id:uid(),v3:1,name:name.trim()||'未命名拍摄项目',client:'',status:'灵感期',shootDate:'',location:'',lat:'',lng:'',createdAt:Date.now(),updatedAt:Date.now()}));
   saveP(a); openProject(a[a.length-1].id);
 }
-async function openProject(pid){ view=freshView({mode:'project',pid:pid,tab:'shots'}); await cacheProjectImages(cur()); renderProject(); }
+async function openProject(pid){ view=freshView({mode:'project',pid:pid,tab:'shots'}); schedDate=null; await cacheProjectImages(cur()); renderProject(); }
 
 /* ================= 项目页 ================= */
 const TABS=[['concept','概念','策划'],['mood','情绪板','策划'],['shots','分镜','执行'],['schedule','日程','执行'],['stuff','清单','执行'],['budget','预算','落地'],['notes','协作','落地']];
@@ -1213,7 +1269,7 @@ function renderProject(){
     +'<div class="metacard"><div class="mgrid">'
     +'<div class="fld"><label>客户</label><input value="'+esc(p.client)+'" onchange="setP(\'client\',this.value)"'+dis+'></div>'
     +'<div class="fld"><label>工作室署名（封面落款）</label><input value="'+esc(p.studio||'')+'" onchange="setP(\'studio\',this.value)" placeholder="如：瞬刻摄影工作室"'+dis+'></div>'
-    +'<div class="fld"><label>拍摄日期</label><input type="date" value="'+esc(p.shootDate)+'" onchange="setP(\'shootDate\',this.value)"'+dis+'></div>'
+    +'<div class="fld"><label>Day 1 · 首个拍摄日</label><input type="date" id="p_shootdate" value="'+esc(p.shootDate)+'" onchange="setShootDate(this.value)"'+dis+'></div>'
     +'<div class="fld"><label>项目阶段</label><select onchange="setP(\'status\',this.value)"'+dis+'>'+STATUSES.map(s=>'<option '+(p.status===s?'selected':'')+'>'+s+'</option>').join('')+'</select></div>'
     +'<div class="fld"><label>拍摄地点</label><input value="'+esc(p.location||'')+'" onchange="setP(\'location\',this.value)" placeholder="如：南京 · 老门东"'+dis+'></div>'
     +'<div class="fld"><label>纬度 Latitude</label><input value="'+esc(p.lat==null?'':p.lat)+'" onchange="setP(\'lat\',this.value)" placeholder="32.06"'+dis+'></div>'
@@ -1243,7 +1299,8 @@ function gv(id){return document.getElementById(id).value;}
 /* v9 行内编辑：同一时刻只开一行 */
 function beginInlineEdit(kind,id,key){
   clearInlineEditState(view);
-  if(kind==='Node') view.editingNodeId=id;
+  if(kind==='Shot'){ view.editingShotEditId=id; view.editingShotId=null; view.replaceIdx=-1; }  // v10：分镜文字行内编辑，同时退出参考图选图态
+  else if(kind==='Node') view.editingNodeId=id;
   else if(kind==='Stuff'){ view.editingStuffId=id; view.editingStuffKey=key||''; }
   else if(kind==='Todo') view.editingTodoId=id;
   else if(kind==='Note') view.editingNoteId=id;
@@ -1469,6 +1526,11 @@ function shotSortKey(s){ return (s.date||'9999')+'|'+(s.ord!=null?'o'+String(s.o
 async function renderShots(p){
   if(!p) return;
   view.shotDraft=view.shotDraft||{}; const D=view.shotDraft;
+  /* v10 多日拍摄：日期改为拍摄日下拉（Day N · MM-DD）+「＋ 新日期…」；默认取首个拍摄日或今天 */
+  const days=shootDatesOf(p);
+  const fallbackDay=p.shootDate||days[0]||todayStr();
+  const curDay=(D.date!=null&&D.date!=='')?D.date:fallbackDay;
+  const dayOpts=(days.indexOf(curDay)>=0?days.slice():days.concat([curDay]).sort());
   await ensureShiseiRefs(p);
   const moodImgs=p.mood.filter(m=>m.type==='image'&&matchByTags(m,view.moodFilter,view.moodFilterMode));
   let gallery=[];
@@ -1478,6 +1540,14 @@ async function renderShots(p){
   const kw=(view.shotFilter||'').trim().toLowerCase();
   const sorted=[...p.shots].sort((a,b)=>shotSortKey(a)<shotSortKey(b)?-1:1)
     .filter(s=>!kw||(s.name||'').toLowerCase().includes(kw)||(s.note||'').toLowerCase().includes(kw)||(p.scenes.find(x=>x.id===s.sceneId)||{}).name&&(p.scenes.find(x=>x.id===s.sceneId)||{}).name.toLowerCase().includes(kw));
+  /* v10 多日拍摄：按日期分组（sorted 已按 date|ord 排序，顺序切组即可，组内保持 ord 顺序） */
+  const shotGroups=[];
+  sorted.forEach(function(s){
+    const d=s.date||'';
+    let g=shotGroups[shotGroups.length-1];
+    if(!g||g.date!==d){ g={date:d,items:[]}; shotGroups.push(g); }
+    g.items.push(s);
+  });
   const editing=p.shots.find(x=>x.id===view.editingShotId);
   const selRefsBar=!editing&&selRefs.length?'<div class="selrefs"><span class="muted">已选参考图（'+selRefs.length+'/3）</span>'
     +selRefs.map((key,i)=>'<span class="sr"><img src="'+esc(imgCache[key]||'')+'" alt="参考图 '+(i+1)+'"><i>'+(i+1)+'</i>'
@@ -1511,20 +1581,47 @@ async function renderShots(p){
       +'<span class="muted" style="align-self:center">图库引用同样最多 3 张</span></div></div>';
   document.getElementById('tabBody').innerHTML=(editBar?'<div class="card" style="padding:14px 18px">'+editBar+'</div>':'')
     +'<div class="card"><h2>分镜表 · 数据中枢</h2>'
-    +'<p class="muted" style="margin-bottom:12px">每条分镜可挂 1-3 张参考图（我的素材 + 姿势图库）+ 场景 + 日期时段。拖动左侧手柄排序，拖到另一日期分组会自动改期。</p>'
+    +'<p class="muted" style="margin-bottom:12px">每条分镜可挂 1-3 张参考图（我的素材 + 姿势图库）+ 场景 + 机位 + 光线。时间不需手填，日程页会从 10:00 起顺序排期并避开流程环节；拖动左侧手柄排序，拖到另一日期分组会自动改期。</p>'
     +'<div class="row" style="margin-bottom:6px">'
     +'<input id="s_name" class="grow" placeholder="分镜内容，如：巷口逆光回眸（中景）" value="'+esc(D.name||'')+'" oninput="saveShotDraft(\'name\',this.value)">'
-    +'<input type="date" id="s_date" style="max-width:150px" value="'+esc(D.date||p.shootDate||todayStr())+'" onchange="saveShotDraft(\'date\',this.value)">'
-    +'<input type="time" id="s_slot" style="max-width:105px" value="'+esc(D.slot||'15:00')+'" onchange="saveShotDraft(\'slot\',this.value)">'
-    +'<select id="s_dur" style="max-width:105px" onchange="saveShotDraft(\'duration\',this.value)">'+[10,15,20,30,45,60,90].map(d=>'<option value="'+d+'" '+((parseInt(D.duration)||20)===d?'selected':'')+'>'+d+' 分钟</option>').join('')+'</select>'
-    +'<select id="s_scene" style="max-width:150px" onchange="saveShotDraft(\'scene\',this.value)"><option value="">— 场景 —</option>'+p.scenes.map(s=>'<option value="'+s.id+'" '+(D.scene===s.id?'selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select>'
-    +'<input id="s_note" class="grow" placeholder="备注（机位 / 光线 / 姿势…）" value="'+esc(D.note||'')+'" oninput="saveShotDraft(\'note\',this.value)">'
+    +'<select id="s_date" style="max-width:180px" onchange="pickShotDate(this.value)">'
+      +dayOpts.map(function(d){
+        const gi=days.indexOf(d);
+        return '<option value="'+d+'" '+(curDay===d?'selected':'')+'>'+(gi>=0?'Day '+(gi+1)+' · ':'Day – · ')+mmdd(d)+'</option>';
+      }).join('')
+      +'<option value="__new" '+(curDay==='__new'?'selected':'')+'>＋ 新日期…</option></select>'
+    +'<select id="s_dur" style="max-width:105px" onchange="saveShotDraft(\'duration\',this.value)">'+[10,15,20,30,45,60,90].map(d=>'<option value="'+d+'" '+((+D.duration||10)===d?'selected':'')+'>'+d+' 分钟</option>').join('')+'</select>'
+    +'<select id="s_scene" style="max-width:150px" onchange="pickShotScene(this.value)">'
+      +'<option value="">'+(p.scenes.length?'— 场景 —':'还没有场景，点「＋ 新建场景」添加')+'</option>'
+      +p.scenes.map(s=>'<option value="'+s.id+'" '+(D.scene===s.id?'selected':'')+'>'+esc(s.name)+'</option>').join('')
+      +'<option value="__new" '+(D.scene==='__new'?'selected':'')+'>＋ 新建场景…</option></select>'
+    +'<button class="btn btn-ghost btn-sm" onclick="view.tab=\'stuff\';renderProject()">管理</button>'
+    +'<select id="s_pos" style="max-width:108px" onchange="saveShotDraft(\'position\',this.value)"><option value="">— 机位 —</option>'+POSITION_OPTS.map(o=>'<option value="'+o+'" '+(D.position===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
+    +'<select id="s_light" style="max-width:108px" onchange="saveShotDraft(\'light\',this.value)"><option value="">— 光线 —</option>'+LIGHT_OPTS.map(o=>'<option value="'+o+'" '+(D.light===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
+    +'<input id="s_note" class="grow" placeholder="补充描述（姿势 / 构图 / 道具…）" value="'+esc(D.note||'')+'" oninput="saveShotDraft(\'note\',this.value)">'
     +'<button class="btn btn-primary" onclick="addShot()">添加分镜</button></div>'
+    +(curDay==='__new'
+      ?'<div class="new-scene"><span class="muted">新拍摄日</span>'
+        +'<input type="date" id="new_shot_date" value="'+esc(addDays(days[days.length-1]||p.shootDate||todayStr(),1))+'">'
+        +'<button class="btn btn-primary btn-sm" onclick="confirmNewShotDate()">加入并选中</button>'
+        +'<button class="btn btn-ghost btn-sm" onclick="cancelNewShotDate()">取消</button></div>'
+      :'')
+    +(D.scene==='__new'
+      ?'<div class="new-scene"><span class="muted">新建场景</span>'
+        +'<input id="new_scene_name" placeholder="场景名称，如：老门东巷口" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addSceneInline();}">'
+        +'<button class="btn btn-primary btn-sm" onclick="addSceneInline()">添加并选中</button>'
+        +'<button class="btn btn-ghost btn-sm" onclick="cancelSceneInline()">取消</button></div>'
+      :'')
     +selRefsBar
     +(mineHtml||galleryHtml?'':'<p class="muted" style="margin-bottom:10px">还没有任何参考图来源。上传图片、到情绪板添加，或在下方「素材来源」开启姿势图库同步。</p>')
     +mineHtml+galleryHtml
     +'<div class="row" style="margin-bottom:12px"><input id="s_filter" class="grow" placeholder="搜索分镜 / 场景 / 备注…" value="'+esc(view.shotFilter)+'" oninput="view.shotFilter=this.value;renderShots(cur())"></div>'
-    +(sorted.length? '<div id="shotList">'+sorted.map(s=>{
+    +(sorted.length? '<div id="shotList">'+shotGroups.map(function(g){
+        const gi=days.indexOf(g.date);
+        const mins=g.items.reduce(function(n,x){ return n+(+x.duration||0); },0);
+        const ghead=(g.date?('Day '+(gi>=0?gi+1:'–')+' · '+mmdd(g.date)):'未定日期')
+          +'（'+g.items.length+' 条 · 合计 '+mins+' 分钟）';
+        return '<div class="day-group"><div class="day-head">'+esc(ghead)+'</div>'+g.items.map(function(s){
         const scene=p.scenes.find(x=>x.id===s.sceneId);
         const clash=dayItems(p,s.date).some(x=>x.id===s.id&&x._conflict);
         const refs=s.refIds||[];
@@ -1535,15 +1632,30 @@ async function renderShots(p){
               +'<button class="ref-del" title="从本分镜移除该参考图" onclick="event.stopPropagation();removeShotRef('+jstr(s.id)+','+ri+')">×</button></div>';
           }).join('')
           :'<button class="noref-add" onclick="openShotRefEditor('+jstr(s.id)+')">+ 添加参考图</button>';
+        const editingThis=view.editingShotEditId===s.id;    // v10：行内编辑文字（与参考图选图态 editingShotId 正交）
+        const meta=[s.date||'未定',s.slot||'','约 '+(+s.duration||10)+' 分钟',
+          scene?scene.name:'',s.position||'',s.light||'',s.note||''].filter(Boolean).join(' · ');
+        const body=editingThis
+          ?'<div class="grow inline-edit"><div class="row">'
+            +'<input id="esh_name" class="grow" placeholder="分镜内容" value="'+esc(s.name)+'">'
+            +'<select id="esh_dur" style="max-width:100px">'+[10,15,20,30,45,60,90].map(d=>'<option value="'+d+'" '+((+s.duration||10)===d?'selected':'')+'>'+d+' 分钟</option>').join('')+'</select>'
+            +'<select id="esh_scene" style="max-width:140px"><option value="">— 场景 —</option>'+p.scenes.map(x=>'<option value="'+x.id+'" '+(s.sceneId===x.id?'selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select>'
+            +'<select id="esh_pos" style="max-width:100px"><option value="">— 机位 —</option>'+POSITION_OPTS.map(o=>'<option value="'+o+'" '+(s.position===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
+            +'<select id="esh_light" style="max-width:100px"><option value="">— 光线 —</option>'+LIGHT_OPTS.map(o=>'<option value="'+o+'" '+(s.light===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
+            +'<input id="esh_note" class="grow" placeholder="备注…" value="'+esc(s.note||'')+'">'
+            +'<button class="btn btn-primary btn-sm" onclick="saveShotEdit('+jstr(s.id)+')">保存</button>'
+            +'<button class="btn btn-ghost btn-sm" onclick="cancelShotEdit()">取消</button></div></div>'
+          :'<div class="grow" style="min-width:150px"><div class="'+(s.done?'done-text':'')+'" style="font-weight:600">'+esc(s.name)+(clash?' <span class="tag red">时间重叠</span>':'')+'</div>'
+            +'<div class="muted" style="font-size:12px;margin-top:2px">'+esc(meta)+'</div></div>';
         return '<div class="shot '+(s.done?'done':'')+'" data-id="'+s.id+'" data-fid="'+esc(s.id)+'">'
           +'<span class="drag-handle" title="拖拽排序"><svg width="12" height="18" viewBox="0 0 12 18" fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></svg></span>'
           +'<button class="chk '+(s.done?'on':'')+'" onclick="toggleShot(\''+s.id+'\')">'+(s.done?'✓':'')+'</button>'
           +'<div class="refs">'+refHtml+'</div>'
-          +'<div class="grow" style="min-width:150px"><div class="'+(s.done?'done-text':'')+'" style="font-weight:600">'+esc(s.name)+(clash?' <span class="tag red">时间重叠</span>':'')+'</div>'
-          +'<div class="muted" style="font-size:12px;margin-top:2px">'+esc(s.date||'未定')+' '+(s.slot||'')+' · 约 '+s.duration+' 分钟'+(scene?' · '+esc(scene.name):'')+(s.note?' · '+esc(s.note):'')+'</div></div>'
+          +body
           +'<button class="rowbtn'+(isFav(s)?' on':'')+'" title="收藏/取消收藏" onclick="toggleFav(\'shots\','+jstr(s.id)+')">'+(isFav(s)?'★':'☆')+'</button>'
+          +editBtn('Shot',s.id)
           +'<button class="iconbtn" onclick="delShot(\''+s.id+'\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
-      }).join('')+'</div>' : '<p class="muted">'+(kw?'没有匹配的分镜。':'还没有分镜。添加第一条，把素材挂上来。')+'</p>')
+        }).join('')+'</div>'; }).join('')+'</div>' : '<p class="muted">'+(kw?'没有匹配的分镜。':'还没有分镜。添加第一条，把素材挂上来。')+'</p>')
     +'</div>';
   galleryRows.forEach(r=>ensureShiseiImage(r.key));
   attachDrag();
@@ -1552,6 +1664,58 @@ function setShiseiCat(cat){ view.poseCat=(view.poseCat===cat)?null:String(cat||n
 function removeSelRef(i){ if(i>=0&&i<selRefs.length){ selRefs.splice(i,1); renderShots(cur()); } }
 function clearSelRefs(){ selRefs=[]; renderShots(cur()); }
 function saveShotDraft(k,v){ view.shotDraft=view.shotDraft||{}; view.shotDraft[k]=v; }
+/* v10 多日拍摄：分镜表单的拍摄日下拉 */
+function pickShotDate(v){ saveShotDraft('date',v); renderShots(cur()); }
+function confirmNewShotDate(){
+  const el=document.getElementById('new_shot_date');
+  const d=(el?el.value:'').trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){ toast('请选择有效日期'); return; }
+  let ok=false;
+  updateCur(p=>{ addShootDate(p,d); ok=true; });
+  if(!ok) return;
+  saveShotDraft('date',d);
+  toast('已加入拍摄日 '+mmdd(d));
+  renderShots(cur());
+}
+function cancelNewShotDate(){ saveShotDraft('date',''); renderShots(cur()); }
+/* v10：分镜场景下拉的「＋ 新建场景…」行内入口（不写 tagVocab，与素材标签词表解耦） */
+function pickShotScene(v){ saveShotDraft('scene',v); renderShots(cur()); }
+function addSceneInline(){
+  const el=document.getElementById('new_scene_name');
+  const name=(el?el.value:'').trim();
+  if(!name){ toast('场景名称不能为空'); return; }
+  const id=uid();
+  let ok=false;
+  updateCur(p=>{ p.scenes.push({id:id,name:name,note:'',done:false,fav:false}); ok=true; });
+  if(!ok) return;                       // demo 只读：updateCur 已提示
+  saveShotDraft('scene',id);            // 新建后自动选中
+  toast('已新建场景「'+name+'」并选中');
+  renderShots(cur());
+}
+function cancelSceneInline(){ saveShotDraft('scene',''); renderShots(cur()); }
+/* v10：分镜行内编辑（6 项，不含日期时间） */
+function saveShotEdit(id){
+  const el=document.getElementById('esh_name');
+  const name=(el?el.value:'').trim();
+  if(!name){ toast('分镜内容不能为空'); return; }
+  const durEl=document.getElementById('esh_dur'), scEl=document.getElementById('esh_scene');
+  const posEl=document.getElementById('esh_pos'), liEl=document.getElementById('esh_light'), ntEl=document.getElementById('esh_note');
+  const patch={name:name,
+    duration:parseInt(durEl?durEl.value:'',10)||SHOT_DEFAULT_MIN,
+    sceneId:scEl?scEl.value:'', position:posEl?posEl.value:'', light:liEl?liEl.value:'',
+    note:(ntEl?ntEl.value:'').trim()};
+  let plan=null;
+  updateCur(p=>{
+    const s=p.shots.find(x=>x.id===id); if(!s) return;
+    Object.assign(s,patch);
+    plan=applyDay(p,s.date||'',null);        // 时长/内容变化后重排当天分镜
+  });
+  clearInlineEditState(view); toastResched(plan); renderProject();   // 先记 lastShift 再重绘，「已顺延」才能当次生效
+}
+function cancelShotEdit(){
+  if(!view.editingShotEditId) return false;
+  clearInlineEditState(view); renderProject(); return true;
+}
 /* 参考图选图态：新增模式用 selRefs；编辑模式 view.editingShotId 指向目标分镜，replaceIdx>=0 表示替换该位置 */
 function toggleRef(id){
   if(view.editingShotId){
@@ -1644,12 +1808,21 @@ async function addShotImg(e){
 function addShot(){
   const name=gv('s_name').trim(); if(!name){toast('分镜内容不能为空');return;}
   const d=gv('s_date');
+  if(!d||d==='__new'){ toast('请先选择或新建拍摄日'); return; }
+  const dur=parseInt(gv('s_dur'),10)||SHOT_DEFAULT_MIN;
+  const sc=gv('s_scene'), pos=gv('s_pos')||'', light=gv('s_light')||'', note=gv('s_note').trim();
+  let plan=null;
+  ensureShootDate(d);                  // 该日首次产生内容 → 登记为拍摄日（切换查看不登记）
   updateCur(p=>{
     const sameDay=p.shots.filter(x=>(x.date||'')===d);
     const ord=sameDay.length?Math.max(...sameDay.map(x=>x.ord||0))+1:0;
-    p.shots.push({id:uid(),name,date:d,slot:gv('s_slot'),duration:parseInt(gv('s_dur'))||20,sceneId:gv('s_scene'),refIds:[...selRefs].slice(0,3),note:gv('s_note').trim(),done:false,ord,fav:false});
+    p.shots.push({id:uid(),name:name,date:d,duration:dur,
+      sceneId:(sc&&sc!=='__new')?sc:'',position:pos,light:light,
+      refIds:[...selRefs].slice(0,3),note:note,done:false,ord:ord,fav:false});
+    plan=applyDay(p,d,null);      // 落库即重排：slot 由排程引擎派生（不写死时间）
   });
-  selRefs=[]; view.shotDraft={}; renderProject();
+  selRefs=[]; view.shotDraft={}; if(view.editingShotEditId) view.editingShotEditId=null;
+  toastResched(plan); renderProject();
 }
 
 /* 拖拽排序（桌面 + 触屏，Pointer Events） */
@@ -1692,31 +1865,172 @@ function attachDrag(){
 }
 function persistOrder(list,draggedId){
   const ids=[...list.querySelectorAll('.shot')].map(el=>el.dataset.id);
+  let adopted=null;                                               // 目标日期（跨日拖拽时才有值），回调外要用
   updateCur(p=>{
     const byId={}; p.shots.forEach(s=>byId[s.id]=s);
     const i=ids.indexOf(draggedId);
     let adopt=null;
     if(i<ids.length-1) adopt=byId[ids[i+1]].date;
     else if(i>0) adopt=byId[ids[i-1]].date;
+    const before=byId[draggedId]?(byId[draggedId].date||''):'';   // 改期前必须取，改完再取就丢了
     if(adopt!=null&&adopt!=='') byId[draggedId].date=adopt;
     const counters={};
-    ids.forEach(id=>{ const s=byId[id]; const d=s.date||''; counters[d]=(counters[d]||0); s.ord=counters[d]++; });
+    ids.forEach(id=>{ const s=byId[id]; if(!s) return; const d=s.date||''; counters[d]=(counters[d]||0); s.ord=counters[d]++; });
+    applyDay(p,before,null);                                     // 原日期重排
+    applyDay(p,(adopt!=null&&adopt!=='')?adopt:before,null);      // 新日期重排（同一天时幂等）
+    adopted=(adopt!=null&&adopt!=='')?adopt:null;
   });
+  if(adopted) ensureShootDate(adopted);                           // 拖到未登记日期 → 该日首次有内容，登记为拍摄日
   renderProject();
 }
 function toggleShot(id){ updateCur(p=>{const s=p.shots.find(x=>x.id===id); if(s) s.done=!s.done;}); renderProject(); }
-function delShot(id){ updateCur(p=>p.shots=p.shots.filter(x=>x.id!==id)); renderProject(); }
+function delShot(id){
+  updateCur(p=>{
+    const s=p.shots.find(x=>x.id===id); if(!s) return;
+    const d=s.date||'';
+    p.shots=p.shots.filter(x=>x.id!==id);
+    applyDay(p,d,null);      // 删除后重新紧凑排期
+  });
+  renderProject();
+}
 
 /* ---- 日程（时间与流程安排） ---- */
 const NODE_TYPES=['集合','化妆造型','拍摄','转场','休息','收工','其他'];
 const NODE_COLORS=['gray','purple','accent','blue','green','ink','gray'];
 let schedDate=null;
 function nodeTag(t){ const i=NODE_TYPES.indexOf(t); return '<span class="tag '+(NODE_COLORS[i]||'gray')+'">'+esc(t)+'</span>'; }
+
+/* 进入某日期时自愈：补集合/收工 + 重排。demo 只读直接跳过；dayInit 已含且无 drift 时提前返回，
+   避免「渲染 → 写盘 → 重绘」的循环（设计 §7.9）。 */
+function autoSyncDay(date){
+  const p=cur(); if(!p||!date||p.demo) return;
+  if(shootDatesOf(p).indexOf(date)<0) return;   // 未登记的日期（只是查看）不补默认项、不写盘
+  const plan=planDay(p,date,null);
+  const inited=Array.isArray(p.dayInit)&&p.dayInit.indexOf(date)>=0;
+  const drift=(p.shots||[]).some(function(s){
+    if(s.date!==date) return false;
+    const r=plan.shots.filter(x=>x.id===s.id)[0];
+    return !!r&&s.slot!==fmtMin(r.start);
+  });
+  if(inited&&!drift&&dayDefaults(p,date).length===0) return;
+  updateCur(function(pp){ ensureDayDefaults(pp,date); rescheduleDay(pp,date,null); });
+}
+
+/* 重排结果统一提示；被顺延的节点记进 view.lastShift，时间轴上临时显示「已顺延」（30 秒或下次重排清除） */
+function toastResched(plan){
+  if(!plan) return;
+  const ids=(plan.nodeShifts||[]).map(function(x){return x.id;});
+  view.lastShift=ids.length?{date:plan.date,ids:ids,ts:Date.now()}:null;
+  if(plan.capHit){ toast('排期已跨越 7 天，请检查分镜时长'); return; }
+  if(plan.overflow){ toast('排期超出当天 24:00，请缩短时长或改到另一天'); return; }
+  const parts=[];
+  parts.push('已重排当天分镜（'+plan.shiftedCount+' 条后移）');
+  if(ids.length) parts.push(ids.length+' 项日程已顺延');
+  if(plan.movedShots) parts.push('已自动跨日 '+plan.movedShots+' 条分镜');
+  if(plan.addedDates&&plan.addedDates.length) parts.push('已自动增加拍摄日 '+plan.addedDates.map(mmdd).join('、'));
+  toast(parts.join('，'));
+}
+function shiftedFlag(id){
+  const s=view.lastShift;
+  if(!s||!s.ids||s.ids.indexOf(id)<0) return '';
+  if(Date.now()-(s.ts||0)>30000) return '';
+  return ' <span class="tag blue">已顺延</span>';
+}
+
+/* ---- v10 多日拍摄：拍摄日清单的切换 / 新增 / 删除（全部经 updateCur，受 demo 只读守卫） ---- */
+function setSchedDate(d){ if(!d) return; schedDate=d; renderSchedule(cur()); }
+function toggleNewDay(){ view.newDay=!view.newDay; renderSchedule(cur()); }
+function confirmNewDay(){
+  const el=document.getElementById('new_day_date');
+  const d=(el?el.value:'').trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){ toast('请选择有效日期'); return; }
+  let ok=false;
+  updateCur(p=>{ addShootDate(p,d); ok=true; });
+  if(!ok) return;                    // demo 只读：updateCur 已提示
+  view.newDay=false; schedDate=d;
+  toast('已添加拍摄日 '+mmdd(d));
+  renderProject();
+}
+/* 删除拍摄日：仅当该天无分镜、且没有用户手填的环节时允许。
+   引擎自动生成的「集合 / 收工」不算用户内容，会随该日一并清掉（dayInit 同步清除，重新加入时会再生成）；用户数据一律不连带删除。 */
+function removeShootDay(d){
+  const p=cur(); if(!p||!d) return;
+  const shotsN=(p.shots||[]).filter(s=>s.date===d).length;
+  const userN=(p.schedule||[]).filter(x=>(x.date||d)===d&&!x.auto).length;
+  if(shotsN+userN){ toast('该天还有 '+(shotsN+userN)+' 条安排，请先清空'); return; }
+  let ok=false;
+  updateCur(pp=>{
+    pp.schedule=(pp.schedule||[]).filter(x=>!((x.date||d)===d&&x.auto));
+    pp.shootDates=(pp.shootDates||[]).filter(x=>x!==d);
+    pp.dayInit=(pp.dayInit||[]).filter(x=>x!==d);      // 同刻清掉初始化记录，重新加回来时还能补默认项
+    normalizeShootDates(pp);
+    ok=true;
+  });
+  if(!ok) return;
+  const left=shootDatesOf(cur());
+  schedDate=left[0]||todayStr();
+  toast('已删除拍摄日 '+mmdd(d));
+  renderProject();
+}
+/** 在日程页切换查看日期：只改 schedDate，不写 shootDates（避免「看一眼就登记」；
+    某日首次产生内容时由 ensureShootDate 登记） */
+function chooseSchedDate(d){ if(!d) return; schedDate=d; renderSchedule(cur()); }
+/** 某日首次产生内容（新增分镜 / 新增手填环节 / 跨日拖拽）时登记为拍摄日。
+    ⚠ 不要放进 renderSchedule / autoSyncDay，否则又会变成「看一眼就登记」。 */
+function ensureShootDate(date){
+  const p=cur(); if(!p||!date) return false;
+  if(shootDatesOf(p).indexOf(date)>=0) return false;
+  let ok=false;
+  updateCur(pp=>{ addShootDate(pp,date); ok=true; });   // addShootDate 内部 normalize：若早于原首日则同步 p.shootDate
+  return ok;
+}
+/** 项目信息卡「Day 1 · 首个拍摄日」：判定见 resolveShootDate（无内容则替换首日，有内容则追加为新的一天） */
+function setShootDate(v){
+  const p=cur(); if(!p) return;
+  const d=String(v==null?'':v).trim();
+  const r=resolveShootDate(p,d);
+  if(r.action==='noop'){ renderProject(); return; }
+  let ok=false;
+  updateCur(pp=>{
+    pp.shootDates=r.dates.slice();
+    /* 替换分支要清掉原首日的 dayInit，避免旧日期残留自动集合/收工成为孤儿数据 */
+    if(r.action==='replace'&&r.from) pp.dayInit=(pp.dayInit||[]).filter(x=>x!==r.from);
+    normalizeShootDates(pp);
+    ok=true;
+  });
+  if(!ok) return;                                       // demo 只读：updateCur 已提示
+  if(r.action==='append'){
+    toast('已添加为 Day '+r.dayN+'（'+mmdd(d)+'）；Day 1 仍有 '+r.kept+' 条安排，未改动');
+  } else {
+    toast('已把首个拍摄日改为 '+mmdd(shootDatesOf(cur())[0]||d));
+  }
+  const left=shootDatesOf(cur());
+  if(left.indexOf(schedDate)<0) schedDate=left[0]||todayStr();   // 原首日已被替换/移除时，视图跟着回到首日
+  renderProject();
+}
+function dayTabsHtml(p){
+  const days=shootDatesOf(p);
+  const cnt=d=>(p.shots||[]).filter(s=>s.date===d).length+(p.schedule||[]).filter(n=>(n.date||d)===d).length;
+  let h='<div class="day-tabs">'+days.map(function(d,i){
+    return '<button class="day-tab'+(d===schedDate?' on':'')+'" onclick="setSchedDate('+jstr(d)+')">Day '+(i+1)+' · '+mmdd(d)+' '+weekdayCN(d)+'（'+cnt(d)+' 条）</button>';
+  }).join('')
+    +'<button class="day-tab add" onclick="toggleNewDay()">＋ 添加拍摄日</button>'
+    +(days.length?'<button class="day-tab del" onclick="removeShootDay('+jstr(schedDate)+')">删除本日</button>':'')
+    +'</div>';
+  if(view.newDay){
+    const base=days.length?days[days.length-1]:(p.shootDate||todayStr());
+    h+='<div class="new-scene"><span class="muted">新拍摄日</span>'
+      +'<input type="date" id="new_day_date" value="'+esc(addDays(base,1))+'">'
+      +'<button class="btn btn-primary btn-sm" onclick="confirmNewDay()">添加并切换</button>'
+      +'<button class="btn btn-ghost btn-sm" onclick="toggleNewDay()">取消</button></div>';
+  }
+  return h;
+}
+
 function renderSchedule(p){
-  if(!schedDate) schedDate=p.shootDate||todayStr();
+  if(!schedDate) schedDate=p.shootDate||shootDatesOf(p)[0]||todayStr();
+  autoSyncDay(schedDate);          // 首次进入某日期：补集合/收工 + 重排（有 drift 才写盘）
   const sun=sunTimes(schedDate,p.lat,p.lng);
-  const nodes=[...p.schedule].filter(n=>(n.date||schedDate)===schedDate).sort((a,b)=>(a.start||'99')<(b.start||'99')?-1:1);
-  const shots=p.shots.filter(s=>s.date===schedDate).sort((a,b)=>(a.slot||'99')<(b.slot||'99')?-1:1);
   let sunHtml='';
   if(sun){
     sunHtml='<div class="sun-bar">'
@@ -1731,13 +2045,14 @@ function renderSchedule(p){
   }
   document.getElementById('tabBody').innerHTML='<div class="card"><h2>拍摄日流程 · 时间轴</h2>'
     +sunHtml
-    +'<div class="row" style="margin-bottom:14px"><input type="date" id="sc_date" style="max-width:170px" value="'+schedDate+'" onchange="schedDate=this.value;renderSchedule(cur())">'
-    +'<span class="muted">切换日期查看 / 编辑当天流程</span></div>'
+    +dayTabsHtml(p)
+    +'<div class="row" style="margin-bottom:14px"><input type="date" id="sc_date" style="max-width:170px" value="'+schedDate+'" onchange="chooseSchedDate(this.value)">'
+    +'<span class="muted">点上方 Day 切换日期；选任意日期会并入拍摄日清单。集合、收工自动生成，新增环节会顺延其后环节并重排分镜</span></div>'
     +'<div class="row" style="margin-bottom:6px">'
     +'<select id="n_type" style="max-width:120px">'+NODE_TYPES.map(t=>'<option>'+t+'</option>').join('')+'</select>'
     +'<input id="n_title" class="grow" placeholder="环节内容，如：化妆师到场妆造">'
-    +'<input type="time" id="n_start" style="max-width:105px" value="14:30">'
-    +'<input type="time" id="n_end" style="max-width:105px" value="15:00">'
+    +'<input type="time" id="n_start" style="max-width:105px" value="10:00">'
+    +'<input type="time" id="n_end" style="max-width:105px" value="10:30">'
     +'<input id="n_note" class="grow" placeholder="备注…">'
     +'<button class="btn btn-primary" onclick="addNode()">添加环节</button></div>'
     +timelineHtml(p,schedDate)
@@ -1747,6 +2062,272 @@ function addMin(hhmm,m){ const [h,mi]=hhmm.split(':').map(Number); const t=(h*60
 /* 时间统一模型：分镜与流程节点都派生出 start/end，冲突即前一事项未结束下一事项已开始 */
 function toMin(t){ const m=/^(\d{1,2}):(\d{2})$/.exec(t||''); return m?(+m[1])*60+(+m[2]):1440; }
 function fmtMin(m){ m=Math.max(0,Math.min(1439,Math.round(m))); return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+
+/* ===== v10 多日拍摄：日期工具（纯函数，可被 vm 抽取；只用 Date / String / Math） ===== */
+/** 日期字符串 ±n 天，正确处理月末 / 年末跨月跨年。非法输入返回空串。 */
+function addDays(dateStr,n){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr==null?'':dateStr));
+  if(!m) return '';
+  const dt=new Date((+m[1]),((+m[2])-1),((+m[3])+(Math.round(+n||0))));
+  return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+}
+/** 拍摄日清单：过滤非法 + 去重升序，并把 p.shootDate 同步为 shootDates[0]（既有消费方零改动）。 */
+function normalizeShootDates(p){
+  if(!p||typeof p!=='object') return [];
+  const list=(Array.isArray(p.shootDates)?p.shootDates:[])
+    .filter(function(d){ return /^\d{4}-\d{2}-\d{2}$/.test(String(d==null?'':d)); });
+  p.shootDates=Array.from(new Set(list)).sort();
+  p.shootDate=p.shootDates[0]||'';
+  return p.shootDates;
+}
+/** 把某日加入拍摄日清单（幂等，自动排序并同步 shootDate）。 */
+function addShootDate(p,d){
+  if(!p||typeof p!=='object') return false;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d==null?'':d))) return false;
+  p.shootDates=Array.isArray(p.shootDates)?p.shootDates.slice():[];
+  if(p.shootDates.indexOf(d)<0) p.shootDates.push(d);
+  normalizeShootDates(p);
+  return true;
+}
+/** 读取拍摄日清单（渲染层用；不改数据）。 */
+function shootDatesOf(p){
+  const list=(Array.isArray(p&&p.shootDates)?p.shootDates:[])
+    .filter(function(d){ return /^\d{4}-\d{2}-\d{2}$/.test(String(d==null?'':d)); });
+  if(!list.length&&p&&p.shootDate) list.push(p.shootDate);
+  return Array.from(new Set(list)).sort();
+}
+function mmdd(d){ const m=/^\d{4}-(\d{2})-(\d{2})$/.exec(String(d==null?'':d)); return m?(m[1]+'-'+m[2]):''; }
+/** 信息卡改「首个拍摄日」的判定（纯函数，可被 vm 抽取）：
+    - D 非法或已在清单 → noop
+    - 原 Day 1 无内容（无分镜、无手填环节，只有自动集合/收工或完全空）→ replace（用 D 顶掉原首日）
+    - 原 Day 1 有内容 → append（D 作为新的一天加入，Day 1 不动） */
+function resolveShootDate(p,D){
+  const dates=shootDatesOf(p), d=String(D==null?'':D).trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return {action:'noop',dates:dates,dayN:0,kept:0,from:''};
+  if(dates.indexOf(d)>=0) return {action:'noop',dates:dates,dayN:dates.indexOf(d)+1,kept:0,from:''};
+  const first=dates[0]||'';
+  const shotsN=first?(p.shots||[]).filter(function(s){return s.date===first;}).length:0;
+  const userN=first?(p.schedule||[]).filter(function(n){return (n.date||first)===first&&!n.auto;}).length:0;
+  const free=(!first)||(shotsN+userN===0);
+  const next=Array.from(new Set(free?[d].concat(dates.slice(1)):dates.concat([d]))).sort();
+  return {action:free?'replace':'append',dates:next,dayN:next.indexOf(d)+1,kept:shotsN+userN,from:first};
+}
+function weekdayCN(d){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d==null?'':d)); if(!m) return '';
+  const dt=new Date(+m[1],(+m[2])-1,+m[3]);
+  return '周'+'日一二三四五六'.charAt(dt.getDay());
+}
+
+/* ===================== v10 排程引擎（纯函数层） =====================
+   模型要点：
+   1. 分镜时间不再由用户输入，而是由 planDay 顺序派生（起点 = max(10:00, 集合结束)），
+      派生结果物化写回 shot.slot —— dayItems / 时间轴 / Call Sheet / 拍摄日只读 slot，零改动。
+   2. 集合（auto:'call'）与收工（auto:'wrap'）是自动节点：集合时间由用户改（影响链起点），
+      收工时间永远由 planDay 计算 = 当天最晚结束 + 15 分钟。
+   3. 其余节点是用户显式输入的位置，**不自动改写**；只有「本轮插入/编辑的节点」之后的节点，
+      在传入 anchorId 时按 start 升序链式顺延（start 不早于前一项 end，时长不变）。
+   4. 分镜在所有节点位置确定之后才排，因此分镜之间永不重叠。
+   ⚠ 本区块会被 tests/logic.test.mjs 用 fn() 抽取进 vm 执行：
+      只能依赖 toMin/addMin/fmtMin/Math/数组等 ctx 白名单内建，禁止 parseInt/isNaN/Boolean/document/view。 */
+const DAY_BASE='10:00';        // 分镜链起点
+const COLLECT_START='09:30';   // 默认集合开始
+const COLLECT_MIN=30;          // 集合 / 缺省节点时长
+const WRAP_MIN=15;             // 收工固定时长
+const SHOT_DEFAULT_MIN=10;     // 分镜默认时长（表单与 addShot 落库同样默认 10）
+
+/** 取节点的分钟区间；end 缺失或 <= start 时按 defMin（默认 30）兜底。 */
+function pinOf(n,defMin){
+  const st=toMin(n.start);
+  let en=toMin(n.end||addMin(n.start,defMin||COLLECT_MIN));
+  if(en<=st) en=st+(defMin||COLLECT_MIN);
+  return {start:st,end:en};
+}
+
+/**
+ * 计算某一天的排期。
+ * @param {Object} p 项目
+ * @param {string} date YYYY-MM-DD
+ * @param {string|null} anchorId 本轮插入/编辑的节点 id；其后的节点会被链式顺延（null = 只读计算）
+ * @param {boolean} [noRoll] 禁止自动跨日（递归到上限时的兜底，仅用于把放不下的分镜 clamp 显示）
+ * @returns {{date,base,shots,nodes,wrap,overflow,overflowHard,overflowShots,shiftedCount,nodeShifts}}
+ */
+function planDay(p,date,anchorId,noRoll){
+  // ① 当天分镜，按 ord 升序；ES2019 排序稳定 → ord 相同沿用数组顺序（与分镜列表显示一致）
+  const shotsIn=(p.shots||[]).filter(s=>s.date===date).slice()
+    .sort((a,b)=>((a.ord||0)-(b.ord||0)));
+  // ② 当天节点（无 start 的历史脏数据跳过）；集合/收工双条件判定（老数据只有 type，没有 auto）
+  const nodesIn=(p.schedule||[]).filter(n=>(n.date||date)===date&&n.start);
+  const callN=nodesIn.filter(n=>n.auto==='call'||n.type==='集合')[0]||null;
+  const wrapN=nodesIn.filter(n=>n.auto==='wrap'||n.type==='收工')[0]||null;
+  const callR=callN?pinOf(callN):null;
+  // ③ 位置节点（排除集合与收工）按 start 升序；anchor 之后的节点链式顺延，anchor 自身与前序节点不动
+  const pos=nodesIn.filter(n=>n!==callN&&n!==wrapN)
+    .map(n=>{const r=pinOf(n);return {id:n.id,start:r.start,end:r.end,dur:r.end-r.start};})
+    .sort((a,b)=>a.start-b.start||a.end-b.end);
+  const nodeShifts=[];
+  const aIdx=anchorId?pos.findIndex(x=>x.id===anchorId):-1;
+  if(aIdx>=0){
+    let prevEnd=-1;
+    pos.forEach((it,i)=>{
+      if(i>aIdx&&it.start<prevEnd){
+        nodeShifts.push({id:it.id,from:it.start,to:prevEnd});
+        it.end=prevEnd+it.dur; it.start=prevEnd;
+      }
+      if(it.end>prevEnd) prevEnd=it.end;   // 前序节点与 anchor 自身只参与推进游标，位置不变
+    });
+  }
+  const pins=pos.map(it=>({id:it.id,start:it.start,end:it.end}));
+  // ④ 起点：10:00，但集合若被改晚则以集合结束为准
+  const base=Math.max(toMin(DAY_BASE),callR?callR.end:0);
+  let cursor=base, ideal=base, shiftedCount=0;
+  const shots=[], overflowShots=[];
+  let rolling=false, hardOverflow=false;
+  const nextDate=addDays(date,1);
+  shotsIn.forEach(s=>{
+    const dur=Math.max(5,Math.round(+s.duration||0)||SHOT_DEFAULT_MIN);   // 禁止 parseInt（ctx 无此全局）
+    if(rolling){ overflowShots.push({id:s.id,toDate:nextDate}); return; } // 已滚到次日：本条及其后一并滚走
+    for(let guard=0;guard<50;guard++){                                    // ⑤ 遇节点区间跳到其结束，上限 50 次防死循环
+      const hit=pins.filter(pn=>pn.start<cursor+dur&&pn.end>cursor)[0];
+      if(!hit) break;
+      cursor=hit.end;
+    }
+    if(cursor+dur>1440){                                                  // 排到 24:00 之后
+      if(noRoll||dur>1440-toMin(DAY_BASE)){ hardOverflow=true; }          // 单条超过一整天 / 本轮禁止跨日 → 原位 clamp
+      else { rolling=true; overflowShots.push({id:s.id,toDate:nextDate}); return; }  // 本条及其后全部跨到次日
+    }
+    if(cursor>ideal) shiftedCount++;    // 与「无节点顺序链」相比后移了，计一次
+    shots.push({id:s.id,start:cursor,end:cursor+dur,duration:dur});
+    cursor+=dur; ideal+=dur;
+  });
+  // ⑥ 收工 = max(所有位置节点 end, 所有分镜 end, 集合 end)；当天已无分镜时直接取集合结束（不被 10:00 地板顶起），再 +15
+  let wrapStart=(!shots.length&&callR)?callR.end:base;
+  pins.forEach(pn=>{if(pn.end>wrapStart)wrapStart=pn.end;});
+  shots.forEach(r=>{if(r.end>wrapStart)wrapStart=r.end;});
+  if(callR&&callR.end>wrapStart) wrapStart=callR.end;
+  const wrap={start:wrapStart,end:wrapStart+WRAP_MIN};
+  // ⑦ 溢出判定（fmtMin 会把 >1440 clamp 到 23:59，由调用方 toast 提示）
+  let overflow=false;
+  shots.forEach(r=>{if(r.end>1440)overflow=true;});
+  pins.forEach(pn=>{if(pn.end>1440)overflow=true;});
+  if(wrap.end>1440) overflow=true;
+  // ⑧ 节点视图（含集合/收工，供 UI 与测试使用）
+  const nodes=[];
+  if(callR) nodes.push({id:callN.id,start:callR.start,end:callR.end,auto:'call'});
+  pins.forEach(pn=>nodes.push({id:pn.id,start:pn.start,end:pn.end,auto:null}));
+  if(wrapN) nodes.push({id:wrapN.id,start:wrap.start,end:wrap.end,auto:'wrap'});
+  return {date:date,base:base,shots:shots,nodes:nodes,wrap:wrap,
+          overflow:overflow,overflowHard:hardOverflow,overflowShots:overflowShots,
+          shiftedCount:shiftedCount,nodeShifts:nodeShifts};
+}
+
+/**
+ * 某日期还给用户补哪些默认节点（纯描述对象，不含 id，便于幂等测试）。
+ * 返回 [] 表示该日期已初始化过（p.dayInit 命中）。
+ */
+function dayDefaults(p,date){
+  const out=[];
+  if(!p||!date) return out;
+  if(Array.isArray(p.dayInit)&&p.dayInit.indexOf(date)>=0) return out;   // 已初始化 → 幂等退出
+  const nodes=(p.schedule||[]).filter(n=>(n.date||date)===date);
+  const call=nodes.filter(n=>n.auto==='call'||n.type==='集合')[0];
+  const wrap=nodes.filter(n=>n.auto==='wrap'||n.type==='收工')[0];
+  if(!call) out.push({kind:'call',type:'集合',title:'集合',auto:'call',
+    start:COLLECT_START,end:addMin(COLLECT_START,COLLECT_MIN),note:'器材清点与出发'});
+  else if(!call.auto) out.push({kind:'adopt',id:call.id,auto:'call'});   // 老数据「集合」升级为自动节点
+  if(!wrap) out.push({kind:'wrap',type:'收工',title:'收工',auto:'wrap',
+    start:DAY_BASE,end:addMin(DAY_BASE,WRAP_MIN),note:''});
+  else if(!wrap.auto) out.push({kind:'adopt',id:wrap.id,auto:'wrap'});   // 老数据「收工」升级，时间交给 planDay 接管
+  return out;
+}
+
+/** 落库默认节点：id 由 mkId 生成（默认 uid），并记入 dayInit。返回新增条数。 */
+function ensureDayDefaults(p,date,mkId){
+  mkId=mkId||uid;
+  p.dayInit=Array.isArray(p.dayInit)?p.dayInit:[];
+  p.schedule=Array.isArray(p.schedule)?p.schedule:[];
+  if(!date) return 0;                    // 空日期（脏数据）不参与默认项初始化，避免把 '' 写进 dayInit
+  let added=0;
+  dayDefaults(p,date).forEach(function(d){
+    if(d.kind==='adopt'){
+      const n=p.schedule.filter(x=>x.id===d.id)[0];
+      if(n) n.auto=d.auto||'wrap';
+      return;
+    }
+    p.schedule.push({id:mkId(),type:d.type,title:d.title,start:d.start,end:d.end,
+      note:d.note||'',date:date,done:false,fav:false,auto:d.auto});
+    added++;
+  });
+  if(p.dayInit.indexOf(date)<0) p.dayInit.push(date);
+  return added;
+}
+
+/** 物化单日计划：shot.slot、收工 start/end、被顺延节点 start/end。 */
+function applyPlanWrite(p,date,plan){
+  (p.shots||[]).forEach(function(s){
+    if(s.date!==date) return;
+    const r=plan.shots.filter(x=>x.id===s.id)[0];
+    if(r) s.slot=fmtMin(r.start);          // 唯一真源仍是 shot.slot
+  });
+  (p.schedule||[]).forEach(function(n){
+    if((n.date||date)!==date||!n.start) return;
+    if(n.auto==='wrap'){ n.start=fmtMin(plan.wrap.start); n.end=fmtMin(plan.wrap.end); return; }
+    const r=plan.nodes.filter(x=>x.id===n.id)[0];
+    if(r&&n.auto!=='call'){                // 只写回位置节点（含被顺延的），集合时间永远是用户输入
+      const rs=fmtMin(r.start), re=fmtMin(r.end);
+      if(rs!==n.start) n.start=rs;
+      if(re!==n.end) n.end=re;
+    }
+  });
+}
+
+/** 应用自动跨日：把放不下的分镜移到下一天再重排，最多 7 轮（循环实现，不递归）。
+    - 移入次日的分镜 ord 追加到次日末尾（max(ord)+1 顺排），其余字段（refIds 等）不动
+    - 次日不在 shootDates 则自动加入；仍排不下说明链太长 → capHit（兜底 clamp 写回，交给 toastResched 提示） */
+function rescheduleDay(p,date,anchorId){
+  const root=planDay(p,date,anchorId);
+  if(!date) return root;                   // 空日期不写回（历史脏数据保持原样）
+  const agg={addedDates:[],moved:0,capHit:false,rounds:0};
+  let cur=date, plan=root, round=0;
+  for(;round<7;round++){
+    applyPlanWrite(p,cur,plan);
+    if(!plan.overflowShots||!plan.overflowShots.length) break;
+    const next=plan.overflowShots[0].toDate;
+    const moving=plan.overflowShots.map(function(o){ return o.id; });
+    let maxOrd=-1;
+    (p.shots||[]).forEach(function(s){
+      if(s.date===next&&moving.indexOf(s.id)<0) maxOrd=Math.max(maxOrd,(+s.ord||0));
+    });
+    plan.overflowShots.forEach(function(o,i){
+      const s=(p.shots||[]).filter(x=>x.id===o.id)[0];
+      if(!s) return;
+      s.date=next;                          // 只改日期与 ord，refIds / duration / done 等一律不动
+      s.ord=maxOrd+1+i;
+      agg.moved++;
+    });
+    p.shootDates=Array.isArray(p.shootDates)?p.shootDates.slice():[];
+    if(p.shootDates.indexOf(next)<0){       // 与 normalizeShootDates 同源逻辑，此处需自包含
+      p.shootDates.push(next);
+      p.shootDates=Array.from(new Set(p.shootDates)).sort();
+      agg.addedDates.push(next);
+    }
+    p.shootDate=p.shootDates[0]||p.shootDate||'';
+    cur=next; plan=planDay(p,next,null);
+  }
+  agg.rounds=round;
+  if(plan.overflowShots&&plan.overflowShots.length){   // 7 轮仍未排完：兜底 clamp 写回 + capHit
+    agg.capHit=true;
+    applyPlanWrite(p,cur,planDay(p,cur,null,true));
+  }
+  root.addedDates=agg.addedDates;
+  root.movedShots=agg.moved;
+  root.capHit=agg.capHit;
+  root.rounds=agg.rounds;
+  return root;
+}
+
+/** 补默认节点 + 重排，一条写入口的标准收尾。anchorId 见 planDay。 */
+function applyDay(p,date,anchorId){ ensureDayDefaults(p,date); return rescheduleDay(p,date,anchorId); }
+
 function dayItems(p,date){
   const out=[];
   (p.shots||[]).filter(s=>s.date===date).forEach(s=>{
@@ -1762,7 +2343,9 @@ function dayItems(p,date){
   out.forEach(it=>{ it._conflict=it._start<prevEnd; if(it._end>prevEnd) prevEnd=it._end; });
   return out;
 }
-/* 级联顺延：被点事项及其后所有事项后移，后一项不早于前一项结束 */
+/* 级联顺延：被点事项及其后所有事项后移，后一项不早于前一项结束
+   ⚠ v10 起 UI 不再调用本函数（拍摄日「整日顺延 1 小时」改为 sdPostpone 内 +60 后重排），
+     保留原实现仅供 tests/logic.test.mjs 抽取验证，勿删。 */
 function cascadeShift(p,date,id,delta){
   const items=dayItems(p,date);
   const idx=items.findIndex(x=>x.id===id); if(idx<0) return 0;
@@ -1799,22 +2382,26 @@ function timelineHtml(p,date){
     const cflag=it._conflict?' <span class="tag red">时间重叠</span>':'';
     if(it._t==='shot'){
       const sc=p.scenes.find(x=>x.id===it.sceneId);
+      const extra=[sc?sc.name:'',it.position||'',it.light||'',it.note||''].filter(Boolean).map(t=>esc(t)).join(' · ');
       return '<div class="tl-item shot-row"><div class="tl-time">'+esc(time)+'</div><div class="tl-dot" style="background:var(--accent)"></div>'
-        +'<div class="tl-body"><div class="tl-title">'+esc(it.name)+' <span class="muted" style="font-weight:400">· 约 '+it.duration+' 分钟</span>'+cflag+'</div>'
-        +'<div class="tl-note">'+(sc?esc(sc.name)+' · ':'')+esc(it.note||'')+'</div></div>'
+        +'<div class="tl-body"><div class="tl-title"><span class="tag">分镜</span> '+esc(it.name)+' <span class="muted" style="font-weight:400">· 约 '+it.duration+' 分钟</span>'+cflag+'</div>'
+        +'<div class="tl-note">'+extra+'</div></div>'
         +'<button class="chk '+(it.done?'on':'')+'" onclick="toggleShot(\''+it.id+'\')">'+(it.done?'✓':'')+'</button></div>';
     }
     const editing=view.editingNodeId===it.id;
+    const autoN=it.auto==='wrap';                // 收工时间由 planDay 计算 → 只读；集合仍可改（它决定分镜链起点）
+    const autoPill=it.auto?'<span class="auto-pill">自动</span>':'';
     const body=editing
       ?'<div class="inline-edit tl-body"><div class="row">'
-        +'<select id="en_type" style="max-width:110px">'+NODE_TYPES.map(t=>'<option '+(it.type===t?'selected':'')+'>'+t+'</option>').join('')+'</select>'
+        +'<select id="en_type" style="max-width:110px"'+(autoN?' disabled':'')+'>'+NODE_TYPES.map(t=>'<option '+(it.type===t?'selected':'')+'>'+t+'</option>').join('')+'</select>'
         +'<input id="en_title" class="grow" value="'+esc(it.title)+'">'
-        +'<input type="time" id="en_start" style="max-width:100px" value="'+esc(it.start)+'">'
-        +'<input type="time" id="en_end" style="max-width:100px" value="'+esc(it.end)+'">'
+        +'<input type="time" id="en_start" style="max-width:100px" value="'+esc(it.start)+'"'+(autoN?' disabled':'')+'>'
+        +'<input type="time" id="en_end" style="max-width:100px" value="'+esc(it.end)+'"'+(autoN?' disabled':'')+'>'
         +'<input id="en_note" class="grow" value="'+esc(it.note||'')+'">'
         +'<button class="btn btn-primary btn-sm" onclick="saveNodeEdit('+jstr(it.id)+')">保存</button>'
-        +'<button class="btn btn-ghost btn-sm" onclick="cancelInlineEdit()">取消</button></div></div>'
-      :'<div class="tl-body"><div class="tl-title '+(it.done?'done-text':'')+'">'+nodeTag(it.type)+' '+esc(it.title)+cflag+'</div>'
+        +'<button class="btn btn-ghost btn-sm" onclick="cancelInlineEdit()">取消</button></div>'
+        +(autoN?'<div class="muted" style="margin-top:6px">收工时间由排程引擎接管（当天最晚结束 +15 分钟），此处只能改名称与备注。</div>':'')+'</div>'
+      :'<div class="tl-body"><div class="tl-title '+(it.done?'done-text':'')+'">'+nodeTag(it.type)+' '+esc(it.title)+autoPill+cflag+shiftedFlag(it.id)+'</div>'
         +(it.note?'<div class="tl-note">'+esc(it.note)+'</div>':'')+'</div>';
     return '<div class="tl-item" data-fid="'+esc(it.id)+'"><div class="tl-time">'+esc(time)+'</div><div class="tl-dot" style="background:'+(it.type==='拍摄'?'var(--accent)':'#b4b2a9')+'"></div>'
       +body
@@ -1826,20 +2413,44 @@ function timelineHtml(p,date){
   return h;
 }
 function saveNodeEdit(id){
-  const title=gv('en_title').trim(), start=gv('en_start'), end=gv('en_end');
+  const p0=cur(), n0=p0&&p0.schedule.find(x=>x.id===id);
+  const title=gv('en_title').trim();
   if(!title){ toast('环节内容不能为空'); return; }
-  if(toMin(end)<=toMin(start)){ toast('结束时间需晚于开始时间'); return; }
-  const patch={type:gv('en_type'),title,start,end,note:gv('en_note').trim()};
-  updateCur(p=>{ const n=p.schedule.find(x=>x.id===id); if(n) Object.assign(n,patch); });
-  clearInlineEditState(view); renderProject();
+  const start=gv('en_start'), end=gv('en_end'), type=gv('en_type'), note=gv('en_note').trim();
+  const locked=!!(n0&&n0.auto==='wrap');                       // 收工时间由 planDay 接管，不接受手工提交
+  if(!locked&&toMin(end)<=toMin(start)){ toast('结束时间需晚于开始时间'); return; }
+  let plan=null;
+  updateCur(p=>{
+    const n=p.schedule.find(x=>x.id===id); if(!n) return;
+    if(n.auto==='wrap'){ n.title=title; n.note=note; }
+    else Object.assign(n,{type,title,start,end,note});
+    plan=applyDay(p,(n.date||schedDate),n.auto?null:id);        // 被编辑的节点是 anchor：位置不动，其后节点顺延
+  });
+  clearInlineEditState(view); toastResched(plan); renderProject();
 }
 function addNode(){
   const title=gv('n_title').trim(); if(!title){toast('环节内容不能为空');return;}
-  updateCur(p=>p.schedule.push({id:uid(),type:gv('n_type'),title,start:gv('n_start'),end:gv('n_end'),note:gv('n_note').trim(),date:schedDate,done:false,fav:false}));
-  renderProject();
+  const type=gv('n_type'), start=gv('n_start'), end=gv('n_end'), note=gv('n_note').trim();
+  if(toMin(end)<=toMin(start)){ toast('结束时间需晚于开始时间'); return; }
+  const id=uid();
+  let plan=null;
+  ensureShootDate(schedDate);                                     // 该日首次有手填环节 → 登记为拍摄日
+  updateCur(p=>{
+    p.schedule.push({id:id,type:type,title:title,start:start,end:end,note:note,date:schedDate,done:false,fav:false});
+    plan=applyDay(p,schedDate,id);                                  // 新节点是 anchor：位置不动，其后节点顺延、分镜避让
+  });
+  toastResched(plan); renderProject();
 }
 function toggleNode(id){ updateCur(p=>{const n=p.schedule.find(x=>x.id===id); if(n) n.done=!n.done;}); renderProject(); }
-function delNode(id){ updateCur(p=>p.schedule=p.schedule.filter(x=>x.id!==id)); renderProject(); }
+function delNode(id){
+  updateCur(p=>{
+    const n=p.schedule.find(x=>x.id===id); if(!n) return;
+    const d=n.date||schedDate;
+    p.schedule=p.schedule.filter(x=>x.id!==id);
+    applyDay(p,d,null);
+  });
+  renderProject();
+}
 
 /* ---- 清单（场景/服化道/器材） ---- */
 function renderStuff(p){
@@ -2010,6 +2621,7 @@ function closeShootDay(){ document.getElementById('sdOverlay').classList.remove(
 function sdSetDate(d){ sdDate=d; renderShootDay(); }
 async function renderShootDay(){
   const p=cur(); if(!p) return;
+  autoSyncDay(sdDate);                 // 切到某日期时补齐集合/收工并重排（demo 只读自动跳过）
   await ensureShiseiRefs(p);
   const shots=p.shots.filter(s=>s.date===sdDate);
   const items=dayItems(p,sdDate);
@@ -2041,9 +2653,9 @@ async function renderShootDay(){
         const refs=(x.refIds||[]).filter(r=>imgCache[r]||String(r||'').startsWith('shisei:'));
         h+='<div class="sd-shot '+(x.done?'done':'')+' '+(x.id===currentId?'now':'')+'">'
           +(refs.length?refs.map(r=>imgCache[r]?'<img src="'+esc(imgCache[r])+'">':'<div style="width:68px;height:68px;border-radius:9px;border:1px solid #2c2822;background:#12100c;color:#a99e8c;font-size:10px;display:flex;align-items:center;justify-content:center;text-align:center;padding:4px">图库原图已更新</div>').join(''):'')
-          +'<div style="flex:1;min-width:120px"><div class="sd-name">'+esc(x.name)+cflag+'</div>'
+          +'<div style="flex:1;min-width:120px"><div class="sd-name"><span class="sd-tag">分镜</span>'+esc(x.name)+cflag+'</div>'
           +'<div class="sd-meta">'+(scene?esc(scene.name)+' · ':'')+'约 '+x.duration+' 分钟'+(x.note?' · '+esc(x.note):'')+'</div>'
-          +((overdue||x._conflict)?'<button class="sd-btn" style="margin-top:8px" onclick="sdPostpone(\''+x.id+'\')">顺延后续 1 小时</button>':'')
+          +((overdue||x._conflict)?'<button class="sd-btn" style="margin-top:8px" onclick="sdPostpone()">整日顺延 1 小时</button>':'')
           +'</div>'
           +'<button class="sd-chk '+(x.done?'on':'')+'" onclick="sdToggle(\''+x.id+'\')">✓</button></div>';
       } else {
@@ -2059,10 +2671,29 @@ async function renderShootDay(){
 function sdShift(d){ const dt=new Date(sdDate+'T12:00:00'); dt.setDate(dt.getDate()+d); sdDate=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0'); renderShootDay(); }
 function sdToggle(id){ updateCur(p=>{const s=p.shots.find(x=>x.id===id); if(s) s.done=!s.done;}); renderShootDay(); }
 function sdToggleNode(id){ updateCur(p=>{const n=p.schedule.find(x=>x.id===id); if(n) n.done=!n.done;}); renderShootDay(); }
-function sdPostpone(id){
+/* v10：整日顺延 1 小时 —— 当天所有节点（含集合、收工）+60，随后整链重排 */
+function sdPostpone(){
+  const p=cur(); if(!p) return;
+  const nodes=(p.schedule||[]).filter(n=>(n.date||sdDate)===sdDate&&n.start);
+  if(!nodes.length){ toast('当天只有分镜，请先在日程里插入环节再整体顺延'); return; }
   let overflow=false;
-  updateCur(p=>{ if(cascadeShift(p,sdDate,id,60)===-1) overflow=true; });
-  if(overflow) toast('顺延后超出当天 24:00，请先改到次日'); else toast('后续事项已顺延并避开重叠');
+  nodes.forEach(n=>{
+    const en=toMin(n.end||addMin(n.start,COLLECT_MIN));
+    if(en+60>1440) overflow=true;
+  });
+  if(overflow){ toast('顺延后超出当天 24:00，请先改到次日'); return; }
+  let ok=false;
+  updateCur(pp=>{
+    (pp.schedule||[]).forEach(n=>{
+      if((n.date||sdDate)!==sdDate||!n.start) return;
+      const st0=n.start, en0=n.end;
+      n.start=addMin(st0,60);
+      n.end=en0?addMin(en0,60):addMin(n.start,COLLECT_MIN);
+    });
+    applyDay(pp,sdDate,null);      // 分镜跟随新的 base 链，收工时间由 planDay 重算
+    ok=true;
+  });
+  if(ok) toast('当天日程与分镜已整体顺延 1 小时');
   renderShootDay();
 }
 
@@ -2072,19 +2703,27 @@ function callSheetHtml(p){
   const date=p.shootDate||todayStr();
   const items=dayItems(p,date);
   const sun=sunTimes(date,p.lat,p.lng);
+  /* v10：机位 / 光线列仅在有值时才出现（避免空列占版面） */
+  const anyPos=items.some(x=>x._t==='shot'&&x.position);
+  const anyLight=items.some(x=>x._t==='shot'&&x.light);
+  const cols=4+(anyPos?1:0)+(anyLight?1:0);
   const rows=items.length?items.map(x=>{
     const sc=p.scenes.find(s=>s.id===x.sceneId);
     const time=x._t==='shot'?(x._time||'—'):((x.start||'—')+(x.end?' – '+x.end:''));
     const name=x._t==='shot'?x.name:(x.type+' · '+x.title);
-    return '<tr><td style="white-space:nowrap">'+esc(time)+'</td><td>'+esc(name)+'</td><td>'+esc(sc?sc.name:(x._t==='shot'?'—':''))+'</td><td>'+(x._t==='shot'?(x.duration+' 分钟'):'—')+'</td></tr>';
-  }).join(''):'<tr><td colspan="4">（未安排分镜或流程）</td></tr>';
+    return '<tr><td style="white-space:nowrap">'+esc(time)+'</td><td>'+esc(name)+'</td><td>'+esc(sc?sc.name:(x._t==='shot'?'—':''))+'</td><td>'+(x._t==='shot'?(x.duration+' 分钟'):'—')+'</td>'
+      +(anyPos?'<td>'+esc(x._t==='shot'?(x.position||'—'):'—')+'</td>':'')
+      +(anyLight?'<td>'+esc(x._t==='shot'?(x.light||'—'):'—')+'</td>':'')
+      +'</tr>';
+  }).join(''):'<tr><td colspan="'+cols+'">（未安排分镜或流程）</td></tr>';
   const scenes=p.scenes.map(s=>'<li>'+esc(s.name)+(s.note?'：'+esc(s.note):'')+'</li>').join('')||'<li>待定</li>';
   const kit=p.items.map(i=>'<li>'+esc(i.kind)+' · '+esc(i.name)+(i.note?'（'+esc(i.note)+'）':'')+'</li>').join('')||'<li>无</li>';
   const notes=[...(p.notes||[])].sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,3).map(n=>'<li>['+esc(n.kind)+'] '+esc(n.content)+'</li>').join('')||'<li>无</li>';
   return '<h1>拍摄通告 · Call Sheet</h1>'
     +'<p class="doc-sub">'+esc(p.name)+' · '+date+' · '+esc(p.location||'地点待定')+'</p>'
     +'<p style="text-align:center;font-size:12px;color:#746c5f">瞬刻摄影工作台 · Stillmark｜定格一瞬，刻下永恒。</p>'
-    +'<h2>当日时间线</h2><table><tr><th>时间</th><th>事项</th><th>场景</th><th>时长</th></tr>'+rows+'</table>'
+    +'<h2>当日时间线</h2><table><tr><th>时间</th><th>事项</th><th>场景</th><th>时长</th>'
+    +(anyPos?'<th>机位</th>':'')+(anyLight?'<th>光线</th>':'')+'</tr>'+rows+'</table>'
     +(sun?'<p class="muted">日照参考：日出 '+sun.sunrise+' · 黄金时刻 '+sun.goldenStart+' · 日落 '+sun.sunset+'（近似值）</p>':'')
     +'<h2>联系方式与天气（现场填写）</h2><table>'
     +'<tr><th>客户联系人</th><td>＿＿＿＿＿＿　电话：＿＿＿＿＿＿＿＿＿＿＿</td></tr>'
@@ -2108,6 +2747,8 @@ async function openDoc(kind){
   const total=p.budget.reduce((s,b)=>s+(+b.amount||0),0);
   const sun=sunTimes(p.shootDate,p.lat,p.lng);
   const li=(arr,fn,cols)=>arr.length?arr.map(fn).join(''):'<tr><td colspan="'+(cols||4)+'" style="color:#999">（未填写）</td></tr>';
+  /* v10：执行手册分镜表按需追加「机位」「光线」两列 */
+  const anyPos=p.shots.some(s=>s.position), anyLight=p.shots.some(s=>s.light);
   let h=(kind==='proposal'
       ? coverHtml(p)
       : '<h1>'+esc(c.theme||p.name)+'</h1><p class="doc-sub">拍摄执行手册 · '+esc(p.name)+' · '+todayStr()+'</p>')
@@ -2127,9 +2768,13 @@ async function openDoc(kind){
       +'<tr><td>拍摄服务套餐（'+esc(p.name)+'）</td><td>¥'+total.toLocaleString()+'</td></tr></table>'
       +'<p class="muted" style="margin-top:6px">* 报价基于成本核算，最终价格以双方确认合同为准。</p>';
   } else {
-    h+='<h2>三、分镜头清单</h2><table><tr><th>时间</th><th>分镜</th><th>场景</th><th>时长</th><th>备注</th></tr>'
+    h+='<h2>三、分镜头清单</h2><table><tr><th>时间</th><th>分镜</th><th>场景</th><th>时长</th>'
+      +(anyPos?'<th>机位</th>':'')+(anyLight?'<th>光线</th>':'')+'<th>备注</th></tr>'
       +li([...p.shots].sort((a,b)=>shotSortKey(a)<shotSortKey(b)?-1:1),
-        s=>{const sc=p.scenes.find(x=>x.id===s.sceneId);return '<tr><td>'+esc(s.date||'')+' '+esc(s.slot||'')+'</td><td>'+esc(s.name)+'</td><td>'+esc(sc?sc.name:'—')+'</td><td>'+s.duration+' 分钟</td><td>'+esc(s.note||'—')+'</td></tr>';},5)+'</table>'
+        s=>{const sc=p.scenes.find(x=>x.id===s.sceneId);return '<tr><td>'+esc(s.date||'')+' '+esc(s.slot||'')+'</td><td>'+esc(s.name)+'</td><td>'+esc(sc?sc.name:'—')+'</td><td>'+s.duration+' 分钟</td>'
+          +(anyPos?'<td>'+esc(s.position||'—')+'</td>':'')
+          +(anyLight?'<td>'+esc(s.light||'—')+'</td>':'')
+          +'<td>'+esc(s.note||'—')+'</td></tr>';},5+(anyPos?1:0)+(anyLight?1:0))+'</table>'
       +'<h2>四、拍摄日流程</h2><table><tr><th>时间</th><th>环节</th><th>内容</th><th>备注</th></tr>'
       +li([...p.schedule].sort((a,b)=>(a.start||'99')<(b.start||'99')?-1:1),
         n=>'<tr><td>'+esc(n.start||'')+(n.end?' – '+esc(n.end):'')+'</td><td>'+esc(n.type)+'</td><td>'+esc(n.title)+'</td><td>'+esc(n.note||'—')+'</td></tr>',4)+'</table>'
@@ -2563,6 +3208,7 @@ document.addEventListener('keydown',e=>{
   if(shown('refViewer')){ closeRefViewer(); return; }
   if(shown('confirmModal')){ closeConfirm(); return; }
   if(cancelInlineEdit()) return;
+  if(cancelShotEdit()) return;
   closeDoc(); closeShootDay();
 });
 

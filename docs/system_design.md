@@ -1,661 +1,731 @@
-# 瞬刻摄影工作台 Stillmark v9 · 实现设计与任务分解
+# 瞬刻摄影工作台 Stillmark · v10 实现设计与任务分解
 
-> 架构师：高见远（Gao）｜基线：`shotflow.html` v8 @ HEAD **`dd12254`**（2098 行单文件全内联）、`tests/logic.test.mjs` **44 项**通过
->
-> **本文所有行号均以 `dd12254` 当前源码为准**；代码插入后行号顺延，落地时**以函数名定位**。本文只做设计，不含代码改动。
-> 产品经理定稿需求已全部采纳，不再论证；第 5 节只列实现默认决策，无阻塞项。
->
-> **实现裁决覆盖（主理人，落码后）**：示例注入按「6 列各一个完整示例」执行——`demoSpecs()` 只返回 5 个新 spec（灵感期 / 策划中 / 后期中 / 已交付 / 已归档），**待拍摄列沿用旧「城市漫游者」**，不再新增「雨后街角 · 都市速写」；全局共 6 个示例。本文下文涉及「6 个新 spec / 7 个示例」的表述均以本裁决为准，README / overview / 测试断言已同步。另：分镜多图上传入口在 demo 项目提前提示一次并 return，`updateCur` 仍是唯一写守卫。
+- 基线：HEAD `97eba10`（v9）· `shotflow.html` 2588 行 · `tests/logic.test.mjs` 59 项
+- 本文所有行号均指 **基线 `97eba10` 的实际行号**（已逐处核对，非推算）
+- 硬约束：时间模型按主理人「已定模型」落地，本文只做可执行规格化；**不改模型**
+- 交付物：本文件 + `docs/sequence-diagram.mermaid` + `docs/class-diagram.mermaid`
 
-## 0. 需求对齐摘要（已采纳）
-
-| 编号 | 定稿结论 | 落地函数 / 行号（基线） |
-|---|---|---|
-| D1 | 八类条目统一 `fav:boolean`（默认 false），项目根 `demo:boolean`，`migrate` 幂等补齐 | `migrate` 653–667；新增 `migrateFav` |
-| D2 | `STATUSES` 追加「已归档」变 6 项；`STATUS_TAG` 补第 6 色；`.st-5` 配色；看板「进行中/已归档」按新集合 | `STATUSES/STATUS_TAG` 485–486；`renderBoard` 770–833；CSS 97/103 |
-| D3 | `ensureV9Demo()` 独立于 `seed()`，用 `localStorage['wb_sf_demo_v9']` 只做一次；5 个新示例 + 现有「城市漫游者」标 demo（全局 6 个示例）；不覆盖用户字段 | `seed` 717–767；启动链 2080–2085 |
-| D4 | 示例只读：唯一拦截点在 `updateCur()`；角标、复制为我的项目、隐藏拍摄日、元数据 disabled；「导出此案」保留 | `updateCur` 529；`renderBoard` 819；`renderProject` 856–877 |
-| R1 | 分镜多图上传：一次 N 张顺序入库，前 3 张挂当前分镜 / 只补到 3 / 替换只用第 1 张；单张失败跳过并汇总 | `s_img` 1107；`addShotImg` 1213–1234 |
-| R2 | 参考图预览/替换/删除：新增态「已选参考图 k/3」条；灯箱「第 i/N 张」+ 更换/移除/关闭 + 上一张/下一张；`shisei:` 占位禁大图 | `renderShots` 1129–1161；`openRefViewer` 1198–1211 |
-| R3-R5 | 日程/清单/协作行内编辑，同一时刻只允许一行；`chk → ✎ → ☆ → 🗑`；保存走 `updateCur`，取消/Esc 丢弃 | `timelineHtml` 1383–1405；`renderStuff` 1415–1428；`renderNotes` 1470–1507 |
-| R6-R7 | 八类 ☆/★ 即写 `fav`；看板与项目页「★ 已收藏 N」；`view.mode='favorites'` 分组视图；`jumpToFav` 高亮 3 秒 | `renderBoard` 781–789；`renderProject` 863–866；新 `renderFavorites` |
-| R8 | 6 示例自动出现、只读、可复制；「已归档」含已交付 | 同 D2/D3/D4 |
-| 边界 | 不做跨项目复制收藏、概念页收藏/新编辑、预算编辑、分镜正文编辑、情绪板素材内容编辑、级联顺延、>3 张、新状态、示例在线更新/单条删除、服务端同步、第三方库/构建链 | 全文禁止 |
+**先看第 7 节「待明确事项」——我发现了 4 处会直接导致实现失败或测试红掉的冲突，均已给出不违背模型的解法。**
 
 ---
-
-# Part A：系统设计
 
 ## 1. 实现方案总述
 
-### 1.1 单文件三层组织（不引入任何运行时文件）
+### 1.1 单文件三层如何组织
 
-`shotflow.html` 结构：`<style>` 14–321、静态 DOM 324–355、`<script>` 357–2096。v9 在**同一 `<script>`** 内扩层，保持零依赖、零构建、44 项 node 测试可直接跑。
+`shotflow.html` 已是「样式 → 纯函数层 → 状态/写守卫 → 渲染层 → 启动」的单文件结构。v10 严格沿用，新增内容归位：
 
-| 层 | 基线位置 | v9 改动 | 硬约束 |
+| 层 | 位置（基线行号） | v10 新增内容 |
+|---|---|---|
+| 常量层 | 404-411（`TAG_SUGGESTIONS`）之后 | `POSITION_OPTS`、`LIGHT_OPTS` |
+| 常量层 | 1711-1712（`NODE_TYPES`/`NODE_COLORS`）不变 | — |
+| **纯函数层（新）** | **1749（`fmtMin`）之后插入一整块「v10 排程引擎」** | `DAY_BASE/COLLECT_START/COLLECT_MIN/WRAP_MIN/SHOT_DEFAULT_MIN`、`pinOf`、`planDay`、`dayDefaults`、`ensureDayDefaults`、`rescheduleDay`、`applyDay` |
+| 纯函数层（旧，不改） | 1746-1791：`addMin`/`toMin`/`fmtMin`/`dayItems`/`cascadeShift` | 一行不动（测试依赖） |
+| 状态层 | 546-552 `freshView` / 555-561 `updateCur` / 685-690 `clearInlineEditState` | 追加 `editingShotEditId`（**不能复用 `editingShotId`**，见 §7.2） |
+| 渲染层 | 1469-1550 分镜、1715-1827 日程、2011-2058 拍摄日、2071-2151 文档 | 见 §2 文件清单 |
+
+为什么插在 `fmtMin` 之后而不是文件末尾：`dayItems`/`cascadeShift`/`timelineHtml` 都在 1750+，把「分钟换算 → 排程引擎 → 既有消费方」排成一条阅读线，工程师改动时不易漏改。
+
+### 1.2 为什么选「物化 slot」而非「纯派生」
+
+- 消费 `slot` 的地方共 **8 处**（`shotSortKey` 1468、分镜列表元信息 1543、`renderSchedule` 1719、`dayItems` 1753-1754、`renderShootDay` 2034-2037、`callSheetHtml` 2077、`openDoc` 2132、`cascadeShift` 1784）。纯派生 = 这 8 处全部要改成「先调 planDay 再取」——`dayItems` 签名要变（它被 5 处调用）、`renderShootDay` 的 `_time` 语义要变、导出/Call Sheet 要串行重算。
+- 物化 = 8 处**零改动**，只需在 9 个写入口调 `rescheduleDay`。改动面从「8 个读取点」收敛到「9 个写入点」，且写入点全部集中在 `updateCur` 回调内，天然受 demo 只读守卫保护。
+- 代价：数据的 `slot` 与 `ord/duration/schedule` 之间出现一次「派生 → 写回」的耦合，任何漏掉的写入口会让时间轴短暂不一致。**§4 的 9 条调用链就是这张漏改清单**，任务分解（§5）按它做验收。
+
+### 1.3 对既有 59 项测试的兼容策略（逐条核对）
+
+`tests/logic.test.mjs` 的 `fn(name)` 抽取器要求被测函数**只依赖 ctx 白名单**：`console, Date, Math, String, Number, Array, Object, JSON, RegExp, Set, encodeURIComponent`。
+**注意：ctx 里没有 `parseInt`、`parseFloat`、`isNaN`、`Boolean`。** → 新增纯函数内一律用 `+x` / `Math.round` / `Number(x)`，**禁止 `parseInt`**（现有代码 1650 行 `parseInt` 在 `addShot` 里，那是渲染层，不受影响）。
+
+| 测试行 | 断言 | 与 v10 模型的关系 | 结论 |
 |---|---|---|---|
-| **纯函数层** | 数据层 359–363；标签纯函数 531–598；图库纯函数 600–650 | 在 `migrate` 之前（651 行处）追加 v9 纯函数块：`freshView`、`clearInlineEditState`、`migrateFav`、`isFav`、`favCount`、`favSummary`、`summary40`、`collectFavorites`、`backupItemCount`、`matchBoardScope`、`isActiveStatus`、`parseMultiImage`、`slugPreview`、`cloneDemo`、`demoSpecs`、`buildDemoProject` | 全部 `function name(){}` 具名声明；不引用 `document`/`window`/`idb`/`view`/`toast`/`localStorage`；只用可被 `vm` ctx 注入的内置对象（`Array/Object/JSON/String/Number/Date/Set/encodeURIComponent`）。`slugPreview` **不得调用 `esc`**（`esc` 是箭头常量，`fn()` 抽不到），用自带字符白名单替换 |
-| **状态层** | `view` 526–527、`cur` 528、`updateCur` 529、`loadP/saveP` 668–677、`initData` 678–694 | `freshView()` 统一构造 view（526、843、1769、1784 四处）；`updateCur` 顶部加 demo 守卫；新增 `ensureV9Demo`/`copyDemoToMine`/`toggleFav`/编辑处理器 | 所有持久化**只走** `updateCur(fn)`（自动 `updatedAt` + 200ms 合并 `saveP`）；demo 初始化例外地直接 `saveP(a)`（一次性追加，不改用户字段）；筛选/编辑/焦点状态永不入库、不导出 |
-| **渲染层** | `renderProject` 847–892 总绘制 `#tabBody`，各 `render*` 子函数 | 8 类条目加 `data-fid` + ☆ + 行内编辑；`renderShots` 多图与灯箱增强；新 `renderFavorites`；CSS 全部新增类集中在 T01 | 沿用内联 `onclick` + 全量重绘；动态文本一律 `esc()`，内联事件参数一律 `jstr()`；`renderShots` 末尾仍 `attachDrag()`（1247） |
+| 27-29 | `toMin/fmtMin/addMin` | 不动 | ✅ 通过 |
+| 40-45 | `dayItems` 合并 4 条 / 排序 `a,b,c,n` / `b._conflict` / `c` 不冲突 / `n._end=1035` | `dayItems` **一行不改**；`planDay` **不得**在 `dayItems` 内部被调用（否则递归 + 副作用） | ✅ 通过 |
+| 47-53 | `cascadeShift(P,...,'a',60)` → `moved===4`、冲突归零 | `cascadeShift` **整函数保留原样**。v10 后 UI 不再调用它（`sdPostpone` 改写为整日顺延），函数变为「仅测试 + 备用」 | ✅ 通过（保持函数存在即可） |
+| **65-67** | `migrate({shots:[{id:'s',refId:'img1'}]})` → **`duration === 20`** | ❌ **与「duration 缺省改 10」直接冲突** | ⚠️ **migrate 保持 20**，见 §7.1 |
+| 70-96 | 标签纯函数 | 不动 | ✅ 通过 |
+| 142-152 | `initData` 迁移旧 localStorage → `refIds` | `migrate` 追加字段不影响 `refIds`；`migrate` **禁止**调用 `ensureDayDefaults`（需 `uid`） | ✅ 通过 |
+| **160-164** | `clearInlineEditState(v)` 后 **`v.editingShotId === 'keep'`** | ❌ **与「clearInlineEditState 增加 editingShotId 清理」直接冲突** | ⚠️ **不清 `editingShotId`，改用新指针**，见 §7.2 |
+| 165-172 | `migrateFav` 八数组 / demo 默认 / 幂等 | `dayInit` 加在 `migrate` 里，**不加进 `migrateFav` 的 kinds** | ✅ 通过 |
+| 216-244 | `demoSpecs` 五项、`buildDemoProject` 各页签非空、`sched>=2`、`shots>=2`、`fav>=1`、`refs===3` | 示例新增「集合 + 收工」只会让 `sched` 变大（断言是 `>=`）；`favIndex` 只用于 mood/shots/notes，不碰 schedule | ✅ 通过（需保住 855 行 `refIds=imgs.slice(0,3)` 不动） |
 
-### 1.2 核心技术难点与对策
+**结论：59 项可以做到一行不改。** 前提是遵守三条纪律：
+1. `migrate` 的 `duration` 兜底继续写 20；
+2. `clearInlineEditState` 不清 `editingShotId`；
+3. `dayItems` / `cascadeShift` / `addMin` / `toMin` / `fmtMin` 一行不动。
 
-1. **44 项测试零回归 + 幂等迁移**
-   `logic.test.mjs:17` 的 `vm.createContext` 只注入白名单全局；v9 纯函数用到 `encodeURIComponent`（`slugPreview`），**必须在第 17 行补注入**。`migrate`（653）在既有数组补齐之后、`migrateTags(p)`（665）之前调用 `migrateFav(p)`，只补 `fav` 与 `demo`，不动 `refIds`/`tags`/`tagVocab`；测试(ctx) 里 `migrate({name:'x',shots:[...]})`（`logic.test.mjs:64`）没有 mood 也不会崩。
-
-2. **示例只读必须"一处拦截所有写路径"**
-   不逐函数散写 `if(p.demo)`。唯一拦截点是 `updateCur`（529）：
-   ```js
-   function updateCur(fn){
-     const a=loadP(), p=a.find(x=>x.id===view.pid);
-     if(!p) return;
-     if(p.demo&&!view.allowDemoWrite){ toast('示例项目为只读，可点「复制为我的项目」后再修改'); return; }
-     fn(p); p.updatedAt=Date.now(); saveP(a);
-   }
-   ```
-   `view.allowDemoWrite` 默认 `false`，**仅** `copyDemoToMine` 在 `saveP` 期间短暂置 `true`；看板/项目页/元数据/概念页对 demo 的特殊处理只涉及**渲染**（角标、按钮显隐、disabled），不是额外写守卫。
-
-3. **异步多图上传的顺序、部分失败与 3 张上限**
-   复用 `ingestImageFile(f,tags)`（1054–1078，800px/JPEG `.72`/IDB 完全不改）；在 `addShotImg` 里用 `for...of await` **顺序**处理，成功 id 进 `okIds`、失败 `failN++` 后继续；全部完成后**一次** `renderShots`。上限按当前真实状态动态计算：新增态 `3-selRefs.length`，编辑追加态 `3-s.refIds.length`，替换态固定 `replaceIdx` 一个位置。超出部分只入库到情绪板并汇总 toast。
-
-4. **全量重绘下的"行内编辑只开一行"与 Esc 优先级**
-   `view` 新增五个编辑指针，`beginInlineEdit` 先调纯函数 `clearInlineEditState(view)` 再置其中一个；保存/取消都 `updateCur`→`renderProject()`，未保存输入天然丢弃。`document keydown`（2075–2077）改为显式优先级：`refViewer → confirmModal → 行内编辑 → closeDoc+closeShootDay`。
-
-5. **示例图离线可看且不改渲染链路**
-   `slugPreview(label,palette)` 生成内联 SVG dataURL（约 1KB，零网络）；`ensureV9Demo` 用 `uid()` 作 key，`imgCache[key]=dataURL` 并 `await idb.put(key,dataURL)`。所有既有渲染口（`renderMoodGrid` 974、`renderShots` 1111、`openDoc` 1636、`imagesFor` 1723、`cacheProjectImages` 520）**只读 `imgCache[m.content]`**，因此 demo 图与用户上传图走完全相同的路径，无需改渲染函数。
-
-6. **收藏跳转的焦点生命周期**
-   `focusRef={type,id,until:now+3000}` 存 view；`jumpToFav` 后异步等 `renderProject()` 完成，再用 `[...document.querySelectorAll('[data-fid]')].find(el=>el.dataset.fid===id)` 定位（**不拼接选择器**，兼容导入的脏 id）；3 秒后重新查询 DOM 按 id 复核清除，避免重绘后清错元素。
-
-7. **状态过滤单一真源**
-   `matchBoardScope(p,scope)` 一处定义「已归档 = {已交付,已归档}、进行中 = 其余 4 态」；`renderBoard` 的列过滤（773–780）、进行中指标（791）、今日拍摄（792）、卡片倒计时（815）与 `renderProject` 倒计时（851）全部调用它，杜绝 5 处 `status!=='已交付'` 各自漂移。
-
-### 1.3 架构模式
-
-沿用现有**事件驱动 + 全量重绘（MVC-lite）**：`view` = Controller 会话状态，`loadP/saveP/updateCur` = Model 入口，`renderProject/renderBoard` = View 入口。不引入事件总线、不引入虚拟 DOM、不新增 `<script>` 外链。
+新测试**追加在第 245 行之后、第 246 行 `console.log('RESULT ...')` 之前**，通过独立的 `vm.runInContext(fn(n), ctx)` 循环注入新函数 + 一行常量注入，从而 **1-245 行零改动**。
 
 ---
 
-## 2. 文件清单
+## 2. 精确文件清单
 
-### 2.1 `shotflow.html`（唯一运行时改动文件，2098 行 → 约 2600 行）
+### 2.1 `shotflow.html`（唯一源码文件）
 
-> 「定位」列为 **HEAD `dd12254` 基线行号**；「改动」列标注新增函数时，插入点写在原函数之前/之后。
+| # | 函数 / 区块 | 基线行号 | 性质 | 具体改动 |
+|---|---|---|---|---|
+| 1 | CSS `.tag.red …` 之后 | 47 后 | 新增 | `.auto-pill` 自动徽标、`.new-scene` 新建场景行内条、`.shot .inline-edit{margin:0}` |
+| 2 | CSS `.sd-shot .sd-meta` 之后 | 274 后 | 新增 | `.sd-tag`（深色卡片上的「分镜」标签） |
+| 3 | `TAG_SUGGESTIONS` 之后 | 411 后 | 新增 | `const POSITION_OPTS=[...]`、`const LIGHT_OPTS=[...]` |
+| 4 | `freshView` | 546-552 | 微调 | 增加 `editingShotEditId:null` |
+| 5 | `updateCur` | 555-561 | **不改** | 复用 demo 只读守卫（所有重排都经它） |
+| 6 | `clearInlineEditState` | 685-690 | 微调 | 增加 `v.editingShotEditId=null`（**不得**加 `editingShotId`） |
+| 7 | `buildDemoProject` | 849-860、873 后 | 重写片段 | 分镜去掉硬编码 `slot`；节点改为显式「集合(`auto:'call'`) + 业务节点 + 收工(`auto:'wrap'`)」；`p.dayInit=[day]`；`migrate(p)` 后调 `rescheduleDay(p,day)` |
+| 8 | `migrate` | 880-895 | 微调 | `p.dayInit=p.dayInit\|\|[]`；`s.position=s.position\|\|''`、`s.light=s.light\|\|''`；`duration` 兜底**仍为 20** |
+| 9 | `seed` | 962-973 | 微调 | 节点加 `auto:'call'` / `auto:'wrap'`，`dayInit:[t]` |
+| 10 | `renderShots` 表单 | 1515-1522 | 重写 | 删 `s_slot`；`s_dur` 默认 10；`s_scene` 加 `__new` + 「管理」；新增 `s_pos`/`s_light` 下拉；`s_note` 占位改「补充描述…」 |
+| 11 | `renderShots` 新建场景条 | 1522 后 | 新增 | `D.scene==='__new'` 时渲染 `#new_scene_name` + 添加/取消 |
+| 12 | `renderShots` 列表行 | 1538-1545 | 重写 | 行内编辑态分支（`esh_*`）、`editBtn('Shot',id)`、元信息追加 `· 机位 · 光线` |
+| 13 | `pickShotScene` / `addSceneInline` / `cancelSceneInline` | 1554 后 | 新增 | 三个小函数 |
+| 14 | `addShot` | 1644-1653 | 重写 | 去 `slot`、加 `position`/`light`、`duration` 默认 10、`applyDay(p,d)`、toast |
+| 15 | `persistOrder` | 1693-1706 | 微调 | 捕获改期前后两个 date，各自 `applyDay` |
+| 16 | `saveShotEdit` / `cancelShotEdit` | 1708 后 | 新增 | 见 §3.2 |
+| 17 | `delShot` | 1708 | 重写 | 先取 `s.date` → 删 → `applyDay(p,date)` |
+| 18 | **「v10 排程引擎」整块** | **1749 后插入** | 新增 | 5 常量 + `pinOf`/`planDay`/`dayDefaults`/`ensureDayDefaults`/`rescheduleDay`/`applyDay`/`autoSyncDay`/`toastResched` |
+| 19 | `renderSchedule` | 1715-1745 | 微调 | 进入日期先 `autoSyncDay(schedDate)`；删死变量 1718-1719；表单默认时间改 `10:00`/`10:30` |
+| 20 | `dayItems` | 1750-1764 | **不改** | — |
+| 21 | `cascadeShift` | 1766-1791 | **不改** | 仅加注释「v10 起 UI 不再调用」 |
+| 22 | `timelineHtml` | 1792-1827 | 微调 | 分镜行加 `<span class="tag">分镜</span>`（1803 行）；收工节点加 `.auto-pill` 且编辑态 `type`/`start`/`end` 全部 `disabled`（1810-1813） |
+| 23 | `saveNodeEdit` | 1828-1835 | 微调 | 保存后 `applyDay(p,schedDate)` + toast；`auto` 节点忽略 `type/start/end` 提交 |
+| 24 | `addNode` | 1836-1840 | 微调 | 同上（`applyDay` + toast） |
+| 25 | `delNode` | 1842 | 重写 | 取 `n.date` → 删 → `applyDay` |
+| 26 | `renderShootDay` | 2042-2048 | 微调 | 分镜名前置 `.sd-tag` 分镜标签；顺延按钮文案改「整日顺延 1 小时」 |
+| 27 | `sdPostpone` | 2062-2067 | 重写 | 整日节点 +60 → `applyDay`；无节点时 toast 提示 |
+| 28 | `callSheetHtml` | 2075-2087 | 微调 | 分镜行追加机位/光线列（有值才出列）；表头同步 |
+| 29 | `openDoc`（执行手册分镜表） | 2130-2132 | 微调 | 追加「机位」「光线」两列；`li(...,5)` → `li(...,5/7)` 动态 |
+| 30 | Esc 优先级链 | 2560-2567 | 微调 | `cancelInlineEdit()` 之后插入 `if(cancelShotEdit()) return;` |
 
-| 序 | 定位（函数 / 行号） | 改动 | v9 具体内容 |
-|---|---|---|---|
-| A | CSS `.dot.st-*`/`.pcard.st-*`（97、103） | 追加 | `.dot.st-5`、`.pcard.st-5::before`（灰墨色 `#9c9389`）；`.tag.ink`（`.tag` 45–47 之后） |
-| B | CSS `.iconbtn`（48–49）之后 | 追加 | `.rowbtn`（hover/焦点显现、★ 常亮）、`.inline-edit`（左侧 2px 强调条 + 淡底）、`.selrefs`、`.badge.demo`、`.fav-focus`、`.metacard :disabled`、移动端 `@media (max-width:700px)`（296–313）追加 `.rowbtn{opacity:1;font-size:14px}` |
-| C | 数据层 `LS_PROJ/LS_SEED`（359） | 修改 | 追加 `const LS_DEMO_V9='wb_sf_demo_v9';`；`FAV_KINDS/FAV_META/FAV_ICON/FAV_TAB` 常量同处 |
-| D | `esc/jstr`（362–363） | 不改 | 所有新 `innerHTML` 继续走这两个出口 |
-| E | `STATUSES`/`STATUS_TAG`（485–486） | 修改 | `STATUSES` 末尾追加 `'已归档'`；`STATUS_TAG` 追加 `'ink'`（第 6 色） |
-| F | `view`（526–527） | 修改 | `let view=freshView();`；`freshView(patch)` 覆盖全部字段（见 3.2） |
-| G | `cur/updateCur`（528–529） | 修改 | `updateCur` 加 demo 守卫（1.2 节代码），**唯一写拦截点** |
-| H | `migrate` 之前（651 行处） | 新增 | 16 个 v9 具名纯函数（见 3.2），位于标签纯函数（531–598）与图库纯函数（600–650）之间或紧随其后、`migrate` 之前 |
-| I | `migrate`（653–667） | 修改 | 第 664 行后、第 665 行 `migrateTags(p)` 前插入 `migrateFav(p);`；一行改动 |
-| J | `loadP/saveP/initData`（668–694） | 不改 | `initData` 已对所有数组跑 `migrate`（685/688），故 `fav/demo` 自动覆盖老数据 |
-| K | `cacheProjectImages`（519–523） | 不改 | 按 `m.type==='image'` 读 `idb.get(m.content)`；demo SVG key 自动预载 |
-| L | `seed`（717–767） | 修改 | 对象内加 `demo:true`（721 行对象字面量）；首条 mood（725）加 `fav:true`；**不加 `v9` 标记**；`saveP([demo])`（765）、`LS_SEED`（766）不变 |
-| M | `ensureV9Demo`（新增，紧随 `seed` 767 后） | 新增 | async；`localStorage[LS_DEMO_V9]` + 项目 `v9:1` 双 guards；追加 6 demo、给旧「城市漫游者」补 `demo:true` 与 1 张 SVG 图；`idb.put` 图片；绝不改用户字段 |
-| N | `renderBoard`（770–833） | 修改 | 过滤 774–775 → `matchBoardScope`；mast-actions 783 前插「★ 已收藏 N」；统计 791/792、倒计时 815 → `isActiveStatus/matchBoardScope`；卡片 819 加 demo 角标与 `openProject`；备份数 830 → `backupItemCount(all)`；保留 804 三档按钮 |
-| O | `openProject`（843） | 修改 | `view=freshView({mode:'project',pid,tab:'shots'});`，避免新字段在 4 处 view 重置中漂移 |
-| P | `TABS`（846）/ `renderProject` 页签（878–883） | 不改 | 7 页签结构与分组视觉不变；`renderFavorites` 是 `mode` 独立视图，不进 TABS |
-| Q | `renderProject`（847–892） | 修改 | 851 倒计时 → `matchBoardScope`；858 标题旁 demo 角标；863–866 pactions：demo 隐藏「进入拍摄日模式」、加「复制为我的项目」，两种项目都加「★ 已收藏 N」；867–877 元数据卡 demo 时 input/select/城市 chip `disabled`；891 分发不变 |
-| R | `renderConcept`（899–910） | 修改 | demo 时 6 个输入 `disabled`（避免每次 input 都触发只读 toast）；用户项目行为不变 |
-| S | `renderMood`/`renderMoodGrid`（913–986） | 修改 | 974/980  mood 项加 `data-fid`、mfoot 加 ☆/★（`toggleFav('mood',id)`）；既有标签 ✎ 保留（标签编辑保持）；913–939 骨架与筛选不动 |
-| T | `addMood`/`ingestImageFile`/`addMoodImg`/`delMood`（1044–1086） | 修改 | 新增条目写 `fav:false`；压缩/IDB/标签逻辑一行不改；`addMoodImg` 仍单张（R1 只针对分镜页） |
-| U | `renderShots`（1091–1165） | 修改 | 1107 `s_img` 加 `multiple`；1139 后插「已选参考图（k/3）」条（`selRefs` 缩略图+序号+×）；1147–1160 分镜行加 ☆/★ + `data-fid`，按钮序 `drag→chk→refs→文案→☆→🗑` |
-| V | `toggleRef`/`openShotRefEditor`/`removeShotRef`（1169–1196） | 修改 | 编辑替换分支仅改 `refIds[i]`（1174）与追加分支补到 3（1175）保持；`view.editingShotId` 状态不变；`removeShotRef` 只改目标分镜 |
-| W | `openRefViewer`/`closeRefViewer`（1198–1212） | 修改 | 设置 `view.refViewer={shotId,ri}`；标题「第 i/N 张」已有（1203）保留；加 `refNav(±1)`；`shisei:` 无缓存仍只显示占位（1201/1205），不渲染 `<img>` |
-| X | `addShotImg`（1213–1234） | 重写 | `parseMultiImage(e)` → `for...of await ingestImageFile` → 按新增/追加/替换三种模式挂图 → 汇总 toast → `renderShots` 一次 |
-| Y | `addShot`（1235–1244） | 修改 | 新分镜对象加 `fav:false`；`selRefs=[]`、draft 清空、ord 计算均不变 |
-| Z | `renderSchedule`（1306–1336） | 不改 | `schedDate`（1304）保持；编辑保存后不重置 |
-| AA | `timelineHtml`/`addNode`/`toggleNode`/`delNode`（1383–1412） | 修改 | 节点行 `chk→✎→☆→🗑`；编辑态内联输入 `en_*`；新增 `saveNodeEdit`；`addNode` 写 `fav:false`；分镜行在日程里保持只读（☆ 只在分镜页给） |
-| AB | `renderStuff`/`addStuff`/`toggleStuff`/`delStuff`（1415–1438） | 修改 | 三区块行 `chk→✎→☆→🗑`；`view.editingStuffId+Key` 定位；`es_name/es_note` 内联；`saveStuffEdit`；新条目 `fav:false` |
-| AC | `renderBudget`/`addBudget`（1442–1465） | 修改 | **只加 ☆/★ + `data-fid`**，不加 ✎；新条目 `fav:false`；金额/支付逻辑不改 |
-| AD | `renderNotes`/`addTodo`/`delTodo`/`addNote`/`delNote`（1470–1520） | 修改 | 待办 `chk→✎→☆→🗑`，沟通 `✎→☆→🗑`；`et_*`/`en_*` 内联输入；`saveTodoEdit`/`saveNoteEdit`（保留原 `ts`）；新条目 `fav:false` |
-| AE | `askConfirm`（1774） | 不改 | 删除仍二次确认；Esc 优先级中 `confirmModal` 排第二 |
-| AF | `applyImport`/`clearAll`（1757–1786） | 修改 | view 重置改 `freshView()`；导入的 demo 字段由 `migrateFav` 规范化（不剥夺 demo 只读属性） |
-| AG | `exportJSON`/`exportProject`/`collectImages`（1715–1737） | 不改 | `fav/demo/v9` 随项目 JSON 自然流转；demo 图 key 与用户图一并由 `imagesFor` 导出 |
-| AH | `openDoc`/`writeProposalFile`（1614–1707） | 不改 | 对外文档不显示 fav/demo；`manual` 文字标签（1637）保持 v6 行为 |
-| AI | `renderFavorites`/`openFavorites`/`jumpToFav`（新增，建议置于 `renderBoard` 之后 833 行处） | 新增 | `view.mode='favorites'` 独立视图；项目→模块分组；行「类型图标+40 字摘要+模块+定位›」；跳转设 `schedDate`/`focusRef` |
-| AJ | `document keydown`（2075–2077） | 修改 | Esc 四级优先级；调用 `cancelInlineEdit()` |
-| AK | 启动链（2080–2085） | 修改 | `await initData(); seed(); await ensureV9Demo(); renderBoard();`，其余 PWA/图库启动不变 |
-| AL | PWA 注册（2057–2074） | 不改 | 注册逻辑不变；**发布时 SW 版本必须 bump（见 2.5）** |
+### 2.2 其它文件
 
-### 2.2 `tests/logic.test.mjs`（154 行 → 约 215 行）
+| 文件 | 改动 |
+|---|---|
+| `tests/logic.test.mjs` | 仅在 245/246 行之间**追加** v10 测试块（12 项）；1-245 行零改动 |
+| `shotflow-sw.js` | `const CACHE='shotflow-v9'` → `'shotflow-v10'`（第 1 行） |
+| `README.md` | §六 迭代记录追加 v10 行；§七 已知限制追加「旧项目首开分镜时间会整体重排到 10:00 起」 |
+| `docs/system_design.md` / `docs/*.mermaid` | 本文件与两张图（覆盖 v9 版本） |
 
-| 序 | 定位 | 改动 |
-|---|---|---|
-| 1 | 第 17 行 | `vm.createContext({..., RegExp, Set, encodeURIComponent})` —— 补 `encodeURIComponent`（`slugPreview` 需要）。这是唯一框架级注入变化 |
-| 2 | 第 18 行抽取列表 | 追加：`freshView,clearInlineEditState,migrateFav,isFav,favCount,favSummary,summary40,collectFavorites,backupItemCount,matchBoardScope,isActiveStatus,parseMultiImage,slugPreview,cloneDemo,demoSpecs,buildDemoProject` |
-| 3 | 第 64–95 行之后 | 追加 **15 项** v9 断言（明细见 7.T01 验收点）；原有 44 项断言**一行不删不改** |
-| 4 | 第 153 行 | `RESULT` 计数 44 → 59；`process.exit(fail?1:0)` 不变 |
+### 2.3 新增 DOM id
 
-### 2.3 `README.md`（148 行）
+`#s_pos`、`#s_light`、`#new_scene_name`、`#esh_name`、`#esh_dur`、`#esh_scene`、`#esh_pos`、`#esh_light`、`#esh_note`
 
-- 28–30 行：看板段补「★ 已收藏」入口与「已归档含已交付」。
-- 32–42 行页签表：情绪板补「☆ 收藏」；分镜补「多图上传 / 参考图灯箱上一张下一张 / ☆」；日程、清单、协作补「行内编辑 + ☆」；预算补「只加 ☆」。
-- 66 行：备份提醒注明「不计入示例项目」。
-- 74–76 行：主程序描述 v8 → v9；SW 版本描述 v4 → v9。
-- 115 行：交付后改状态一句补「已归档筛选同时含已交付与已归档」。
-- 124–125 行「预置示例」：改为 6 个示例（5 个新 + 城市漫游者），只读、可复制、7 页签完整、离线内联 SVG 图、示例不进备份提醒。
-- 127–135 行：新增 **v9** 迭代记录（置于 v8 之上）。
-- 137–145 行：已知限制补「示例只读，需复制后才能改；收藏不跨项目；示例图离线内嵌不联网」。
-
-### 2.4 `overview.md`（53 行）
-
-- 第 4 行：v8 → v9，44 → 59 项测试。
-- 9–21 行数据模型：8 类条目加 `fav:boolean`，项目加 `demo:boolean`（+ 可选 `v9:1` 标记）。
-- 27–42 行关键实现：新增「示例一次性注入 / 单守卫只读 / 复制为我的项目」「多图上传与参考图灯箱」「行内编辑与收藏跳转高亮 3 秒」三条。
-- 第 40 行测试描述：44 → 59；第 41 行 PWA：SW v8 → v9。
-
-### 2.5 部署相关文件（非逻辑改动，但发布必做）
-
-- `shotflow-sw.js:1`：`const CACHE='shotflow-v8'` → `'shotflow-v9'`（**硬性要求**：SW 不 bump 会导致 PWA 用户拿不到 v9；`ASSETS` 2–7 行不变）。
-- `shotflow-app/shotflow.html`：从 `shotflow.html` 整体 `cp` 同步，部署 `shotflow-app/`；`diff` 必须为空。
-- **不新增**任何 `.js`/`.css`/图片文件；示例图以 dataURL 写在主脚本内，PWA 缓存清单不变。
+> 前缀用 `esh_` 而不是 `es_`：`es_name`/`es_note` 已被**清单页行内编辑**（1852-1853、`saveStuffEdit` 1870）占用，两个模块虽然不同页签但同名 id 会在 `gv()` 上产生串味风险。见 §7.3。
 
 ---
 
 ## 3. 数据结构与接口
 
-### 3.1 精确数据结构（TypeScript-like）
+### 3.1 类型定义（TS-like）
 
 ```ts
-type FavKind = 'mood'|'shots'|'schedule'|'scenes'|'items'|'budget'|'notes'|'todos';
+type HHMM    = string;   // 'HH:MM'
+type Minutes = number;   // 自 00:00 起的分钟数；可能 > 1440（溢出，仅用于判定）
+type ISODate = string;   // 'YYYY-MM-DD'
 
-interface FavItem { fav: boolean; }              // 8 类条目统一，默认 false；migrateFav 幂等补齐
+interface Shot {
+  id: string; name: string; date: ISODate;
+  slot: HHMM;              // v10：派生 + 物化写回；不再由用户输入
+  duration: number;        // 分钟；新增默认 10，历史数据兜底 20
+  sceneId: string; refIds: string[];
+  note: string;
+  position: string;        // 新增：机位，POSITION_OPTS 之一或 ''
+  light: string;           // 新增：光线，LIGHT_OPTS 之一或 ''
+  done: boolean; ord: number; fav: boolean;
+}
 
-interface MoodItem extends FavItem {
-  id: string; type: 'text'|'color'|'image'; content: string;
-  tag: string; tags: string[]; autoTags?: string[];   // v6 字段完全不变
+interface ScheduleNode {
+  id: string; type: string; title: string;
+  start: HHMM; end: HHMM; note: string; date: ISODate;
+  done: boolean; fav: boolean;
+  auto?: 'call' | 'wrap';  // 新增：集合='call'、收工='wrap'
 }
-interface Shot extends FavItem {
-  id: string; name: string; date: string; slot: string; duration: number;
-  sceneId: string; refIds: string[]; note: string; done: boolean; ord: number; // refIds ≤3 不变
-}
-interface Node extends FavItem {
-  id: string; type: string; title: string; start: string; end: string;
-  note: string; date?: string; done: boolean;          // 行内编辑不改 date/done/fav
-}
-interface Scene  extends FavItem { id: string; name: string; note: string; done: boolean; }
-interface Item   extends FavItem { id: string; kind: string; name: string; note: string; done: boolean; }
-interface Budget extends FavItem { id: string; item: string; cat: string; amount: number; paid: boolean; }
-interface Note   extends FavItem { id: string; kind: string; content: string; ts: number; } // 编辑保留 ts
-interface Todo   extends FavItem { id: string; title: string; owner: string; due: string; done: boolean; }
 
 interface Project {
-  id: string; name: string; client: string; studio: string; status: '灵感期'|'策划中'|'待拍摄'|'后期中'|'已交付'|'已归档';
-  shootDate: string; location: string; lat: string|number; lng: string|number;
-  v3: number; createdAt: number; updatedAt: number;
-  concept: { theme: string; model: string; style: string; audience: string; usage: string; note: string };
-  mood: MoodItem[]; shots: Shot[]; schedule: Node[]; scenes: Scene[]; items: Item[];
-  budget: Budget[]; notes: Note[]; todos: Todo[]; tagVocab: string[];
-  demo: boolean;      // 新增：只读示例标记，默认 false
-  v9?: number;        // 新增：ensureV9Demo 注入的幂等标记（值 1）；cloneDemo 删除；不参与 UI
+  /* v9 既有：mood shots schedule scenes items budget notes todos concept tagVocab demo v9 ... */
+  dayInit: ISODate[];      // 新增：已完成默认项初始化的日期（幂等 + 删除后不复活）
 }
 
-interface ViewState {   // 会话内，不持久化、不导出；由 freshView() 统一构造
-  mode: 'board'|'project'|'favorites'; pid: string|null; tab: string;
-  shotFilter: string; boardQuery: string; boardScope: '全部'|'进行中'|'已归档';
-  moodFilter: string[]; moodFilterMode: 'any'|'all';
-  shotDraft: Object; poseCat: string|null; editingShotId: string|null; replaceIdx: number;
-  allowDemoWrite: boolean;                       // 默认 false，唯一逃生阀
-  editingNodeId: string|null; editingStuffId: string|null; editingStuffKey: string|null;
-  editingTodoId: string|null; editingNoteId: string|null;   // 五者同一时刻只允许一个非空
-  refViewer: {shotId: string; ri: number}|null;
-  focusRef: {type: FavKind; id: string; until: number}|null;
+interface PlanShot  { id: string; start: Minutes; end: Minutes; duration: number }
+interface PlanNode  { id: string; start: Minutes; end: Minutes; auto: 'call' | 'wrap' | null }
+interface DayPlan {
+  date: ISODate; base: Minutes;
+  shots: PlanShot[]; nodes: PlanNode[];
+  wrap: { start: Minutes; end: Minutes };
+  overflow: boolean;       // 任一 end > 1440
+  shiftedCount: number;    // 因锚点避让而后移的分镜条数（相对"无锚点顺序链"）
+  nodeShifts: { id: string; from: Minutes; to: Minutes }[];  // anchor 之后被链式顺延的节点
 }
 
-interface FavEntry {
-  type: FavKind; pid: string; id: string; summary: string; // 摘要≤40 字（超长加 …）
-  module: string;                                          // 情绪板/分镜/日程/清单/预算/协作
-  date: string;                                            // 仅 schedule 有值，供跳转设 schedDate
-}
-
-interface DemoSpec {
-  status: string; name: string; theme: string; label: string;
-  art: [string,string][];                                  // 每张 mood 图的调色板 [主色,底色]
-  moodTexts: string[]; shotNames: string[]; nodeTitles: string[];
-  sceneNames: string[]; itemNames: string[]; budgetItems: string[];
-  noteTexts: string[]; todoTitles: string[];
-  fullRefShot: boolean;                                    // true 时第 1 条分镜挂满 3 张 refIds
-  favType: FavKind; favIndex: number;                      // 至少一个 fav:true 的落点
+interface NodeDefault {    // dayDefaults 的返回元素（纯描述，不含 id，id 由 ensureDayDefaults 生成）
+  kind: 'call' | 'wrap' | 'adopt';
+  type?: string; title?: string; start?: HHMM; end?: HHMM; note?: string;
+  auto?: 'call' | 'wrap';
+  id?: string;             // kind==='adopt' 时指向既有集合/收工节点
 }
 ```
 
-### 3.2 新增纯函数签名与语义（全部具名 `function`，可被 `fn()` 抽取）
+### 3.2 函数签名表
 
-| 函数 | 签名 | 语义 / 边界 |
-|---|---|---|
-| `freshView` | `function freshView(patch): ViewState` | 返回**完整**默认 view 对象（3.1 全部字段），`Object.assign(defaults, patch||{})`。526、843、1769、1784 四处统一调用，杜绝字段漂移；不改入参 |
-| `clearInlineEditState` | `function clearInlineEditState(v): ViewState` | 就地清空传入 `v` 的 5 个编辑指针（Node/Stuff/StuffKey/Todo/Note），返回 `v`；不引用全局 `view`；不改 `editingShotId/replaceIdx` |
-| `migrateFav` | `function migrateFav(p): Project` | 幂等：`FAV_KINDS` 八数组缺失/非数组→`[]`；每项 `it.fav = (it.fav===true)`（字符串 `"true"` 归 false）；`p.demo=(p.demo===true)`；**不动** `refIds/tags/tagVocab/ts/done`，不删 `v9` |
-| `isFav` | `function isFav(it): boolean` | `!!(it && it.fav===true)`，唯一收藏判定口 |
-| `favCount` | `function favCount(list): number` | 非数组→0；统计 `isFav` 为真的项数 |
-| `favSummary` | `function favSummary(type,it): string` | 按类型取摘要源：mood→text/content（image 固定 `'图片'`）、shots→name、schedule→title、scenes/items→name、budget→item、notes→content、todos→title；空值返回 `''` |
-| `summary40` | `function summary40(s): string` | `String(s??'').replace(/\s+/g,' ').trim()`，超过 40 字符截前 40 并加 `…`；用于已收藏视图行摘要 |
-| `collectFavorites` | `function collectFavorites(projects): FavEntry[]` | 遍历项目×八类，仅收 `isFav(it)`；产出扁平 `FavEntry[]`（`pid/id/type/module/summary/date`）；**不按项目复制条目**，不排序（保留项目→集合原序），不改入参 |
-| `backupItemCount` | `function backupItemCount(projects): number` | 只统计 `!p.demo` 项目的 `shots+mood+items+budget+todos+notes` 条数；`renderBoard:830` 用；demo 不触发备份提醒 |
-| `matchBoardScope` | `function matchBoardScope(p,scope): boolean` | `'已归档'` → `p.status==='已交付'||p.status==='已归档'`；`'进行中'` → **非**上述两者；其余 → true；空项目对象安全 |
-| `isActiveStatus` | `function isActiveStatus(p): boolean` | `matchBoardScope(p,'进行中')` 的语义别名，供统计/倒计时调用 |
-| `parseMultiImage` | `function parseMultiImage(e): File[]` | `Array.from((e&&e.target&&e.target.files)||[])`，过滤 `!f.type \|\| /^image\//.test(f.type)`；不读 `document`、不修改 `input.files`；测试可传伪事件 |
-| `slugPreview` | `function slugPreview(label,palette): string` | 生成内联 SVG dataURL：`'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg)`；`label` 用 `[<>&"']` 白名单剔除（**不调用 `esc`**）；`palette` 取 `[主色,底色]`，缺省 `['#9a6a33','#f3e9da']`；输出零 `http` 引用 |
-| `cloneDemo` | `function cloneDemo(p,newId,now): Project` | 纯深拷贝：`JSON.parse(JSON.stringify(p||{}))`；`delete c.demo; delete c.v9; c.v3=1; c.id=newId; c.name=(c.name\|\|'示例')+'（副本）'; c.createdAt=c.updatedAt=now`；原对象不变；图片 content 键共享（IDB 同名 key 复用） |
-| `demoSpecs` | `function demoSpecs(): DemoSpec[]` | 返回 5 个固定 spec（状态：灵感期/策划中/后期中/已交付/已归档；待拍摄列沿用旧「城市漫游者」），每 spec 满足 3.4 完整性表；无随机、无 Date |
-| `buildDemoProject` | `function buildDemoProject(spec,mkId,now): Project` | 用注入的 `mkId(tag)` 生成全部 id（生产传 `()=>uid()`，测试传确定性函数）；组装 7 页签非空数据，末尾跑 `migrateFav`+`migrateTags`（经 `migrate`），按 `favType/favIndex` 置一个 `fav:true`；`fullRefShot` 时 `shots[0].refIds = moodImgs.slice(0,3).map(m=>m.content)`；写 `demo:true,v9:1,v3:1` |
+| 函数 | 入参 | 返回 | 副作用 | 依赖 | vm 可抽取 |
+|---|---|---|---|---|---|
+| `pinOf(n, defMin?)` | 节点 | `{start:Minutes,end:Minutes}` | 无 | `toMin`/`addMin` | ✅ |
+| `planDay(p,date,anchorId?)` | 项目 | `DayPlan` | **无** | `toMin`/`addMin`/`Math` | ✅ |
+| `dayDefaults(p,date)` | 项目 | `NodeDefault[]` | **无** | `addMin` | ✅ |
+| `ensureDayDefaults(p,date,mkId?)` | 项目 | `number`（新增条数） | 改 `p.schedule`/`p.dayInit` | `dayDefaults`/`uid` | ✅（传 `mkId`） |
+| `rescheduleDay(p,date,anchorId?)` | 项目 | `DayPlan` | 写 `shot.slot`、`wrap.start/end`、被顺延节点 `start/end` | `planDay`/`fmtMin` | ✅ |
+| `applyDay(p,date,anchorId?)` | 项目 | `DayPlan` | = ensure + reschedule | 上述 | ✅ |
+| `autoSyncDay(date)` | date | `void` | 必要时 `updateCur` | `cur`/`updateCur`/`planDay` | ❌ 渲染层 |
+| `toastResched(plan)` | DayPlan | `void` | toast | `toast` | ❌ 渲染层 |
+| `saveShotEdit(id)` | id | `void` | 写 + 重排 + 重绘 | `gv`/`updateCur` | ❌ 渲染层 |
+| `cancelShotEdit()` | — | `boolean` | 清指针 + 重绘 | — | ❌ 渲染层 |
+| `addSceneInline()` / `cancelSceneInline()` / `pickShotScene(v)` | — | `void` | 写 / 重绘 | `gv`/`updateCur` | ❌ 渲染层 |
 
-**状态层函数（非纯，允许 DOM/IDB）**
-
-| 函数 | 签名 | 语义 |
-|---|---|---|
-| `ensureV9Demo` | `async function ensureV9Demo(): Promise<void>` | 见 3.5 |
-| `copyDemoToMine` | `function copyDemoToMine(pid): void` | 找 demo → `cloneDemo(p,uid(),Date.now())` → `view.allowDemoWrite=true` → `saveP([...loadP(),copy])` → `false` → `openProject(copy.id)` → toast |
-| `copyToMineButton` | `function copyToMineButton(pid): string` | 纯字符串渲染 helper（可选）：返回 demo pactions 的按钮 HTML，供 `renderProject` 复用 |
-| `beginInlineEdit` | `function beginInlineEdit(kind,id,key): void` | `clearInlineEditState(view)` → 按 `kind∈{Node,Stuff,Todo,Note}` 置唯一指针 → `renderProject()` |
-| `cancelInlineEdit` | `function cancelInlineEdit(): boolean` | 有编辑位则清空并 `renderProject()` 返回 true；否则 false（供 Esc 链判断） |
-| `toggleFav` | `function toggleFav(type,id): void` | `updateCur(p=>{const it=(p[type]\|\|[]).find(x=>x.id===id); if(it) it.fav=!isFav(it);})`；随后按当前页 `renderProject()` 或 `renderShots(cur())`；demo 项目由 `updateCur` 自动拦截 |
-| `openFavorites/renderFavorites` | `function openFavorites(): void` / `function renderFavorites(): void` | `view=freshView({mode:'favorites'})`；`#app` 渲染分组视图 |
-| `jumpToFav` | `function jumpToFav(type,pid,id): void` | 见 4.2 ⑤ |
-| `refNav` | `function refNav(delta): void` | 从 `view.refViewer` 取 `shotId/ri`，`openRefViewer(shotId,(ri+delta+N)%N)`；无 viewer 时 no-op |
-
-### 3.3 `updateCur` 守卫与 `allowDemoWrite` 的精确写法
+### 3.3 `planDay` 完整实现（逐行可核对）
 
 ```js
-/* 基线 526–529 改为 */
-function freshView(patch){
-  const d={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',
-    moodFilter:[],moodFilterMode:'any',shotDraft:{},poseCat:null,editingShotId:null,replaceIdx:-1,
-    allowDemoWrite:false,editingNodeId:null,editingStuffId:null,editingStuffKey:null,
-    editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null};
-  return Object.assign(d,patch||{});
+/* ===== v10 排程引擎 ===== */
+const DAY_BASE='10:00';        // 分镜链起点
+const COLLECT_START='09:30';   // 默认集合开始
+const COLLECT_MIN=30;          // 集合/缺省节点时长
+const WRAP_MIN=15;             // 收工固定时长
+const SHOT_DEFAULT_MIN=10;     // 分镜默认时长
+
+function pinOf(n,defMin){
+  const st=toMin(n.start);
+  let en=toMin(n.end||addMin(n.start,defMin||COLLECT_MIN));
+  if(en<=st) en=st+(defMin||COLLECT_MIN);
+  return {start:st,end:en};
 }
-let view=freshView();
-const cur=()=>loadP().find(p=>p.id===view.pid);
-function updateCur(fn){
-  const a=loadP(), p=a.find(x=>x.id===view.pid);
-  if(!p) return;
-  // 唯一 demo 写拦截点：覆盖勾选/收藏/编辑/标签/元数据/概念/删除等全部写路径
-  if(p.demo&&!view.allowDemoWrite){ toast('示例项目为只读，可点「复制为我的项目」后再修改'); return; }
-  fn(p); p.updatedAt=Date.now(); saveP(a);
+
+function planDay(p,date,anchorId){
+  // ① 当天分镜，按 ord 升序；ES2019 排序稳定 → ord 相同沿用数组顺序（与列表显示一致）
+  const shotsIn=(p.shots||[]).filter(s=>s.date===date).slice()
+    .sort((a,b)=>((a.ord||0)-(b.ord||0)));
+  // ② 当天节点（无 start 的历史脏数据跳过）；集合/收工用 auto 或 type 双条件判定（老数据无 auto）
+  const nodesIn=(p.schedule||[]).filter(n=>(n.date||date)===date&&n.start);
+  const callN=nodesIn.filter(n=>n.auto==='call'||n.type==='集合')[0]||null;
+  const wrapN=nodesIn.filter(n=>n.auto==='wrap'||n.type==='收工')[0]||null;
+  const callR=callN?pinOf(callN):null;
+  // ③ pos = 排除集合与收工后的其余节点；anchor 之后按 start 升序链式顺延（anchor 自身与前序不动）
+  const pos=nodesIn.filter(n=>n!==callN&&n!==wrapN)
+    .map(n=>{const r=pinOf(n);return {id:n.id,start:r.start,end:r.end,dur:r.end-r.start};})
+    .sort((a,b)=>a.start-b.start||a.end-b.end);
+  const nodeShifts=[];
+  const aIdx=anchorId?pos.findIndex(x=>x.id===anchorId):-1;
+  if(aIdx>=0){
+    let prevEnd=-1;
+    pos.forEach((it,i)=>{
+      if(i>aIdx&&it.start<prevEnd){
+        nodeShifts.push({id:it.id,from:it.start,to:prevEnd});
+        it.end=prevEnd+it.dur; it.start=prevEnd;
+      }
+      if(it.end>prevEnd) prevEnd=it.end;
+    });
+  }
+  const pins=pos.map(it=>({id:it.id,start:it.start,end:it.end}));
+  // ④ 起点：10:00，但集合若被改晚则以集合结束为准
+  const base=Math.max(toMin(DAY_BASE),callR?callR.end:0);
+  let cursor=base, ideal=base, shiftedCount=0;
+  const shots=[];
+  shotsIn.forEach(s=>{
+    const dur=Math.max(5,Math.round(+s.duration||0)||SHOT_DEFAULT_MIN);   // 禁止 parseInt（ctx 无此全局）
+    for(let guard=0;guard<50;guard++){                                    // ⑤ 遇锚点跳到锚点结束，上限 50 次
+      const hit=pins.find(pn=>pn.start<cursor+dur&&pn.end>cursor);
+      if(!hit) break;
+      cursor=hit.end;
+    }
+    if(cursor>ideal) shiftedCount++;    // 与"无锚点顺序链"相比后移了，计一次
+    shots.push({id:s.id,start:cursor,end:cursor+dur,duration:dur});
+    cursor+=dur; ideal+=dur;
+  });
+  // ⑥ 收工 = max(所有 pin.end, 所有 shot.end, 集合.end, base)，再 +15
+  let wrapStart=base;
+  pins.forEach(pn=>{if(pn.end>wrapStart)wrapStart=pn.end;});
+  shots.forEach(r=>{if(r.end>wrapStart)wrapStart=r.end;});
+  if(callR&&callR.end>wrapStart) wrapStart=callR.end;
+  const wrap={start:wrapStart,end:wrapStart+WRAP_MIN};
+  // ⑦ 溢出判定
+  let overflow=false;
+  shots.forEach(r=>{if(r.end>1440)overflow=true;});
+  pins.forEach(pn=>{if(pn.end>1440)overflow=true;});
+  if(wrap.end>1440) overflow=true;
+  // ⑧ 节点视图（含集合/收工，供 UI 与测试使用）
+  const nodes=[];
+  if(callR) nodes.push({id:callN.id,start:callR.start,end:callR.end,auto:'call'});
+  pins.forEach(pn=>nodes.push({id:pn.id,start:pn.start,end:pn.end,auto:null}));
+  if(wrapN) nodes.push({id:wrapN.id,start:wrap.start,end:wrap.end,auto:'wrap'});
+  return {date:date,base:base,shots:shots,nodes:nodes,wrap:wrap,
+          overflow:overflow,shiftedCount:shiftedCount,nodeShifts:nodeShifts};
 }
+
+function dayDefaults(p,date){
+  const out=[];
+  if(!p||!date) return out;
+  if(Array.isArray(p.dayInit)&&p.dayInit.indexOf(date)>=0) return out;   // 已初始化 → 幂等退出
+  const nodes=(p.schedule||[]).filter(n=>(n.date||date)===date);
+  const call=nodes.filter(n=>n.auto==='call'||n.type==='集合')[0];
+  const wrap=nodes.filter(n=>n.auto==='wrap'||n.type==='收工')[0];
+  if(!call) out.push({kind:'call',type:'集合',title:'集合',auto:'call',
+    start:COLLECT_START,end:addMin(COLLECT_START,COLLECT_MIN),note:'器材清点与出发'});
+  else if(!call.auto) out.push({kind:'adopt',id:call.id,auto:'call'});   // 老数据「集合」升级为自动节点
+  if(!wrap) out.push({kind:'wrap',type:'收工',title:'收工',auto:'wrap',
+    start:DAY_BASE,end:addMin(DAY_BASE,WRAP_MIN),note:''});
+  else if(!wrap.auto) out.push({kind:'adopt',id:wrap.id,auto:'wrap'});   // 老数据「收工」升级，时间交给 planDay 接管
+  return out;
+}
+
+function ensureDayDefaults(p,date,mkId){
+  mkId=mkId||uid;
+  p.dayInit=Array.isArray(p.dayInit)?p.dayInit:[];
+  p.schedule=Array.isArray(p.schedule)?p.schedule:[];
+  let added=0;
+  dayDefaults(p,date).forEach(function(d){
+    if(d.kind==='adopt'){
+      const n=p.schedule.filter(x=>x.id===d.id)[0];
+      if(n) n.auto=d.auto||'wrap';
+      return;
+    }
+    p.schedule.push({id:mkId(),type:d.type,title:d.title,start:d.start,end:d.end,
+      note:d.note||'',date:date,done:false,fav:false,auto:d.auto});
+    added++;
+  });
+  if(p.dayInit.indexOf(date)<0) p.dayInit.push(date);
+  return added;
+}
+
+function rescheduleDay(p,date,anchorId){
+  const plan=planDay(p,date,anchorId);
+  (p.shots||[]).forEach(function(s){
+    if(s.date!==date) return;
+    const r=plan.shots.filter(x=>x.id===s.id)[0];
+    if(r) s.slot=fmtMin(r.start);          // 唯一真源仍是 shot.slot
+  });
+  (p.schedule||[]).forEach(function(n){
+    if((n.date||date)!==date||!n.start) return;
+    if(n.auto==='wrap'){ n.start=fmtMin(plan.wrap.start); n.end=fmtMin(plan.wrap.end); return; }
+    const r=plan.nodes.filter(x=>x.id===n.id)[0];
+    if(r&&n.auto!=='call'){                // 位置节点（含被顺延的）写回；集合时间永远来自用户输入
+      const rs=fmtMin(r.start), re=fmtMin(r.end);
+      if(rs!==n.start) n.start=rs;
+      if(re!==n.end) n.end=re;
+    }
+  });
+  return plan;
+}
+
+function applyDay(p,date,anchorId){ ensureDayDefaults(p,date); return rescheduleDay(p,date,anchorId); }
 ```
 
-- `allowDemoWrite` 默认 `false`；**只有** `copyDemoToMine` 用 `try/finally` 短暂置 `true`（且它并不调用 `updateCur`，只 `saveP`；保留该字段作为唯一受控逃生阀）。
-- `openProject`（843）、`applyImport`（1769）、`clearAll`（1784）必须改用 `freshView(...)`，否则新字段丢失会让守卫/编辑态失效。
+**边界与实现约定**
 
-### 3.4 示例完整性与注入策略（`ensureV9Demo`）
+| 场景 | 行为 |
+|---|---|
+| 分镜 `date` 为空串 | 不进任何一天的链，`slot` 保持原值（新增走表单必有日期，历史脏数据不处理） |
+| 分镜 `duration` 缺失/0/NaN | `planDay` 取 10；`migrate` 对 `duration==null` 兜底 20（§7.1） |
+| `duration` 极大导致 end>1440 | `overflow=true`；`rescheduleDay` 写 `fmtMin` 会 **clamp 到 23:59**（`fmtMin` 1749 行行为），由 `toastResched` 提示用户缩短或改期 |
+| 集合被改晚（如 10:30） | `base=集合.end`，全链从 10:30 起（测试③） |
+| 当天无分镜、无节点 | `base=600`，`wrap=600-615`；`ensureDayDefaults` 保证集合节点先落地，实际不会出现 |
+| 两个节点重叠 | anchor 自身不挪动（`dayItems._conflict` 标红，沿用顺序判定）；anchor 之后的节点链式顺延；分镜在所有节点定位后避让（取较晚 end） |
+| `pins` 中节点 `end<=start` | `pinOf` 兜底 `st+30`，避免死循环 |
+| `ord` 并列 | 依赖 `Array.prototype.sort` 稳定性（ES2019 已保证），沿用数组顺序 → 与分镜列表显示顺序一致 |
 
-**5 个新示例 spec（待拍摄列沿用旧「城市漫游者」）**
+### 3.4 渲染层新函数
 
-| # | status | name（示意） | mood（≥3，含图） | shots≥2 | schedule≥2 | scenes+items≥3 | budget≥2 | notes≥2 | todos≥2 | 特殊 |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | 灵感期 | 微光肖像 · 暗调练习 | 3（2 文 + 1 图） | 2 | 2 | 3 | 2 | 2 | 2 | — |
-| 2 | 策划中 | 城市漫游者 · 胶片提案 | 5（2 文 + 3 图） | 3 | 3 | 4 | 3 | 2 | 3 | **第 1 条分镜 refIds 挂满 3 张图** |
-| 3 | 待拍摄 | 夏末海边 · 情侣写真 | 4（2 文 + 1 色 + 1 图） | 3 | 3 | 4 | 2 | 3 | 2 | — |
-| 4 | 后期中 | 山野旅拍 · 秋色 | 4（2 文 + 2 图） | 2 | 2 | 3 | 2 | 2 | 2 | — |
-| 5 | 已交付 | 咖啡馆品牌 · 秋冬上新 | 4（2 文 + 1 色 + 1 图） | 3 | 3 | 4 | 3 | 3 | 3 | status=已交付，验证「已归档」筛选包含它 |
-| 6 | 已归档 | 旧城改造 · 建筑记录 | 3（1 文 + 2 图） | 2 | 2 | 3 | 2 | 2 | 2 | status=已归档 |
+```js
+/* 进入某日期时自愈：无变化不写盘 */
+function autoSyncDay(date){
+  const p=cur(); if(!p||p.demo) return;                      // demo 只读：不补、不重排、不 toast
+  const inited=Array.isArray(p.dayInit)&&p.dayInit.indexOf(date)>=0;
+  const plan=planDay(p,date,null);
+  const drift=p.shots.some(function(s){
+    if(s.date!==date) return false;
+    const r=plan.shots.filter(x=>x.id===s.id)[0];
+    return !!r&&s.slot!==fmtMin(r.start);
+  });
+  if(inited&&!drift&&dayDefaults(p,date).length===0) return;
+  updateCur(function(pp){ ensureDayDefaults(pp,date); rescheduleDay(pp,date,null); });
+}
 
-- 所有 spec 的 `concept` 六字段均非空；每个 spec 由 `favType/favIndex` 指定**至少 1 条 `fav:true`**。
-- 待拍摄列的示例是 `seed()` 的「城市漫游者 · 人像写真」：`demo:true` + 首条 mood `fav:true`；若老数据里它没有 image 类型，`ensureV9Demo` **追加**一张 SVG 图 mood（不改任何既有字段）。
+function toastResched(plan){
+  if(!plan) return;
+  const ids=(plan.nodeShifts||[]).map(function(x){return x.id;});
+  view.lastShift=ids.length?{date:plan.date,ids:ids,ts:Date.now()}:null;   // 时间轴临时「已顺延」标记
+  if(plan.overflow){ toast('排期超出当天 24:00，请缩短时长或改到另一天'); return; }
+  const parts=['已重排当天分镜（'+plan.shiftedCount+' 条后移）'];
+  if(ids.length) parts.push(ids.length+' 项日程已顺延');
+  toast(parts.join('，'));
+}
 
-**幂等策略（精确到步骤）**
-
-1. `const flag = localStorage.getItem('wb_sf_demo_v9')==='1'`（try/catch 包裹，隐私模式降级为 false）。
-2. `const a=loadP()`；若 `flag===true || a.some(p=>p.demo&&p.v9===1)` → **立即 return**（双 guard 防止 `saveP` 200ms 崩溃导致重复注入）。
-3. 找到 `!p.demo && p.name.indexOf('城市漫游者')===0` 的旧项目：只写 `p.demo=true`，缺图时追加一张 SVG mood，缺 fav 时给首条 mood 写 `fav:true`；**其余字段一个不动**。
-4. `demoSpecs().forEach(spec=>a.push(buildDemoProject(spec,()=>uid(),Date.now())))`。
-5. `saveP(a)` 后立即 `localStorage.setItem('wb_sf_demo_v9','1')`（先标记再 await 图片写入）。
-6. 所有 SVG dataURL：`imgCache[key]=data` 且 `await idb.put(key,data)`（逐张 try/catch，失败仍保留内存图）。
-7. 全程不调用 `seed()`；`LS_SEED='wb_sf_seeded'` 语义不变。
-
-### 3.5 类图
-
-见 `docs/class-diagram.mermaid`（同步嵌于第 4 节前，此处仅列关系要点）：
-
-```mermaid
-classDiagram
-    class FavItem { <<interface 八类条目统一>> +boolean fav }
-    class Project {
-        +string id
-        +string status
-        +boolean demo
-        +number v9
-        +MoodItem[] mood
-        +Shot[] shots
-        +Node[] schedule
-        +Scene[] scenes
-        +Item[] items
-        +Budget[] budget
-        +Note[] notes
-        +Todo[] todos
-    }
-    class ViewState {
-        +boolean allowDemoWrite
-        +string editingNodeId
-        +string editingStuffId
-        +string editingStuffKey
-        +string editingTodoId
-        +string editingNoteId
-        +Object refViewer
-        +Object focusRef
-    }
-    class V9PureFunctions {
-        <<module 纯函数层>>
-        +freshView(patch) ViewState
-        +migrateFav(p) Project
-        +favCount(list) number
-        +collectFavorites(projects) FavEntry[]
-        +matchBoardScope(p, scope) boolean
-        +parseMultiImage(e) File[]
-        +slugPreview(label, palette) string
-        +cloneDemo(p, newId, now) Project
-        +buildDemoProject(spec, mkId, now) Project
-    }
-    class Persistence { <<module 状态层>> +updateCur(fn) void +saveP(a) void +migrate(p) Project }
-    class DemoFactory { <<module 状态层>> +ensureV9Demo() Promise +copyDemoToMine(pid) void }
-    class BoardRenderer { <<module 渲染层>> +renderBoard() void +renderFavorites() void +jumpToFav(t,p,i) void }
-    class ProjectRenderer { <<module 渲染层>> +renderProject() void +timelineHtml(p,d) string +renderStuff(p) void +renderNotes(p) void }
-    class ShotRenderer { <<module 渲染层>> +renderShots(p) Promise +addShotImg(e) Promise +openRefViewer(s,i) void }
-    class EditHandlers { <<module 渲染层>> +beginInlineEdit(k,i,k2) void +toggleFav(t,i) void }
-    Project "1" o-- "0..*" FavItem : 八类条目统一 fav
-    ViewState ..> V9PureFunctions
-    Persistence ..> V9PureFunctions : migrateFav
-    Persistence ..> ViewState : allowDemoWrite 守卫
-    DemoFactory ..> V9PureFunctions : slugPreview / buildDemoProject / cloneDemo
-    DemoFactory ..> Persistence : saveP / idb.put
-    BoardRenderer ..> V9PureFunctions : matchBoardScope / collectFavorites / backupItemCount
-    ProjectRenderer ..> Persistence : updateCur
-    ShotRenderer ..> V9PureFunctions : parseMultiImage
-    EditHandlers ..> Persistence : updateCur
+function saveShotEdit(id){
+  const name=gv('esh_name').trim(); if(!name){toast('分镜内容不能为空');return;}
+  const patch={name:name,
+    duration:parseInt(gv('esh_dur'))||SHOT_DEFAULT_MIN,
+    sceneId:gv('esh_scene'), position:gv('esh_pos')||'', light:gv('esh_light')||'',
+    note:gv('esh_note').trim()};
+  let plan=null;
+  updateCur(function(p){
+    const s=p.shots.filter(x=>x.id===id)[0]; if(!s) return;
+    Object.assign(s,patch);
+    plan=applyDay(p,s.date);
+  });
+  clearInlineEditState(view); renderProject(); toastResched(plan);
+}
+function cancelShotEdit(){
+  if(!view.editingShotEditId) return false;
+  clearInlineEditState(view); renderProject(); return true;
+}
 ```
-
-> 注：完整类图（含 8 类条目、FavEntry、DemoSpec、DocOutput 及全部关系）以 `docs/class-diagram.mermaid` 为准；上面是本设计文档的精简视图。
-
-### 3.6 八类条目的渲染契约（统一约定，工程师逐行照抄）
-
-| 类型 | 规范渲染函数 / 基线行号 | 行容器属性 | 按钮顺序 | 编辑范围 |
-|---|---|---|---|---|
-| `mood` | `renderMoodGrid` 972–983 | `data-fid` 加在 `.mood-item` | 既有 `del/✎(标签)` + **新增 ☆/★** | 只保留 v6 标签编辑，不编辑素材内容 |
-| `shots` | `renderShots` 1154–1160 | `data-fid` 加在 `.shot` | `drag→chk→refs→文案→☆→🗑` | 不编辑正文；仅参考图操作 |
-| `schedule` | `timelineHtml` 1398–1402（仅 `_t==='node'`） | `data-fid` 加在 `.tl-item` | `chk→✎→☆→🗑` | type/title/start/end/note；不改 date/done |
-| `scenes` | `renderStuff('scenes')` 1419–1422 | `data-fid` 加在行 `div.row` | `chk→✎→☆→🗑` | name/note；不改 done |
-| `items` | `renderStuff('items_s'/'items_g')` 同上 | 同上 | 同上 | name/note；不改 kind/done |
-| `budget` | `renderBudget` 1453–1456 | `data-fid` 加在 `.brow` | `paid→☆→🗑` | **不提供 ✎** |
-| `notes` | `renderNotes` 1497–1504 | `data-fid` 加在 `.note-item` | `✎→☆→🗑` | kind/content；**保留 ts** |
-| `todos` | `renderNotes` 1480–1488 | `data-fid` 加在行 `div.row` | `chk→✎→☆→🗑` | title/owner/due；不改 done |
-
-- ☆/★ 输出统一：`isFav(it)?'★':'☆'`；button `title="收藏/取消收藏"`、`onclick="toggleFav('type',id)"`。
-- ✎ 输出统一：`onclick="beginInlineEdit('Node'|'Stuff'|'Todo'|'Note',id,'key')"`（仅 Stuff 传第三参）。
-- 删除沿用 `askConfirm` 的既有函数（分镜/清单/日程/预算/协作有；mood 无确认，保持现状）。
 
 ---
 
 ## 4. 程序调用流程
 
-### 4.1 时序图
+### 4.1 新增分镜（`addShot` 1644）
 
-完整 Mermaid 见 `docs/sequence-diagram.mermaid`（下列为同一流程的精简主干）：
+```
+用户点「添加分镜」→ addShot()
+ ├ 读 s_name/s_date/s_dur/s_scene/s_pos/s_light/s_note（gv）
+ ├ updateCur(p => {                     ← demo 只读守卫在此生效
+ │   sameDay = p.shots.filter(date===d)
+ │   ord = max(...sameDay.ord)+1（当天无则 0）
+ │   p.shots.push({slot:'', duration, position, light, ...})
+ │   plan = applyDay(p,d)               ← ①ensureDayDefaults ②planDay ③写回 slot/wrap
+ │ })
+ ├ selRefs=[]; view.shotDraft={}
+ ├ renderProject()                      ← renderShots 读回已物化的 slot
+ └ toastResched(plan)
+```
+重排时机：**push 之后、渲染之前，同一 `updateCur` 内**（单次落盘）。
 
-```mermaid
-sequenceDiagram
-    actor U as 用户
-    participant V as view
-    participant T as v9 纯函数层
-    participant S as updateCur/saveP
-    participant D as IndexedDB
-    participant B as renderBoard/renderFavorites
-    participant P as renderProject/各页签
-    participant R as renderShots/灯箱
-    participant F as DemoFactory
+### 4.2 编辑分镜（行内，新增）
 
-    Note over U,D: 启动与示例注入
-    U->>B: 打开应用
-    B->>S: await initData()（migrateFav 已挂钩）
-    B->>F: seed() → await ensureV9Demo()
-    F->>T: demoSpecs/buildDemoProject/slugPreview
-    F->>D: put 内联 SVG 图
-    F->>S: saveP([旧项目原样, 5 个新 demo])
-    B->>B: renderBoard()（过滤/统计/备份数走纯函数）
+```
+editBtn('Shot',id) → beginInlineEdit('Shot',id)
+ ├ clearInlineEditState(view)           ← 同刻只开一行
+ └ view.editingShotEditId=id; renderProject()
+        ↓ renderShots 命中 editingShotEditId → 渲染 esh_* 行内表单
+用户点「保存」→ saveShotEdit(id)
+ ├ 校验 name 非空
+ ├ updateCur(p => { Object.assign(shot,patch); plan=applyDay(p,shot.date) })
+ ├ clearInlineEditState(view)           ← 清 5 指针 + editingShotEditId（不清 editingShotId）
+ ├ renderProject()
+ └ toastResched(plan)                   ← 「已重排当天分镜（N 条后移）」，有节点顺延再追加「M 项日程已顺延」
+```
+Esc 链（2560-2567）：`refViewer → confirmModal → cancelInlineEdit() → cancelShotEdit() → closeDoc/closeShootDay`。
 
-    Note over U,R: R1 多图上传
-    U->>R: s_img(multiple) 选 N 张 → addShotImg(e)
-    R->>T: parseMultiImage(e)
-    loop 顺序 for...of await
-        R->>D: ingestImageFile → idb.put(imgId,data)
-        R->>S: updateCur(p=>p.mood.push(fav:false))
-    end
-    alt 新增态
-        R->>V: selRefs 补到 3，超出仅入库
-    else 编辑替换 i
-        R->>S: updateCur(p=>s.refIds[i]=okIds[0])
-    else 编辑追加
-        R->>S: updateCur(p=>s.refIds 补到 3)
-    end
-    R->>U: 汇总 toast（成功/失败/仅入库）
-    R->>R: renderShots(cur()) 一次
+### 4.3 拖拽改序 / 改期（`persistOrder` 1693）
 
-    Note over U,P: R3-R5 行内编辑
-    U->>P: ✎ → beginInlineEdit(kind,id,key)
-    P->>T: clearInlineEditState(view)
-    U->>P: 保存 → save*Edit → 校验 → updateCur → renderProject
-    U->>P: 取消 / Esc → cancelInlineEdit → 丢弃
-
-    Note over U,B: R6-R7 收藏与定位
-    U->>P: ☆/★ → toggleFav → updateCur
-    U->>B: 「★ 已收藏 N」→ renderFavorites
-    U->>B: 条目 → jumpToFav → focusRef(3s) → 高亮 + scrollIntoView
-
-    Note over U,F: R8 只读与复制
-    U->>S: demo 项目任意写 → updateCur 守卫 toast + return
-    U->>F: 复制为我的项目 → cloneDemo（删 demo/v9，新 id/名字/时间）
-    F->>S: saveP([...,copy]) → openProject(copy.id)
+```
+Pointer up → persistOrder(list, draggedId)
+ ├ ids = 新 DOM 顺序
+ ├ updateCur(p => {
+ │   before = byId[draggedId].date          ← ★ 改期前，必须先取
+ │   adopt  = 相邻项 date（末项取前一项）
+ │   byId[draggedId].date = adopt
+ │   逐条重排当天 ord（counters 按日期）
+ │   applyDay(p, before); applyDay(p, adopt)   ← 两个日期都要重排；before===adopt 时幂等
+ │ })
+ └ renderProject()
 ```
 
-### 4.2 关键流程编号步骤（可直接对照验收）
+### 4.4 插入日程节点（`addNode` 1836）
 
-**① 启动 / 示例注入（2080–2085、717–767、`ensureV9Demo`）**
-1. `await initData()`（678）读 IDB → 逐项 `migrate`（653：`migrateFav` + `migrateTags`）→ 写回。
-2. `seed()`（717）：首装写「城市漫游者」，`demo:true` + 首 mood `fav:true`。
-3. `await ensureV9Demo()`：按 3.4 双 guard → 补旧项目的 demo/图/fav → `buildDemoProject` ×6 → `saveP` → 写 flag → `idb.put` SVG 图。
-4. `renderBoard()`（770）：`matchBoardScope` 过滤、`backupItemCount` 预算提醒、demo 角标。
-5. `shiseiInitReady=true; startShiseiSync()`（2084）不变。
+```
+addNode()
+ ├ 校验 title 非空
+ ├ updateCur(p => {
+ │   p.schedule.push({type,title,start,end,note,date:schedDate,done:false,fav:false})
+ │   plan = applyDay(p,schedDate)      ← 分镜重新避让 → 后续整体后移
+ │ })
+ ├ renderProject()
+ └ toastResched(plan)
+```
+冲突表现：若新节点与已有节点区间相交，`dayItems._conflict` 标红「时间重叠」，**新节点（anchor）自身时间不被改写**；anchor 之后的节点链式顺延（`nodeShifts`），分镜再整体避让 = 需求 4 的「顺延其后续日程」。
 
-**② R1 多图上传 → 挂图（1107、1213–1234）**
-1. `s_img` 选 N 张 → `addShotImg(e)` 同步取 `view.editingShotId/replaceIdx`（1215）。
-2. `parseMultiImage(e)` 得有序 `files[]`；`e.target.value=''` 立即清 input（可重复选同图）。
-3. `for (const f of files){ const id=await ingestImageFile(f,[]); id?okIds.push(id):failN++; }`（单张失败仅 toast 后继续）。
-4. 新增态：`need=3-selRefs.length`，`selRefs.push(...okIds.slice(0,need))`，其余只入库。
-5. 编辑替换态：`s.refIds[replaceIdx]=okIds[0]`（其余只入库）；编辑追加态：`need=3-s.refIds.length`，逐个 push。
-6. 汇总 toast（例：`已存入情绪板 5 张，挂到分镜 3 张，失败 1 张`），`renderShots(cur())` 一次；`selRefs` 条显示 `k/3`。
+### 4.5 编辑节点（`saveNodeEdit` 1828）
 
-**③ R2 灯箱 / 换图 / 移除（1198–1212、1169–1196）**
-1. 点分镜缩略图 → `openRefViewer(shotId,ri)`，记录 `view.refViewer`，渲染「第 ri+1/N 张」+ ‹/› + 更换/移除/关闭。
-2. `shisei:` 且 `imgCache[key]` 为空 → 只渲染占位文字（1205），不渲染 `<img>`；更换/移除照常可用。
-3. `refNav(±1)` 环形切换；`openShotRefEditor` 进入选图态并置 `replaceIdx=ri`（1188–1191）。
-4. `toggleRef` 的 `replaceIdx>=0` 分支只写 `s.refIds[ri]`（1174）；`removeShotRef` 只 `splice` 该分镜（1193–1196）；情绪板原图与其它分镜不受影响。
+```
+saveNodeEdit(id)
+ ├ 读 en_type/en_title/en_start/en_end/en_note
+ ├ 校验 title 非空、end>start
+ ├ updateCur(p => {
+ │   n = p.schedule.find(id)
+ │   if(n.auto) 忽略 type/start/end 提交，只取 title/note   ← 收工/集合时间由 planDay 接管
+ │   Object.assign(n, patch); plan = applyDay(p,schedDate)
+ │ })
+ ├ clearInlineEditState(view); renderProject(); toastResched(plan)
+```
+集合改时间 → `base` 变化 → 全链重算（测试③）；收工时间为只读展示（`disabled`），写回永远来自 `planDay.wrap`。
 
-**④ R3-R5 编辑保存（1383–1412、1415–1438、1470–1520）**
-1. ✎ → `beginInlineEdit(...,id,key)` 先清空五个指针 → 只设一个 → `renderProject()`。
-2. 输入保存在 DOM 中，未点保存前不写库；Esc 由 `cancelInlineEdit()` 丢弃。
-3. 保存校验：日程 title 非空且 `toMin(end)>toMin(start)`（1339）；清单/待办 title 非空；沟通 content 非空。
-4. `updateCur(p=>Object.assign(target,白名单字段))` → done/date/fav/ts/kind(物品)/owner 等不在白名单的字段保持原值。
-5. `clearInlineEditState(view)` → `renderProject()`；日程 `schedDate`（1304）未动，重叠由 `dayItems`（1341）重算，**不调用 `cascadeShift`**。
+### 4.6 删除节点（`delNode` 1842）
 
-**⑤ R6-R7 收藏与跳转（渲染契约 3.6、`renderFavorites`/`jumpToFav`）**
-1. ☆/★ → `toggleFav(type,id)` → `updateCur` 写 `fav` → 当前页重绘；demo 项目被 529 守卫拦截并 toast。
-2. 看板/项目页按钮调用 `collectFavorites(loadP()).length` 显示「★ 已收藏 N」。
-3. `openFavorites()` → `view=freshView({mode:'favorites'})` → `renderFavorites()` 按项目→模块分组，行显示 `FAV_ICON[type] + summary40 + module + '定位›'`。
-4. `jumpToFav(type,pid,id)`：`freshView({mode:'project',pid,tab:FAV_TAB[type]})`；日程先把 `schedDate` 设为 `FavEntry.date||p.shootDate||todayStr()`。
-5. `view.focusRef={type,id,until:Date.now()+3000}` → `await cacheProjectImages(p)` → `renderProject()` → 遍历 `[data-fid]` 比对 `dataset.fid` → 加 `.fav-focus` + `scrollIntoView({block:'center'})`。
-6. `setTimeout(3000)` 重新查询 DOM、按 id 复核清 class 与 `focusRef`；期间用户切页也不会清错元素。
+```
+delNode(id) → updateCur(p => { date=n.date; p.schedule=filter(id!==); plan=applyDay(p,date) })
+            → renderProject()
+```
+删掉集合节点：`base` 回落到 10:00；删掉收工节点：`dayInit` 已记录 → **不会自动复活**（避免删了又出现）。
 
-**⑥ R8 demo 只读 / 复制（529、863–866、969–986、`copyDemoToMine`）**
-1. demo 项目：看板卡片与项目标题显示「示例」角标；pactions 只有「导出此案」「复制为我的项目」「★ 已收藏 N」，隐藏拍摄日模式；元数据/概念输入 disabled。
-2. 任意漏网写路径（如 ☆、勾选、标签 ✎）到 `updateCur` 统一 toast + return。
-3. 点「复制为我的项目」→ `copyDemoToMine(pid)` → `cloneDemo(p,uid(),Date.now())`（删 demo/v9、新 id、名字加「（副本）」、刷新时间、图片 key 共享）。
-4. `allowDemoWrite=true` → `saveP([...a,copy])` → `false` → `openProject(copy.id)` → toast；副本所有编辑能力恢复。
+### 4.7 切换日期（`renderSchedule` 1715 / `openShootDay` 2008）
 
-**⑦ Esc 优先级（2075–2077）**
-1. `refViewer.show` → `closeRefViewer()` 并 return。
-2. 否则 `confirmModal.show` → `closeConfirm()` 并 return。
-3. 否则 `cancelInlineEdit()` 返回 true → 已丢弃编辑，return。
-4. 否则 `closeDoc(); closeShootDay();`。
+```
+用户改 #sc_date → schedDate=this.value; renderSchedule(cur())
+renderSchedule(p)
+ ├ autoSyncDay(schedDate)               ← ★ 首次进入某日期：补集合/收工 + 重排（有 drift 才写盘）
+ ├ sunTimes / timelineHtml(p,schedDate) ← 读 dayItems（已物化 slot，零改动）
+ └ 渲染
 
-**⑧ 看板筛选（770–833）**
-1. `ps=all.filter(p=>matchBoardScope(p,view.boardScope) && 搜索命中)`。
-2. `active/todayShoots/卡片倒计时` 全部用 `isActiveStatus/matchBoardScope`。
-3. `backupItemCount(all)` 排除 demo 后决定 `#backupTip.show`（831）。
+openShootDay() → sdDate=p.shootDate → autoSyncDay(sdDate) → renderShootDay()
+```
+
+### 4.8 拍摄日整日顺延（`sdPostpone` 2062，重写）
+
+```
+点「整日顺延 1 小时」→ sdPostpone()
+ ├ nodes = schedule.filter(date===sdDate && start)
+ ├ nodes.length===0 → toast('当天只有分镜，请先在日程里插入环节再整体顺延'); return
+ ├ 溢出预检：任一 (end||start+30)+60 > 1440 → toast('顺延后超出当天 24:00，请先改到次日'); return
+ ├ updateCur(p => {
+ │   当天所有节点 start/end 各 +60（含集合；收工随后被重排覆盖）
+ │   plan = applyDay(p,sdDate)          ← 分镜跟随新的 base 链
+ │ })
+ └ renderShootDay()
+```
+
+### 4.9 新建场景（分镜页入口，新增）
+
+```
+#s_scene 选「＋ 新建场景…」→ pickShotScene('__new')
+ ├ saveShotDraft('scene','__new'); renderShots()      ← 展开行内条
+ ├ 输入 #new_scene_name → addSceneInline()
+ │   ├ p.scenes.push({id:uid(),name,note:'',done:false,fav:false})
+ │   ├ view.shotDraft.scene=新 id                       ← 自动选中
+ │   └ renderShots()
+ └ 「取消」→ cancelSceneInline() → draft.scene=''
+下拉旁「管理」→ view.tab='stuff'; renderProject()       ← 复用清单页场景分组的增删改
+```
 
 ---
 
-## 5. Anything UNCLEAR（默认决策，无需阻塞评审）
+## 5. 任务列表（≤5 个，按依赖排序）
 
-| # | 事项 | 默认决策 | 备注 |
-|---|---|---|---|
-| 1 | 「已收藏 N」是否统计 demo 项目里历史遗留的 `fav:true` | **统计**（数据如实呈现），条目在已收藏视图显示「示例」角标，跳转后仍只读 | 用户无法在 demo 中新增收藏；若主理人希望完全隐藏，只需在 `collectFavorites` 加 `if(p.demo) return;` |
-| 2 | 第 6 色具体色值与类名 | `STATUS_TAG[5]='ink'`，CSS 追加 `.tag.ink`（灰墨底）；`.dot.st-5/.pcard.st-5::before=#9c9389` | 副作用：`NODE_COLORS`（1303）的 `'其他'` 也用 `ink`，会由默认主色变为灰墨，属视觉修正 |
-| 3 | demo 概念页输入如何处理 | 与元数据卡一致加 `disabled`（避免逐字输入触发只读 toast） | 用户项目概念页自动保存行为不变 |
-| 4 | demo 图存储方式 | `uid()` 作 key + 内联 SVG dataURL 写 `images` store + `imgCache` 预热 | 不改 `cacheProjectImages`/渲染函数；导出备份会包含这些极小图片 |
-| 5 | 示例幂等标记 | `localStorage['wb_sf_demo_v9']` 为主，项目上 `v9:1` 为辅（崩溃恢复）；`cloneDemo` 删除 `v9` | 不新增状态枚举，不影响 UI |
-| 6 | 项目页「★ 已收藏 N」点击行为 | 与看板同款：进入全局 `favorites` 视图 | 不做项目内收藏筛选（边界外） |
-| 7 | 日程时间轴里的分镜行是否加 ☆ | 不加；分镜的 ☆ 只在分镜页规范行出现 | 避免同一条目两处入口状态不同步 |
-| 8 | 发布时 SW 是否必须 bump | **必须**：`shotflow-sw.js:1` `shotflow-v8`→`shotflow-v9` | 否则 PWA 用户因缓存拿不到 v9 |
+> 单文件项目无法满足「每任务 ≥3 文件」，改为「每任务 ≥3 个改动单元（函数区间 + DOM + 样式/测试）」，文件维度只有 `shotflow.html` 一列，按模块切区间，避免多人同区冲突。
 
-> 以上 8 项均已在设计中给出可直接执行的默认值；**无需要主理人额外决策的阻塞项**。如主理人否决其中某项，仅影响对应单点，不改任务划分。
+### T01 排程引擎纯函数 + 常量 + 迁移/示例数据（P0）
+- **改动单元**：`shotflow.html` ①411 后常量 ②1749 后「v10 排程引擎」整块 ③`migrate` 880-895 ④`buildDemoProject` 849-873 ⑤`seed` 962-973 ⑥`freshView` 546-552 / `clearInlineEditState` 685-690；`tests/logic.test.mjs` 追加 12 项
+- **依赖**：无
+- **验收**：`node tests/logic.test.mjs` → `pass=71 fail=0`（59+12）；`planDay` 连跑两次结果全等；`migrate` 对 `{shots:[{id:'s',refId:'img1'}]}` 仍返回 `duration===20` 且新增 `position===''`；老项目 `slot` 经 `rescheduleDay` 被覆盖为 `10:00`
+
+### T02 分镜模块：可编辑 + 机位光线 + 场景入口（P0）
+- **改动单元**：`renderShots` 表单 1515-1522 / 新建场景条 / 列表行 1538-1545；`pickShotScene`+`addSceneInline`+`cancelSceneInline`；`addShot` 1644；`saveShotEdit`+`cancelShotEdit`；`delShot` 1708；`persistOrder` 1693；`beginInlineEdit` 1244；Esc 2560；CSS `.new-scene`/`.shot .inline-edit`
+- **依赖**：T01
+- **验收**：表单无「时间」字段；时长默认 10；机位/光线下拉首项为 `— 机位 —`/`— 光线 —`（value 空）；列表行有「✎编辑」，行内可改 6 项且保存后 `slot` 由重排决定；选「＋ 新建场景…」可在行内建场景并自动选中；拖拽换天后两天 `slot` 都正确；新增/编辑/删除后时间轴立即变化
+
+### T03 日程模块：集合/收工自动补 + 重排 + 冲突（P0）
+- **改动单元**：`renderSchedule` 1715-1745（`autoSyncDay`、死变量清理、表单默认值）；`timelineHtml` 1792-1827（分镜标签、自动徽标、收工只读）；`addNode`/`saveNodeEdit`/`delNode`；CSS `.auto-pill`
+- **依赖**：T01
+- **验收**：首次进某日期自动出现「集合 09:30-10:00」「收工」两项，收工时间 = 当天最晚结束 +15；收工行有「自动」徽标且时间输入 `disabled`；插入 10:15-10:25 节点后，原本 10:10 的分镜变为 10:25 且 toast 提示 N 条后移；把集合改到 10:30 后分镜从 10:30 起；两节点重叠时该行标红「时间重叠」且节点时间不被自动改写；删掉收工后不再自动出现
+
+### T04 拍摄日模式 + 文档输出（P1）
+- **改动单元**：`renderShootDay` 2042-2048；`sdPostpone` 2062-2067 重写；`callSheetHtml` 2075-2087；`openDoc` 2130-2132；CSS `.sd-tag`
+- **依赖**：T01、T03
+- **验收**：拍摄日分镜行显示「分镜」小标签；「整日顺延 1 小时」把当天全部节点 +60 且分镜重排，无节点时给提示不报错；Call Sheet 与执行手册分镜表出现机位/光线列（仅当有值时）
+
+### T05 集成验证 + 文档与缓存版本（P1）
+- **改动单元**：`shotflow-sw.js` `CACHE` 版本；`README.md` §六/§七；`docs/system_design.md` + 两张 mermaid；全量人工回归清单
+- **依赖**：T02、T03、T04
+- **验收**：`pass=71 fail=0`；`grep -n "s_slot" shotflow.html` 无残留（输入框已删）；旧备份导入后不乱序、无重复集合/收工；示例项目只读打开日程不弹 toast、不改时间；SW 缓存版本为 v10；README 记录「旧项目首开时间整体重排」的行为变化
+
+### 依赖图
+
+```
+T01 ──► T02 ──┐
+  └───► T03 ──┴──► T04 ──► T05
+```
 
 ---
 
-# Part B：任务分解
+## 6. 回归风险清单（所有读 `slot` / `duration` / `schedule` 的消费点）
 
-## 6. 所需依赖包
+| # | 位置（行号） | 读取内容 | v10 影响 | 需改动？ |
+|---|---|---|---|---|
+| 1 | `shotSortKey` 1468 | `ord`，缺 `ord` 时退 `slot` | `ord` 始终存在 → 退路基本不走 | 否 |
+| 2 | 分镜列表元信息 1543 | `s.date` / `s.slot` / `s.duration` | `slot` 已物化，恒有值 → 显示更可靠 | 是（追加机位/光线） |
+| 3 | 分镜行冲突标红 1529 | `dayItems(...)._conflict` | 分镜自动避让后几乎永不冲突 | 否（保留，无害） |
+| 4 | `renderSchedule` 1718-1719 | `n.start`、`s.slot` | **死变量**（结果未被使用） | 建议删（可选） |
+| 5 | `dayItems` 1750-1764 | `s.slot` / `s.duration` / `n.start,end` | 语义不变 | **否（严禁改）** |
+| 6 | `cascadeShift` 1766-1791 | 同上 + 写 `slot/start/end` | UI 不再调用 | **否（保留给测试）** |
+| 7 | `timelineHtml` 1792-1827 | `_time` / `duration` / `start,end` | 一致 | 是（分镜标签、收工只读） |
+| 8 | `renderShootDay` 2015-2055 | `_time`（分镜取 `slot`）/ `duration` / `end` | 一致；`currentId`/`overdue` 判定不变 | 是（分镜标签、按钮文案） |
+| 9 | `sdPostpone` 2062 | 经 `cascadeShift` 改 `slot` | 语义反转（单条 → 整日） | 是（重写） |
+| 10 | `callSheetHtml` 2075-2087 | `_time` / `duration` | 一致 | 是（机位/光线列） |
+| 11 | `openDoc` 2130-2132 | `s.date+' '+s.slot` / `s.duration` | 一致（`slot` 恒有值，不再出现空时间） | 是（两列 + `li` colspan） |
+| 12 | `exportJSON` 2212 / `exportProject` 2216 | 整包 `projects`/`project` | 备份含 `dayInit`/`position`/`light`/物化 `slot`；旧版本客户端无感 | 否 |
+| 13 | `applyImport` 2241 / `initData` 906 / `newProject` 1180 | 经 `migrate` 补默认 | 旧备份无 `dayInit` → `[]`，首开自动补 | 否（`migrate` 已覆盖） |
+| 14 | `collectFavorites` 721 / `favSummary` 706 | 仅 `name` | 无影响 | 否 |
+| 15 | `backupItemCount` 736 | 数组长度 | 无影响 | 否 |
+| 16 | `searchHit` 1039 | `name` / `note` | 机位/光线不进搜索 | 可选（建议加入，1 行） |
+| 17 | 示例数据 `buildDemoProject` / `seed` | 硬编码 `slot`、`type` | 需显式构造自动节点 + `dayInit` | 是（T01） |
+| 18 | `cloneDemo` 764 | 深拷贝整包 | 副本继承 `dayInit` → 复制后不会再补默认项 | 否 |
 
-**无第三方依赖、无构建步骤。**
+---
 
-- 运行时：仅 `shotflow.html`（原生 DOM / IndexedDB / Canvas / FileReader / `encodeURIComponent` / 内联 SVG dataURL）
-- 测试：`node tests/logic.test.mjs`（Node 内置 `node:fs`、`node:vm`；直接运行，无需 npm install）
-- 明确不新增：`package.json`、bundler、UI 库、图片文件、外链脚本/样式、任何服务端依赖
+## 7. 待明确事项（**我发现的真实冲突 / 需主理人确认**）
 
-## 7. 任务列表（按依赖排序，共 5 条；每条 ≥3 个改动区域）
-
-> 本项目只有一个运行时文件，"源文件"列按**函数/行号区域**标注（等价于模块化项目中的文件分组）。T01 承担"项目基础设施"角色：常量 + 测试框架 + 纯函数层 + 迁移挂钩 + 全局 CSS，全部收敛在一个任务。
-
-### T01 · 基础设施：v9 常量 / 纯函数层 / 迁移挂钩 / 测试框架 / 全局 CSS（P0，依赖：无）
-
-**改动区域**
-1. `shotflow.html` 359、485–486：`LS_DEMO_V9`、`FAV_KINDS/FAV_META/FAV_ICON/FAV_TAB`、`STATUSES`/`STATUS_TAG` 第 6 项
-2. `shotflow.html` 526–529：`freshView()` + `view=freshView()` + `updateCur` demo 守卫
-3. `shotflow.html` 651 行处：16 个 v9 具名纯函数（3.2）
-4. `shotflow.html` 653–667：`migrate` 插入 `migrateFav(p)`
-5. `shotflow.html` CSS 45–49/97/103/296–313：`.tag.ink`、`.st-5`、`.rowbtn`、`.inline-edit`、`.selrefs`、`.badge.demo`、`.fav-focus`、`:disabled`、移动端常显
-6. `tests/logic.test.mjs` 17–18、64–95 后、153：ctx 注入 `encodeURIComponent`；追加 16 个抽取名；新增 15 项断言；RESULT 44→59
-
-**验收点**
-- `node tests/logic.test.mjs` 原有 **44 项全 PASS**（尤其 `migrate refId→refIds`、`migrate 补 duration`、`initData 迁移旧数据` 三项）
-- 15 项新增全过（逐项）：① `freshView` 默认值/patch；② `clearInlineEditState` 五指针清空；③ `migrateFav` 八数组 + demo 默认 false；④ `migrateFav` 保留 true 且二次 JSON 相等；⑤ `isFav`+`favCount` 混合数组；⑥ `summary40` 40 字截断与空白折叠；⑦ `favSummary` 8 类映射；⑧ `collectFavorites` 字段与排除非 fav；⑨ `backupItemCount` 排除 demo；⑩ `matchBoardScope` 三档；⑪ `isActiveStatus` 六状态；⑫ `parseMultiImage` 伪事件过滤；⑬ `slugPreview` dataURL 前缀且零 `http`；⑭ `cloneDemo` 深拷贝/删 demo+v9/新 id/名字/时间且原对象不变；⑮ `demoSpecs().length===5` 且 `buildDemoProject` 对 5 spec 均满足 7 页签非空 + mood≥3 含图 + 1 个 3 图 refIds + ≥1 fav
-- 全部新增纯函数可由 `fn(name)` 抽取（具名 `function`），且无 `document/window/idb/view/toast`
-- 44+15=59，`RESULT pass=59 fail=0`，退出码 0
-
-### T02 · 示例数据层 + 看板/项目页壳改造（P0，依赖：T01）
-
-**改动区域**
-1. `shotflow.html` 717–767 `seed()`：`demo:true`、首 mood `fav:true`（不写 `v9`）
-2. `shotflow.html` 767 后新增 `ensureV9Demo`/`copyDemoToMine`/`slugPreview` 调用与 SVG 常量；2080–2085 启动链接入
-3. `shotflow.html` 770–833 `renderBoard()`：三档过滤/统计/倒计时/备份数纯函数化、★入口、demo 角标
-4. `shotflow.html` 843 `openProject()` 与 1757–1786 `applyImport/clearAll`：view 重置改 `freshView`
-5. `shotflow.html` 856–877 `renderProject()`、899–910 `renderConcept()`：pactions、元数据与概念 disabled、demo 角标
-6. `shotflow.html` 1044–1086 新条目写 `fav:false`（mood 部分）
-
-**验收点**
-- 老数据首次打开只注入一次：刷新页面后项目数不再增加；`localStorage.wb_sf_demo_v9==='1'`；手动删 flag 但保留 `v9:1` 项目也不会重复注入
-- 共 6 个示例（5 新 + 城市漫游者），每个 7 页签非空，mood≥3 含至少 1 图，分镜≥2、日程≥2、清单≥3、预算≥2、沟通≥2、待办≥2；至少 1 个示例首分镜 `refIds.length===3`；每个示例 ≥1 `fav:true`
-- 示例图离线可见：断网打开仍能显示内联 SVG；情绪板/分镜引用/导出提案均显示正常
-- 旧「城市漫游者」用户字段（名称/客户/分镜/预算等）逐项对比无改动，仅新增 `demo:true`/一张图/一条 fav
-- demo 项目：看板与项目页显示「示例」角标；pactions 无「进入拍摄日模式」、有「复制为我的项目」与「导出此案」；元数据与概念输入 disabled；任意 ☆/勾选/编辑触发只读 toast 且数据不变
-- 「进行中」= 4 态；「已归档」= 已交付 + 已归档（两个示例都出现）；备份提醒条数不含 6 个示例
-- 复制为我的项目：名字以「（副本）」结尾、id 新鲜、无 demo/v9、可自由编辑、图片仍显示
-
-### T03 · R1/R2 分镜多图上传与参考图交互（P0，依赖：T01；只改 `renderShots` 区域，不与 T04 冲突）
-
-**改动区域**
-1. `shotflow.html` 1107：`s_img` 加 `multiple`
-2. `shotflow.html` 1129–1142：`renderShots` 增「已选参考图（k/3）」条（缩略图+序号+×取消，不动情绪板）
-3. `shotflow.html` 1143–1161：分镜行按钮序 `drag→chk→refs→文案→☆→🗑`、加 `data-fid` 与 `toggleFav('shots',id)`
-4. `shotflow.html` 1169–1196：`toggleRef` 替换/追加分支与 `removeShotRef` 核对（只改目标 `refIds`）
-5. `shotflow.html` 1198–1212：`openRefViewer` 记 `view.refViewer`、加 `refNav(±1)`、`shisei:` 占位禁大图
-6. `shotflow.html` 1213–1234：`addShotImg` 改为 `parseMultiImage` + 顺序 await + 三种挂图模式 + 汇总 toast
-7. `shotflow.html` 1235–1244：`addShot` 新条目 `fav:false`
-
-**验收点**
-- 一次选 5 张：情绪板按选择顺序新增 5 条 image；新增分镜 `selRefs` 恰好前 3 张；toast 说明「入库 5 / 挂载 3」；条上 × 只取消选择，情绪板原图仍在
-- 已有 2 张的**已创建**分镜再传 4 张：只补 1 张到 3，其余 3 张仅入库；替换第 i 张时只有 `refIds[i]` 变化，`i` 之外与情绪板原图不变
-- 5 张中第 3 张损坏：跳过它继续处理第 4/5 张，最终 toast 含失败数；其余 4 张正常入库
-- 灯箱显示「第 2/3 张」；‹/› 环形切换；`shisei:` 占位无 `<img>` 但「更换/移除」可用；更换只改一个下标，移除只改该分镜
-- 3 张上限在所有路径生效；`addShot` 写入 `refIds` 仍是 image content key；拖拽排序、`ord`、时间重叠标记不回归
-
-### T04 · R3-R7 行内编辑 + 八类收藏 + 已收藏视图 / 跳转（P0，依赖：T01；不改 `renderShots` 与看板壳）
-
-**改动区域**
-1. `shotflow.html` 940–986 `renderMoodGrid`：mood 行 `data-fid` + ☆/★（保留 v6 标签 ✎）
-2. `shotflow.html` 1302–1412 `NODE_TYPES` 之后：`saveNodeEdit`、`beginInlineEdit`/`cancelInlineEdit`，`timelineHtml` 节点行 ✎/☆、`addNode` 写 `fav:false`
-3. `shotflow.html` 1415–1438 `renderStuff`：三区块 ✎/☆ 与 `saveStuffEdit`；`addStuff` 写 `fav:false`
-4. `shotflow.html` 1442–1465 `renderBudget`：只加 ☆/★ + `data-fid`；`addBudget` 写 `fav:false`
-5. `shotflow.html` 1470–1520 `renderNotes`：待办/沟通 ✎/☆、`saveTodoEdit`/`saveNoteEdit`；新增写 `fav:false`
-6. `shotflow.html` 833 后新增 `openFavorites/renderFavorites/jumpToFav/highlightFav`；`doc keydown` 2075–2077 改 Esc 优先级
-7. `shotflow.html` `toggleFav`（建议置于 529 之后）：八类共用写 `fav`
-
-**验收点**
-- 日程/场景/物品/待办/沟通均可行内编辑并保存；同一时刻仅一行有输入态（点开第二行第一行自动退出）；取消与 Esc 均丢弃
-- 日程 `end<=start` 或标题为空时 toast 并保留编辑态；保存后 `schedDate` 不变、done 不变、重叠标记按 `dayItems` 重算、无级联顺延
-- 沟通记录编辑后 `ts` 与原值完全相同（按时间倒序位置不变）；待办 done 不被编辑影响；预算无 ✎、分镜正文无 ✎、情绪板素材内容无 ✎
-- 八类 ☆/★ 切换即写 `fav`，刷新后保持；按钮序符合 3.6；hover 显现、★ 常亮、移动端 14px 常显
-- 「★ 已收藏 N」在看板与项目页均显示且与 `collectFavorites` 长度一致；favorites 视图按项目→模块分组，行摘要≤40 字
-- 点击已收藏日程条目：切到目标项目日程页且 `schedDate` 指向该条目日期；高亮出现并滚入视野，3 秒后消失；不产生任何跨项目复制；demo 条目跳转后仍只读
-
-### T05 · 文档更新 + 部署同步 + 全量回归（P1，依赖：T02、T03、T04）
-
-**改动区域**
-1. `README.md` 28–30、32–42、66、74–76、115、124–125、127–135、137–145（按 2.3）
-2. `overview.md` 4、9–21、27–42、40–41（按 2.4）
-3. `shotflow-sw.js:1`：`shotflow-v8` → `shotflow-v9`
-4. `shotflow-app/shotflow.html`：从源文件整体同步，`diff` 为空
-5. `tests/logic.test.mjs` 全量回归 + 手动端到端清单（本节验收点）
-
-**验收点**
-- `node tests/logic.test.mjs`：`pass=59 fail=0`，退出码 0；44 项旧断言一字未删
-- 手动全链路：新用户首次打开 → 7 示例出现 → 打开 demo 验证只读 → 复制副本 → 副本多图上传/行内编辑/收藏 → 已收藏跳转高亮 → 导出备份 → 清空 → 导入恢复（fav/demo 字段正确）
-- 导出 JSON：项目含 `fav/demo/v9`，`images` 键覆盖 demo SVG key；提案/Call Sheet/执行手册视觉与 v8 一致（不出现 ☆/示例角标/收藏模块）
-- `shotflow-sw.js` 版本号为 `shotflow-v9`；`shotflow.html` 与 `shotflow-app/shotflow.html` 内容完全一致；全库搜索无 `fetch` 新增（AI 桩仍零网络）、无第三方导入语句
-
-## 8. 共享知识 / 约定
-
-1. **命名**：纯函数 `动词+名词`（`migrateFav`/`collectFavorites`/`backupItemCount`/`matchBoardScope`）；view 编辑字段固定 `editing{Node,Stuff,Todo,Note}Id` + `editingStuffKey`；DOM id 前缀：行内编辑 `en_`（日程/沟通）、`es_`（清单）、`et_`（待办）；CSS 类新增 `.rowbtn/.inline-edit/.selrefs/.badge.demo/.fav-focus/.tag.ink`。
-2. **转义铁律**：所有动态文本进 `innerHTML` 必须 `esc()`；内联事件字符串参数必须 `jstr()`；`slugPreview` 因需被 vm 抽取，**不能调用 `esc`**，用自带白名单 `replace(/[<>&"']/g,'')`；demo 文案全部来自代码常量，无用户输入。
-3. **持久化**：一切写走 `updateCur(fn)`（自动 `updatedAt` + 200ms 合并 `saveP`）；禁止直接改 `projectsCache`（例外：`saveP` 本身与 `ensureV9Demo`/`copyDemoToMine` 的一次性追加）；`view`、`focusRef`、`schedDate`、`selRefs` 永不入库/导出。
-4. **纯函数可测性**：新纯函数不得引用 `document/window/idb/view/toast/localStorage`；只用 `Array/Object/JSON/String/Number/Date/Set/encodeURIComponent`；测试 ctx 第 17 行已含 `encodeURIComponent`。
-5. **demo 边界**：`p.demo && !view.allowDemoWrite` 是**唯一**写守卫；禁止在业务函数里再散写 `if(p.demo)`（渲染层决定按钮显隐/disabled 除外）；`ensureV9Demo` 只追加、只给旧「城市漫游者」补 3 个字段（demo/一张图/一条 fav）；不做在线更新与单条删除；`cloneDemo` 是唯一让 demo 变可写的入口。
-6. **状态过滤单一真源**：所有「进行中/已归档」判定走 `matchBoardScope`/`isActiveStatus`；禁止再手写 `p.status!=='已交付'`。
-7. **inline edit 生命周期**：`beginInlineEdit` 先 `clearInlineEditState`；保存白名单之外的字段（done/date/ts/fav/kind/ord/refIds）一律不动；Esc 优先 `refViewer → confirmModal → 行内编辑 → 其它弹窗`。
-8. **focusRef 生命周期**：只在 `jumpToFav` 设置；3 秒定时清除；清除时按 `id` 重新查询 DOM，不能持有旧元素引用；不跨项目复制条目；日程跳转先设 `schedDate`。
-9. **参考图 3 张上限**：`selRefs` 与 `s.refIds` 都 ≤3；替换态只写一个下标；`shisei:` 占位可换可删不可看大图；多图上传失败单张跳过、汇总提示。
-10. **发布**：`cp shotflow.html shotflow-app/shotflow.html` → `shotflow-sw.js` bump 到 v9 → 部署 `shotflow-app/`；源码一律相对路径、不写平台访问码。
-11. **不做清单**：跨项目复制收藏、概念页收藏/新编辑、预算编辑、分镜正文编辑、情绪板素材内容编辑、编辑后级联顺延、>3 张、新增状态、示例在线更新/单条删除、服务端同步、第三方库/构建链。
-
-## 9. 任务依赖图
-
-```mermaid
-graph LR
-    T01["T01 基础设施<br/>常量/纯函数/migrate/CSS/测试框架<br/>P0"] --> T02["T02 示例数据层<br/>看板+项目页壳+只读+复制<br/>P0"]
-    T01 --> T03["T03 分镜多图+参考图<br/>灯箱/换图/移除/收藏<br/>P0"]
-    T01 --> T04["T04 行内编辑+八类收藏<br/>已收藏视图+跳转高亮<br/>P0"]
-    T02 --> T05["T05 文档+SW+同步<br/>全量回归<br/>P1"]
-    T03 --> T05
-    T04 --> T05
-    style T01 fill:#f3e9da,stroke:#9a6a33
-    style T02 fill:#f3e9da,stroke:#9a6a33
-    style T03 fill:#f3e9da,stroke:#9a6a33
-    style T04 fill:#f3e9da,stroke:#9a6a33
-    style T05 fill:#e8f2eb,stroke:#3c7a57
+### 7.1 【硬冲突·已给解法】`migrate` 的 `duration` 兜底只能是 20，不能是 10
+`tests/logic.test.mjs:65-67`：
+```js
+const migrated = vm.runInContext(`migrate({name:'x',shots:[{id:'s',refId:'img1'}],budget:[]})`, ctx);
+check('迁移补 duration', migrated.shots[0].duration === 20);
 ```
+这里的 shot **完全没有 `duration` 字段**（不是「已有 20 的老数据」），所以「缺省改 10」必然让第 67 项红掉。测试一行不能改 → 无解冲突。
+**解法（按此实现）**：`migrate` 保持 `if(s.duration==null) s.duration=20;`。需求 2 的「默认 10 分钟」由三处保证：① 表单 `s_dur` 默认 10（1519）；② `addShot` 落库默认 10（1650）；③ `planDay` 内部兜底 `SHOT_DEFAULT_MIN=10`。行为差异仅存在于「老项目里从未填过时长的分镜」，且 v10 起这类分镜可被行内编辑改掉——对用户可解释。README §七 需写明。
+
+### 7.2 【硬冲突·已给解法】`view.editingShotId` 已被「参考图编辑器」占用
+`editingShotId` 不是空闲指针：`openShotRefEditor` 1575-1577、`toggleRef` 1556-1568、`addShotImg` 1617-1635、`renderShots` 1481-1486 都用它表达「正在给这条分镜选参考图」——命中时会渲染 `.edit-bar` 并**隐藏 `selRefsBar`**。若用它表达「正在行内编辑文字」，点「✎编辑」会顺带进入选参考图模式。
+同时 `clearInlineEditState` **不能清** `editingShotId`（`tests:160-164` 要求它保留 `'keep'`）。
+**解法**：新增独立指针 `view.editingShotEditId`。
+- `freshView` 加 `editingShotEditId:null`；
+- `clearInlineEditState` 追加 `v.editingShotEditId=null`（该测试只检查 5 指针 + `editingShotId`，追加清理不影响，✅ 通过）；
+- `beginInlineEdit('Shot',id)` 设 `editingShotEditId`；
+- `cancelInlineEdit` 的 `has` 判断**不**包含它（保持返回 false），Esc 链另插 `cancelShotEdit()`。
+
+### 7.3 【命名冲突·已给解法】`es_name` / `es_note` 已被清单页行内编辑占用
+`renderStuff` 1852-1853 与 `saveStuffEdit` 1870-1872 用的是 `gv('es_name')` / `gv('es_note')`。分镜行内编辑若沿用 `es_*`，同一时刻虽只有一个页签在 DOM，但函数语义会串（未来重构极易出错）。
+**解法**：分镜统一 `esh_*`（`esh_name/esh_dur/esh_scene/esh_pos/esh_light/esh_note`）。
+
+### 7.4 【模型细节·已给解法】`dayDefaults` 仅按 `auto` 判断会与老项目的 `type==='集合'/'收工'` 节点重复
+模型原文是「无 `auto==='call'` 则给集合」。但 `seed`（969/972 行）和所有 v9 及更早用户的日程里，`type==='集合'` / `type==='收工'` 的节点**没有 `auto` 字段**。按原文判断 → 首开每天多出「集合」「收工」两条重复项，用户一天有两个收工。
+**解法**（已写进 §3.3 代码）：
+- 判定条件改为 `auto===X || type===X`（任一命中即视为已有）；
+- 对「有 `type==='收工'` 但无 `auto`」的老节点，`dayDefaults` 返回 `{kind:'adopt',id}`，由 `ensureDayDefaults` 补 `auto='wrap'` —— 即把老收工"升级"为自动节点，其时间此后由 `planDay` 接管。这正好落在需求 3「收工时间自动计算」的语义上。
+- 若主理人坚持不接管老收工节点的时间（尊重历史手填 19:00），替代方案：`adopt` 后不写回时间（`rescheduleDay` 跳过无 `auto` 的节点），代价是需求 3 对该项目失效。
+
+### 7.5 【已裁决·已落地】需求 4「顺延其后续日程」：以 anchor 链式顺延落地（覆盖本节原建议）
+需求 4 原文：「新增或插入日程后，**自动重算并顺延其后续日程**」。模型 C 原文是「不做节点之间的自动挪动」，与需求字面冲突。
+**主理人裁决（实现以此为准，本节原「只标红不顺延」的建议作废）**：
+1. 本轮刚插入 / 刚编辑的节点是 **anchor**：位置永不自动改变（尊重用户显式输入）；若与前一项重叠，仅由 `dayItems._conflict` 标红「时间重叠」。
+2. anchor 之后的节点按 `start` 升序**链式顺延**：`start < 前一项 end` 时顺延到 `前一项 end`，`end` 同步后移（保持原时长），并记入 `planDay(...).nodeShifts`。
+3. 分镜在所有节点位置**确定之后**才排，因此分镜之间永不重叠。
+4. 实现方式：`planDay(p,date,anchorId)` 接收 anchorId（可为 null），`rescheduleDay` / `applyDay` 透传；被顺延节点在**同一个 `updateCur` 回调**内物化写回，`view.lastShift` 让时间轴临时显示「已顺延」（30 秒或下次重排清除）。
+5. toast：`已重排当天分镜（N 条后移）`，若发生节点顺延再追加 `，M 项日程已顺延`。
+
+### 7.6 【语义澄清】`shiftedCount` 的定义（建议按此，与你原文略有不同）
+你写「N 取 `planDay(...).shiftedCount`」，用于 toast「已重排当天分镜（N 条后移）」。若定义为「相对编辑前」，则 `planDay` 必须接收旧状态 → **破坏「`planDay` 幂等」（测试⑥）**。
+**定义**：`shiftedCount` = 「因锚点避让而晚于**无锚点顺序链**的分镜条数」（纯由输入决定，跑两次相等）。toast 文案按主理人裁决为「已重排当天分镜（N 条后移）」，语义仍然准确。
+
+### 7.7 【细节】`ord` 并列的 tie-break：用数组顺序而非 `id`
+模型写「`ord` 相同按 `id` 稳定排序」。但分镜列表显示用的是 `shotSortKey`（`ord` 主键 + `Array.sort` 稳定性 → 并列时沿用**数组顺序**）。若 `planDay` 用 `id` 排序，时间轴顺序会与列表顺序不一致（用户看到的第 1 条在时间轴上排第 3）。
+**解法**：`planDay` 只按 `ord` 排序，并列时依赖稳定排序沿用数组顺序（`migrate` 后所有历史分镜 `ord=0`，全部走这条路）。已在 §3.3 代码中体现。
+
+### 7.8 【细节】`fmtMin` 会把 >1440 的分钟数 clamp 成 `23:59`
+`fmtMin`（1749）`Math.max(0,Math.min(1439,...))`。溢出的分镜写回后会变成 23:59，且相邻两条溢出分镜会重叠。不新增格式化函数（避免动到被测函数），改为：`planDay.overflow=true` → `toastResched` 明确提示；README 记录该限制。
+附带一处**已知不一致**（不修，因为修 `dayItems` 会破测试）：`dayItems` 1753 行对缺失 `duration` 仍兜底 20，而 `planDay` 兜底 10。实践中所有项目都会经过 `migrate`（`initData` 913/916、`newProject` 1183、`applyImport` 2246/2249、`buildDemoProject` 873），`duration` 恒有值，该分歧不可达；但若人工构造脏数据，会出现「时间轴显示 20 分钟、排期按 10 分钟算」的偏差。
+
+### 7.9 【健壮性】`renderSchedule` 进入即写盘需要 drift 判断，且 demo 必须跳过
+若 `renderSchedule` 无条件 `updateCur(ensureDayDefaults+reschedule)`：① 每次切页签都落盘；② demo 项目会每进一次日程弹一次「示例项目只读」toast。已按 §3.4 `autoSyncDay` 处理（`p.demo` 直接 return + `inited && !drift` 提前 return）。
+副作用：旧项目**首次**进入某日期会发生一次「时间整体跳到 10:00 起」的可见变化——这是需求要求的行为变化，需在 README §七 明确写出，避免用户误判为数据损坏。
+
+---
+
+## 附：新增测试清单（追加到 `tests/logic.test.mjs` 第 245/246 行之间）
+
+```js
+/* ================= v10 排程引擎 ================= */
+for (const n of ['pinOf','planDay','dayDefaults','ensureDayDefaults','rescheduleDay','applyDay'])
+  vm.runInContext(fn(n), ctx);
+vm.runInContext('const DAY_BASE="10:00",COLLECT_START="09:30",COLLECT_MIN=30,WRAP_MIN=15,SHOT_DEFAULT_MIN=10;', ctx);
+```
+
+| # | 断言 | 期望 |
+|---|---|---|
+| ① | 3 条 10 分钟分镜连排 | `10:00 / 10:10 / 10:20` |
+| ② | 插入 10:15-10:25 节点后第 2 条 | `10:25`，`shiftedCount===1` |
+| ③ | 集合改到 10:30 | 首条 `10:30` |
+| ④ | 收工 | `= 最后 end`、`+15` |
+| ⑤ | 两节点重叠 | `dayItems._conflict` 为 true |
+| ⑥ | `planDay` 幂等 | 连跑两次 `JSON.stringify` 全等 |
+| ⑦ | `ord` 互换后 | 时间跟随新 `ord` |
+| ⑧ | `duration` 改大 | 后续全部后移 |
+| ⑨ | `dayDefaults` 幂等 | `dayInit` 已含 → 返回 `[]` |
+| ⑩ | 老数据迁移 | `position===''`、`light===''`、`duration===20`；`rescheduleDay` 后 `slot==='10:00'` |
+| ⑪ | 老项目已有 `type='收工'` 无 `auto` | `dayDefaults` 返回 `[{kind:'adopt'}]`，不新增收工 |
+| ⑫ | `ensureDayDefaults` 幂等 | 连续两次调用后当天「集合」「收工」各恰好 1 条 |
+
+预计总数 **59 + 12 = 71**（若 ①-④ 合并计数则按实际条数为准，不得少于 10 项）。
+
+---
+
+## 8. 追加需求：多日拍摄与自动跨日（并入 v10，不另开版本）
+
+> 主理人在实现途中追加，规则以本节为准；上文（尤其 §3 的 `planDay` 契约）已同步更新。
+
+### 8.1 数据与真源
+
+| 字段 | 说明 |
+|---|---|
+| `p.shootDates: ISODate[]` | 拍摄日清单，**升序去重**；新增/删除只能经 `addShootDate` / `removeShootDay`（后者走 `updateCur`） |
+| `p.shootDate` | **恒等于 `shootDates[0] || ''`**。看板倒计时、Call Sheet、提案、拍摄日模式等既有消费方一律不改 |
+| `migrate` | `shootDates = 合法值去重升序`；为空且 `shootDate` 有值 → `[shootDate]`；再回写 `shootDate = shootDates[0] || ''` |
+
+**清单只在「该日首次有内容」时增长**：`ensureShootDate(date)` 的三个调用点是 `addShot` / `addNode` / `persistOrder`（跨日拖拽）；`chooseSchedDate`（Day tab 与顶部日期框）只切 `schedDate`，**不写 `shootDates`**；`autoSyncDay` 对未登记日期直接返回（不补集合/收工、不写盘），否则会变成「看一眼就登记 / 生成垃圾日程」。
+
+信息卡的「Day 1 · 首个拍摄日」由纯函数 `resolveShootDate(p,D)` 判定：
+| 条件 | action | 结果 |
+|---|---|---|
+| D 非法 / 已在清单 | `noop` | 仅重绘（输入框回显真实首日，不再静默跳回） |
+| 原 Day 1 无分镜且无手填环节（只有自动集合/收工或完全空） | `replace` | 用 D 顶掉首日，并清掉原首日的 `dayInit`（避免孤儿自动节点） |
+| 原 Day 1 有内容 | `append` | D 追加为新的一天，toast「已添加为 Day N（MM-DD）；Day 1 仍有 N 条安排，未改动」 |
+
+`normalizeShootDates(p)` 是清单规范化的唯一实现（渲染层使用）；`migrate` / `rescheduleDay`（跨日分支里那 6 行）因会被 `tests/logic.test.mjs` 用 `fn()` 单独抽取进 vm（旧块里没有该函数名），各自内联同源 4 行并注释说明——**这是 vm 抽取边界造成的有意重复，不要合并**。
+
+### 8.2 `planDay` 增补：`overflowShots`
+
+- 逐条按 `ord` 排片；当 `cursor + duration > 1440` 时：
+  - 若 `duration > 1440 - toMin(DAY_BASE)`（单条超过一整天）或调用方传 `noRoll` → `overflowHard = true`，该条原位保留（`fmtMin` 会 clamp 到 23:59），`overflow = true`；
+  - 否则**该条及其后所有分镜**滚到次日，产出 `overflowShots: [{id, toDate: addDays(date,1)}]`，且不进入当天 `shots`。
+- 收工仍按「当天剩余事项的最晚 end + 15」计算；当天分镜被全部移走时直接取集合结束（默认 10:00，不再被 10:00 地板顶起）。
+
+### 8.3 `rescheduleDay`：跨日落地（**循环，不递归**）
+
+```
+rescheduleDay(p,date,anchorId)
+ ├ root = planDay(p,date,anchorId)
+ ├ cur=date, plan=root
+ ├ for round in 0..6:                       ← 最多 7 轮，绝无递归爆栈风险
+ │   ├ applyPlanWrite(p,cur,plan)           物化 slot / 收工 / 被顺延节点
+ │   ├ plan.overflowShots 为空 → break
+ │   ├ next = overflowShots[0].toDate
+ │   ├ 移入分段镜：date = next；ord = maxOrd(次日原有) + 1 + i（保持原相对顺序，其它字段不动）
+ │   ├ next 不在 shootDates → push + 去重排序（记 addedDates）→ 回写 shootDate
+ │   └ cur = next；plan = planDay(p,next,null)
+ └ 7 轮后仍 overflowShots → capHit=true；planDay(...,noRoll) 兜底 clamp 写回
+   root 附 { addedDates, movedShots, capHit, rounds }
+```
+
+- toast（`toastResched`）：`capHit` → 「排期已跨越 7 天，请检查分镜时长」；`overflow`（hard）→ 「排期超出当天 24:00，请缩短时长或改到另一天」；否则「已重排当天分镜（N 条后移）」+「M 项日程已顺延」+「已自动跨日 K 条分镜」+「已自动增加拍摄日 MM-DD」。
+- 收工：`wrapStart = max(剩余事项最晚 end, 集合 end)`；**当天已无分镜时直接取集合结束**，不再被 10:00 地板顶起。
+
+### 8.4 渲染层新增
+
+| 函数 | 作用 |
+|---|---|
+| `addDays(dateStr,n)` / `mmdd(d)` / `weekdayCN(d)` | 纯函数日期工具（`addDays` 可被 vm 抽取） |
+| `shootDatesOf(p)` | 读取清单（不改数据），空时回退 `[shootDate]` |
+| `dayTabsHtml(p)` | 日程页 Day tab（`Day N · MM-DD 周X（K 条）`）+「＋ 添加拍摄日」+「删除本日」+ 行内新增条 |
+| `setSchedDate` / `chooseSchedDate` | 切换 tab / 任意日期查看（**只切 schedDate，不写清单**） |
+| `ensureShootDate(date)` | 某日首次有内容时登记（调用点仅 `addShot` / `addNode` / `persistOrder`） |
+| `toggleNewDay` / `confirmNewDay` / `removeShootDay` | 新增（默认最后一天 +1，确认后切过去）、删除（无分镜且无手填环节才允许） |
+| `pickShotDate` / `confirmNewShotDate` / `cancelNewShotDate` | 分镜表单的拍摄日下拉与「＋ 新日期…」行内输入 |
+| `resolveShootDate(p,D)` | 纯函数：信息卡改「Day 1 · 首个拍摄日」的判定（`noop` / `replace` / `append`，vm 可抽取） |
+| `setShootDate(v)` | 走 `resolveShootDate`：无内容替换首日（清其 `dayInit`）、有内容追加为 Day N 并 toast |
+| `openProject` | 进入项目时 `schedDate=null`，避免沿用上一个项目的日期 |
+
+- 分镜列表按日期分组：`day-head` 显示 `Day N · MM-DD（K 条 · 合计 X 分钟）`，组内按 `ord`；`attachDrag` / `persistOrder` 不变（仍在 `#shotList` 内按 DOM 顺序取 id），跨日拖拽时 `persistOrder` 追加 `addShootDate(p,adopt)`。
+- 删除拍摄日：`分镜数 + 非 auto 节点数 > 0` → 拒绝并提示「该天还有 N 条安排，请先清空」；否则连带清掉该日引擎生成的集合/收工并移除 `dayInit` 记录（重新加入时会再生成）。**用户数据永不连带删除。**
+
+### 8.5 示例数据
+
+`demoSpecs()` 的「海边日落 · 情侣写真」增加 `days:2`：`buildDemoProject` 用 `new Date(stamp + i*864e5)` 推连续日（不依赖 `addDays`，因本函数会被 vm 单独抽取），分镜按 `ceil(总数/天数)` 均分到各天，**每天各有集合（auto:'call'）与收工（auto:'wrap'）并写入 `dayInit`**，业务环节只放首日；构建末尾对每一天调 `rescheduleDay`（`typeof` 守卫）。
+
+### 8.6 测试（71 → 82）
+
+追加在既有 v10 测试块之后：addDays 跨月跨年 / `planDay` 溢出 `toDate` / 移走后收工重算 / `migrate` 补 `shootDates` / 升序去重且 `shootDate` 为首日 / `rescheduleDay` 跨日落地（改日期 + 次日 10:00 + 自动补拍摄日）/ 跨日 7 轮上限 `capHit` / 超长分镜不跨日而标溢出 / `resolveShootDate` 的「替换」与「追加」两条分支（含 `noop`）。

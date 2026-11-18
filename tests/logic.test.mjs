@@ -243,5 +243,223 @@ check('v9 demoSpecs 五项且示例七页签非空/含图/含 fav', vdemo.count 
     && r.budget >= 2 && r.notes >= 2 && r.todos >= 2 && r.concept && r.fav >= 1 && r.demo));
 check('v9 buildDemoProject 满 3 张参考图', vdemo.rows.some(r => r.refs === 3));
 
+/* ================= v10 排程引擎（追加块：1-245 行零改动） ================= */
+// 先注入常量，再抽取新纯函数；ctx 白名单无 parseInt/isNaN/Boolean，故纯函数内统一用 +x / Math.round
+vm.runInContext('const DAY_BASE="10:00",COLLECT_START="09:30",COLLECT_MIN=30,WRAP_MIN=15,SHOT_DEFAULT_MIN=10;', ctx);
+for (const n of ['pinOf', 'planDay', 'dayDefaults', 'ensureDayDefaults', 'rescheduleDay', 'applyDay',
+  'addDays', 'applyPlanWrite', 'normalizeShootDates', 'shootDatesOf', 'resolveShootDate']) vm.runInContext(fn(n), ctx);
+
+const D10 = '2026-11-16';
+const shotRow = (id, ord, duration) => ({ id, date: D10, duration, ord });
+
+// ① 顺序连排：3 条 10 分钟分镜从 10:00 起
+vm.runInContext(`globalThis.V1=${JSON.stringify({
+  shots: [shotRow('a', 0, 10), shotRow('b', 1, 10), shotRow('c', 2, 10)],
+  schedule: [], dayInit: [D10]
+})}`, ctx);
+check('v10 ① 3 条 10 分钟连排 10:00/10:10/10:20',
+  vm.runInContext(`(()=>{const r=planDay(V1,'${D10}',null);return r.shots.map(s=>fmtMin(s.start)).join(',')})()`, ctx) === '10:00,10:10,10:20');
+
+// ② 插入 10:15-10:25 节点（anchor）：第 2 条避让到 10:25，shiftedCount=1
+vm.runInContext(`globalThis.V2=${JSON.stringify({
+  shots: [shotRow('a', 0, 10), shotRow('b', 1, 10)],
+  schedule: [{ id: 'n1', date: D10, type: '拍摄', title: '补拍', start: '10:15', end: '10:25' }],
+  dayInit: [D10]
+})}`, ctx);
+const V2P = vm.runInContext(`(()=>{const r=planDay(V2,'${D10}','n1');return {b:fmtMin(r.shots[1].start),shifted:r.shiftedCount,shifts:r.nodeShifts.length}})()`, ctx);
+check('v10 ② 节点避让使第 2 条后移到 10:25', V2P.b === '10:25' && V2P.shifted === 1, JSON.stringify(V2P));
+
+// ③ 集合改晚 → 分镜链起点跟着集合结束走（10:00–10:30 → 10:30；10:30–11:00 → 11:00）
+vm.runInContext(`globalThis.V3=${JSON.stringify({
+  shots: [shotRow('a', 0, 10)],
+  schedule: [{ id: 'c1', date: D10, type: '集合', title: '集合', start: '10:00', end: '10:30', auto: 'call' }],
+  dayInit: [D10]
+})}`, ctx);
+vm.runInContext(`globalThis.V3B=${JSON.stringify({
+  shots: [shotRow('a', 0, 10)],
+  schedule: [{ id: 'c1', date: D10, type: '集合', title: '集合', start: '10:30', end: '11:00', auto: 'call' }],
+  dayInit: [D10]
+})}`, ctx);
+const V3P = vm.runInContext(`({a:fmtMin(planDay(V3,'${D10}',null).shots[0].start),b:fmtMin(planDay(V3B,'${D10}',null).shots[0].start)})`, ctx);
+check('v10 ③ 集合改晚后首条分镜顺延', V3P.a === '10:30' && V3P.b === '11:00', JSON.stringify(V3P));
+
+// ④ 收工 = 当天最晚结束 + 15 分钟
+const V4P = vm.runInContext(`(()=>{const r=planDay(V2,'${D10}',null);return {ws:fmtMin(r.wrap.start),len:r.wrap.end-r.wrap.start}})()`, ctx);
+check('v10 ④ 收工时间为最晚结束 +15', V4P.ws === '10:35' && V4P.len === 15, JSON.stringify(V4P));
+
+// ⑤ 两个节点重叠 → dayItems 标红（顺序判定，节点时间不被改写）
+vm.runInContext(`globalThis.V5=${JSON.stringify({
+  shots: [],
+  schedule: [
+    { id: 'm1', date: D10, type: '拍摄', title: 'A', start: '10:00', end: '11:00' },
+    { id: 'm2', date: D10, type: '转场', title: 'B', start: '10:30', end: '11:30' }
+  ],
+  dayInit: [D10]
+})}`, ctx);
+check('v10 ⑤ 节点重叠标记 _conflict',
+  vm.runInContext(`dayItems(V5,'${D10}').filter(x=>x.id==='m2')[0]._conflict===true`, ctx));
+
+// ⑥ planDay 幂等：连跑两次结果全等
+check('v10 ⑥ planDay 幂等',
+  vm.runInContext(`(()=>{const a=JSON.stringify(planDay(V2,'${D10}','n1'));const b=JSON.stringify(planDay(V2,'${D10}','n1'));return a===b})()`, ctx));
+
+// ⑦ ord 互换后时间跟随新 ord
+vm.runInContext(`globalThis.V7=${JSON.stringify({
+  shots: [shotRow('a', 1, 10), shotRow('c', 0, 10)], schedule: [], dayInit: [D10]
+})}`, ctx);
+check('v10 ⑦ 分镜时间跟随 ord',
+  vm.runInContext(`planDay(V7,'${D10}',null).shots.map(s=>s.id+fmtMin(s.start)).join(',')`, ctx) === 'c10:00,a10:10');
+
+// ⑧ 单条时长改大 → 后续全部后移
+vm.runInContext(`globalThis.V8=${JSON.stringify({
+  shots: [shotRow('a', 0, 30), shotRow('b', 1, 10)], schedule: [], dayInit: [D10]
+})}`, ctx);
+check('v10 ⑧ 时长变大后后续后移',
+  vm.runInContext(`planDay(V8,'${D10}',null).shots.map(s=>fmtMin(s.start)).join(',')`, ctx) === '10:00,10:30');
+
+// ⑨ dayDefaults 幂等：dayInit 已含该日期 → 返回空数组
+check('v10 ⑨ dayDefaults 已初始化时返回空',
+  vm.runInContext(`dayDefaults(V1,'${D10}').length`, ctx) === 0);
+
+// ⑩ 老数据迁移：position/light 补空串、duration 仍兜底 20；rescheduleDay 后 slot 为 10:00
+const mig10 = vm.runInContext(`(()=>{
+  const p=migrate({name:'x',shots:[{id:'s',refId:'img1',date:'${D10}'}],budget:[]});
+  const f={pos:p.shots[0].position,light:p.shots[0].light,dur:p.shots[0].duration,dayInit:Array.isArray(p.dayInit)};
+  rescheduleDay(p,'${D10}');
+  f.slot=p.shots[0].slot;
+  return f;
+})()`, ctx);
+check('v10 ⑩ 迁移补 position/light 且不破 duration=20', mig10.pos === '' && mig10.light === '' && mig10.dur === 20 && mig10.dayInit && mig10.slot === '10:00', JSON.stringify(mig10));
+
+// ⑪ 老项目已有「集合 / 收工」但无 auto → adopt 升级，不新增重复项
+const dd11 = vm.runInContext(`dayDefaults({
+  shots:[],
+  schedule:[{id:'c1',date:'${D10}',type:'集合',title:'集合',start:'09:30',end:'10:00'},
+            {id:'w1',date:'${D10}',type:'收工',title:'收工',start:'19:00',end:'19:30'}],
+  dayInit:[]
+},'${D10}')`, ctx);
+check('v10 ⑪ 老集合/收工升级为自动节点',
+  dd11.length === 2 && dd11.every(d => d.kind === 'adopt')
+  && dd11.some(d => d.id === 'w1' && d.auto === 'wrap')
+  && dd11.some(d => d.id === 'c1' && d.auto === 'call'), JSON.stringify(dd11));
+
+// ⑫ ensureDayDefaults 幂等：连续两次后集合 / 收工各恰好 1 条
+const idem12 = vm.runInContext(`(()=>{
+  let i=0; const mk=()=>'n'+(++i);
+  const p={shots:[],schedule:[],dayInit:[]};
+  ensureDayDefaults(p,'${D10}',mk);
+  const first=p.schedule.length;
+  ensureDayDefaults(p,'${D10}',mk);
+  return {first,after:p.schedule.length,
+    call:p.schedule.filter(n=>n.auto==='call').length,
+    wrap:p.schedule.filter(n=>n.auto==='wrap').length};
+})()`, ctx);
+check('v10 ⑫ ensureDayDefaults 幂等', idem12.first === 2 && idem12.after === 2 && idem12.call === 1 && idem12.wrap === 1, JSON.stringify(idem12));
+
+/* ================= v10 多日拍摄 / 自动跨日（8 项） ================= */
+const D2 = '2026-11-18';
+
+// ⑬ addDays 跨月 / 跨年
+check('v10 ⑬ addDays 跨月跨年',
+  vm.runInContext(`addDays('2026-11-18',1)+','+addDays('2026-11-30',1)+','+addDays('2026-12-31',1)`, ctx)
+    === '2026-11-19,2026-12-01,2027-01-01');
+
+// ⑭ 单日放不下 → overflowShots 非空且 toDate = 次日
+vm.runInContext(`globalThis.V14=${JSON.stringify({
+  shots: [{ id: 'a', date: D2, duration: 800, ord: 0 }, { id: 'b', date: D2, duration: 800, ord: 1 }],
+  schedule: [], dayInit: [D2], shootDates: [D2], shootDate: D2
+})}`, ctx);
+const V14 = vm.runInContext(`(()=>{
+  const r=planDay(V14,'${D2}',null);
+  return {kept:r.shots.length, of:r.overflowShots.length, to:r.overflowShots[0].toDate,
+    hard:r.overflowHard, wrap:fmtMin(r.wrap.start)};
+})()`, ctx);
+check('v10 ⑭ 放不下时分镜滚到次日', V14.kept === 1 && V14.of === 1 && V14.to === '2026-11-19' && V14.hard === false, JSON.stringify(V14));
+
+// ⑮ 分镜被移走后当天收工按剩余最晚结束重算
+check('v10 ⑮ 移走后收工 = 剩余最晚结束', V14.wrap === '23:20', V14.wrap);
+
+// ⑯ migrate：有 shootDate 无 shootDates → 数组含该日；两者都无 → 空数组
+const V16 = vm.runInContext(`(()=>{
+  const a=migrate({name:'x',shootDate:'2026-12-05',shots:[],budget:[]});
+  const b=migrate({name:'y',shots:[],budget:[]});
+  return {a:a.shootDates,b:b.shootDates,sa:a.shootDate,sb:b.shootDate};
+})()`, ctx);
+check('v10 ⑯ migrate 补 shootDates 并同步 shootDate',
+  V16.a.join(',') === '2026-12-05' && V16.b.length === 0 && V16.sa === '2026-12-05' && V16.sb === '',
+  JSON.stringify(V16));
+
+// ⑰ 多日 shootDates 保持升序去重，shootDate 恒为首日
+const V17 = vm.runInContext(`(()=>{
+  const p=migrate({name:'z',shootDate:'2026-12-03',shootDates:['2026-12-03','2026-12-01','2026-12-01'],shots:[],budget:[]});
+  return {list:p.shootDates,first:p.shootDate};
+})()`, ctx);
+check('v10 ⑰ shootDates 升序去重 + shootDate=首日',
+  V17.list.join(',') === '2026-12-01,2026-12-03' && V17.first === '2026-12-01', JSON.stringify(V17));
+
+// ⑱ rescheduleDay 落地跨日：改日期 + 次日从 10:00 起 + 自动补拍摄日
+const V18 = vm.runInContext(`(()=>{
+  const p={shots:[{id:'a',date:'${D2}',duration:800,ord:0},{id:'b',date:'${D2}',duration:800,ord:1},
+                  {id:'c',date:'2026-11-19',duration:10,ord:0}],
+    schedule:[], dayInit:['${D2}'], shootDates:['${D2}'], shootDate:'${D2}'};
+  const plan=rescheduleDay(p,'${D2}');
+  const g=id=>p.shots.filter(x=>x.id===id)[0];
+  return {aSlot:g('a').slot, bDate:g('b').date, bSlot:g('b').slot, bOrd:g('b').ord,
+    cSlot:g('c').slot, cOrd:g('c').ord, refIds:g('b').refIds===undefined,
+    dates:p.shootDates, first:p.shootDate, moved:plan.movedShots, added:plan.addedDates};
+})()`, ctx);
+check('v10 ⑱ 跨日后次日 10:00 重新起排并自动补拍摄日',
+  V18.aSlot === '10:00' && V18.bDate === '2026-11-19' && V18.bSlot === '10:10'
+  && V18.dates.join(',') === '2026-11-18,2026-11-19' && V18.first === '2026-11-18'
+  && V18.moved === 1 && V18.added.join(',') === '2026-11-19', JSON.stringify(V18));
+
+// ⑱b 跨日分镜的 ord 追加到次日末尾，且不动 refIds 等其它字段
+check('v10 ⑱b 跨日分镜 ord 追加到次日末尾',
+  V18.cOrd === 0 && V18.cSlot === '10:00' && V18.bOrd === 1 && V18.refIds === true, JSON.stringify(V18));
+
+// ⑲ 递归上限：超长链不会死循环，命中 7 天上限并给出 capHit
+const V19 = vm.runInContext(`(()=>{
+  const shots=[]; for(let i=0;i<10;i++) shots.push({id:'s'+i,date:'${D2}',duration:800,ord:i});
+  const p={shots:shots,schedule:[],dayInit:['${D2}'],shootDates:['${D2}'],shootDate:'${D2}'};
+  const plan=rescheduleDay(p,'${D2}');
+  return {capHit:plan.capHit,dates:p.shootDates.length,lastSlot:p.shots[9].slot};
+})()`, ctx);
+check('v10 ⑲ 跨日循环有 7 轮上限保护',
+  V19.capHit === true && V19.dates <= 9 && V19.lastSlot !== '', JSON.stringify(V19));
+
+// ⑳ 单条时长超过一整天：不跨日、原位 clamp 并置 overflow
+const V20 = vm.runInContext(`(()=>{
+  const p={shots:[{id:'h',date:'${D2}',duration:900,ord:0}],schedule:[],dayInit:['${D2}'],shootDates:['${D2}'],shootDate:'${D2}'};
+  const plan=planDay(p,'${D2}',null);
+  return {of:plan.overflowShots.length,hard:plan.overflowHard,ov:plan.overflow,slot:plan.shots.length?fmtMin(plan.shots[0].start):''};
+})()`, ctx);
+check('v10 ⑳ 超长分镜不跨日而标溢出', V20.of === 0 && V20.hard === true && V20.ov === true && V20.slot === '10:00', JSON.stringify(V20));
+
+// ㉑ resolveShootDate 替换分支：原 Day 1 无内容 → 用 D 顶掉首日
+const V21 = vm.runInContext(`(()=>{
+  const p={shots:[],schedule:[{id:'c',date:'2026-12-01',type:'集合',start:'09:30',end:'10:00',auto:'call'}],
+    dayInit:['2026-12-01'], shootDates:['2026-12-01'], shootDate:'2026-12-01'};
+  const r=resolveShootDate(p,'2026-12-11');
+  const same=resolveShootDate(p,'2026-12-01');
+  return {action:r.action,dates:r.dates,dayN:r.dayN,from:r.from,
+    sameAction:same.action,sameDates:same.dates};
+})()`, ctx);
+check('v10 ㉑ 无内容时改首日 → 替换（清单仍 1 天）',
+  V21.action === 'replace' && V21.dates.join(',') === '2026-12-11' && V21.from === '2026-12-01'
+  && V21.sameAction === 'noop' && V21.sameDates.join(',') === '2026-12-01', JSON.stringify(V21));
+
+// ㉒ resolveShootDate 追加分支：Day 1 有分镜 → 追加为 Day N，Day 1 不动
+const V22 = vm.runInContext(`(()=>{
+  const p={shots:[{id:'s',date:'2026-12-01',duration:10,ord:0}],schedule:[],dayInit:['2026-12-01'],
+    shootDates:['2026-12-01'],shootDate:'2026-12-01'};
+  const r=resolveShootDate(p,'2026-12-11');
+  const back=resolveShootDate(p,'2026-11-01');
+  return {action:r.action,dates:r.dates,dayN:r.dayN,kept:r.kept,
+    backAction:back.action,backDayN:back.dayN,backDates:back.dates};
+})()`, ctx);
+check('v10 ㉒ 有内容时改首日 → 追加为 Day N',
+  V22.action === 'append' && V22.dates.join(',') === '2026-12-01,2026-12-11' && V22.dayN === 2 && V22.kept === 1
+  && V22.backAction === 'append' && V22.backDayN === 1 && V22.backDates.length === 2, JSON.stringify(V22));
+
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

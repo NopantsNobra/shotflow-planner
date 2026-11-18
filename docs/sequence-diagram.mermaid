@@ -1,108 +1,52 @@
 sequenceDiagram
+    %% 瞬刻 Stillmark v10 · 核心链路：插入/编辑日程节点 → planDay 重算 → 物化 slot → 重绘
+    %% 其余 7 条链路（新增分镜 / 编辑分镜 / 拖拽改序 / 删除节点 / 切换日期 / 拍摄日顺延 / 新建场景）
+    %% 见 docs/system_design.md 第 4 节
+
     actor U as 用户
-    participant V as view / freshView
-    participant T as v9 纯函数层
-    participant S as updateCur / saveP
-    participant D as IndexedDB
-    participant B as renderBoard / renderFavorites
-    participant P as renderProject / 各页签
-    participant R as renderShots / 灯箱
-    participant E as 行内编辑处理器
-    participant F as DemoFactory
+    participant SR as renderSchedule
+    participant AN as addNode
+    participant UC as updateCur
+    participant ED as ensureDayDefaults
+    participant PD as planDay
+    participant RD as rescheduleDay
+    participant TL as timelineHtml
+    participant DB as IndexedDB
 
-    Note over U,D: ① 启动：initData → seed → ensureV9Demo → renderBoard
-    U->>B: 打开应用（2080-2085）
-    B->>S: await initData()（678-694，已含 migrateFav）
-    S->>D: getProjects / putProjects
-    B->>F: seed()（717-767，城市漫游者 demo:true）
-    B->>F: await ensureV9Demo()
-    F->>T: demoSpecs() / buildDemoProject / slugPreview / cloneDemo 无关
-    T-->>F: 6 个完整 demo（7 页签非空、≥1 fav、1 个 3 图分镜）
-    F->>D: put 内联 SVG dataURL 到 images
-    F->>S: saveP([...旧项目不变, 新 demo])
-    F->>V: localStorage['wb_sf_demo_v9']='1'
-    B->>B: renderBoard()（过滤/统计/角标/备份数均走纯函数）
+    U->>SR: 打开「日程」页签（schedDate）
+    SR->>SR: autoSyncDay(schedDate)
+    Note over SR: p.demo 直接跳过（只读，不 toast）<br/>dayInit 已含且无 drift 则跳过（不写盘）
+    SR->>ED: ensureDayDefaults(p, schedDate)
+    ED->>ED: dayDefaults(p, schedDate)
+    Note over ED: 无 auto/type='集合' → 补集合 09:30-10:00<br/>无 auto/type='收工' → 补收工占位<br/>有收工无 auto → adopt 升级 auto='wrap'<br/>dayInit 记入日期（删除后不复活）
+    ED-->>RD: 补完节点
+    RD->>PD: planDay(p, schedDate)
+    PD-->>RD: DayPlan{shots,nodes,wrap,overflow,shiftedCount}
+    RD->>RD: shot.slot = fmtMin(start)；收工 start/end = wrap
+    RD-->>SR: plan
+    SR->>TL: timelineHtml(p, schedDate)
+    TL->>TL: dayItems(p, schedDate)（读已物化 slot，零改动）
+    TL-->>U: 时间轴（分镜带「分镜」标签 / 收工带「自动」）
 
-    Note over U,R: ② R1 多图上传 → 按顺序入库并挂图
-    U->>R: s_img（1107，multiple）选 N 张 → addShotImg(e)（1213）
-    R->>T: parseMultiImage(e)
-    T-->>R: files[]（过滤非 image）
-    loop 顺序处理每张（for...of await）
-        R->>R: ingestImageFile(f,[])（1054-1078：800px/JPEG .72 不变）
-        R->>D: idb.put(imgId,data)
-        R->>S: updateCur(p=>p.mood.push({...fav:false}))
-        alt 成功
-            R->>R: okIds.push(imgId)
-        else 单张失败
-            R->>R: failN++ 后 continue（不中断）
-        end
+    U->>AN: 填 10:15-10:25 节点，点「添加环节」
+    AN->>AN: 校验 title 非空
+    AN->>UC: updateCur(p => ...)
+    alt p.demo && !allowDemoWrite
+        UC-->>AN: toast('示例项目只读…') 并 return
+    else 可写
+        UC->>UC: p.schedule.push({start:'10:15', end:'10:25', ...})
+        UC->>ED: ensureDayDefaults(p, schedDate)
+        ED-->>UC: 幂等无新增
+        UC->>PD: planDay(p, schedDate)
+        PD->>PD: base=max(10:00, 集合.end)；cursor 遇节点跳到节点结束<br/>anchor 之后的节点按 start 升序链式顺延（记入 nodeShifts）
+        PD-->>UC: shots[0]=10:00-10:10, shots[1]=10:25-10:35, shiftedCount=1
+        UC->>RD: rescheduleDay(p, schedDate)
+        RD->>RD: 写回 shot.slot（10:00 / 10:25 / …）与被顺延节点 start/end
+        RD-->>UC: plan
+        UC->>DB: saveP(projectsCache)（200ms 合并落盘）
     end
-    alt 新增态（editingShotId 为空）
-        R->>V: selRefs 补到 3 张，超出仅入库
-    else 编辑替换第 i 张（replaceIdx>=0）
-        R->>S: updateCur(p=>s.refIds[i]=okIds[0])（仅改该下标）
-    else 编辑追加
-        R->>S: updateCur(p=>s.refIds 补到 3 张)
-    end
-    R->>U: 汇总 toast（成功 X / 失败 Y / 仅入库 Z）
-    R->>R: renderShots(cur()) 一次（含 selRefs 条 0..3）
+    AN->>SR: renderProject()
+    SR->>TL: timelineHtml 重绘
+    AN-->>U: toast('已重排当天分镜（1 条因环节避让后移）')
 
-    Note over U,R: ③ R2 参考图灯箱 / 上一张下一张 / 换图 / 移除
-    U->>R: 点已创建分镜缩略图 → openRefViewer(shotId,ri)（1198）
-    R->>V: refViewer={shotId,ri}
-    R->>U: 第 i/N 张 + shisei 占位禁大图 + 更换/移除/关闭/‹ ›
-    U->>R: refNav(delta)
-    R->>R: openRefViewer(shotId,(ri+delta+N)%N)
-    U->>R: 更换这张 → openShotRefEditor + replaceIdx=ri（1188）
-    U->>R: 点新图 → toggleRef（1169，replaceIdx>=0 只改 refIds[i]）
-    U->>R: 从分镜移除 → removeShotRef（1193，只改该分镜 refIds）
-    R->>S: updateCur 写回 → renderShots(cur())
-
-    Note over U,E: ④ R3-R5 行内编辑（同一时刻只允许一行）
-    U->>E: 点某行 ✎ → beginInlineEdit(kind,id,key)
-    E->>T: clearInlineEditState(view)
-    E->>V: 只置 editingNodeId / editingStuffId+Key / editingTodoId / editingNoteId 之一
-    E->>P: renderProject() 重绘该行为输入框
-    U->>E: 保存 → saveNodeEdit / saveStuffEdit / saveTodoEdit / saveNoteEdit
-    E->>E: 校验（标题非空；日程 end>start；沟通保留原 ts）
-    E->>S: updateCur(fn)（只改白名单字段，done/date/fav/ts 不变）
-    E->>T: clearInlineEditState(view)
-    E->>P: renderProject()（日程 schedDate 保持；重叠由 dayItems 重算）
-    U->>E: 取消或 Esc → cancelInlineEdit()
-    E->>P: renderProject() 丢弃未保存输入
-
-    Note over U,B: ⑤ R6-R7 收藏切换 / 已收藏视图 / 定位高亮
-    U->>P: 点任意条目 ☆/★ → toggleFav(type,id)
-    P->>S: updateCur(p=>it.fav=!it.fav)
-    P->>P: renderProject() 或 renderShots(cur())
-    U->>B: 点「★ 已收藏 N」（看板 784 前 / 项目页 pactions）
-    B->>T: collectFavorites(loadP())
-    T-->>B: FavEntry[]（按项目→模块分组，摘要 40 字）
-    B->>U: view.mode='favorites' → renderFavorites()
-    U->>B: 点条目 → jumpToFav(type,pid,id)
-    B->>V: freshView({mode:'project',pid,tab:FAV_TAB[type]})
-    B->>B: 日程先把 schedDate 设为该条目 date
-    B->>V: focusRef={type,id,until:now+3000}
-    B->>S: cacheProjectImages(p) → renderProject()
-    B->>U: 遍历 [data-fid] 找 id → .fav-focus + scrollIntoView
-    B->>B: 3000ms 后按 id 复核清除高亮与 focusRef
-
-    Note over U,F: ⑥ R8 示例只读 / 复制为我的项目
-    U->>P: 打开 demo 项目 → 元数据/概念输入 disabled
-    U->>P: 尝试任意写（含 ☆/编辑/勾选）
-    P->>S: updateCur(fn)
-    S->>V: if(p.demo && !view.allowDemoWrite) → toast + return（唯一拦截点）
-    U->>F: 点「复制为我的项目」→ copyDemoToMine(pid)
-    F->>T: cloneDemo(p,uid(),Date.now())（深拷贝/删 demo/新 id/名字+（副本）/刷新时间）
-    T-->>F: 新项目对象（图片 content 键共享，不复制图片）
-    F->>V: allowDemoWrite=true（仅本次 saveP 期间）
-    F->>S: saveP([...a,copy])
-    F->>V: allowDemoWrite=false → openProject(copy.id)
-    F->>U: toast('已复制为我的项目，可自由编辑')
-
-    Note over U,B: ⑦ Esc 优先级与看板筛选
-    U->>B: 按 Escape
-    B->>B: refViewer.show ? closeRefViewer() : confirmModal.show ? closeConfirm() : cancelInlineEdit() ? 止步 : closeDoc()+closeShootDay()
-    U->>B: 切换「进行中 / 已归档」
-    B->>T: matchBoardScope(p,scope)（已归档 = {已交付,已归档}）
-    T-->>B: 过滤结果 → 6 列看板 + 统计 + 备份提醒（排除 demo）
+    Note over U,DB: 冲突语义：anchor（刚插入/编辑的节点）位置永不自动改写，与前一事项相交时 dayItems 判定 _conflict=true → 标红「时间重叠」<br/>anchor 之后的节点链式顺延（nodeShifts），分镜在节点定位完成后统一避让，故分镜之间不重叠
