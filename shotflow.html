@@ -1994,7 +1994,11 @@ function setShootDate(v){
   updateCur(pp=>{
     pp.shootDates=r.dates.slice();
     /* 替换分支要清掉原首日的 dayInit，避免旧日期残留自动集合/收工成为孤儿数据 */
-    if(r.action==='replace'&&r.from) pp.dayInit=(pp.dayInit||[]).filter(x=>x!==r.from);
+    if(r.action==='replace'&&r.from){
+      pp.dayInit=(pp.dayInit||[]).filter(x=>x!==r.from);
+      /* 原首日只可能残留自动集合/收工（有分镜或手填环节时走 append 分支），一并清掉避免孤儿节点 */
+      pp.schedule=(pp.schedule||[]).filter(n=>!((n.date||r.from)===r.from&&n.auto));
+    }
     normalizeShootDates(pp);
     ok=true;
   });
