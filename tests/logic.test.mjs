@@ -15,6 +15,9 @@ function fn(name) {
   throw new Error('unbalanced fn ' + name);
 }
 const ctx = vm.createContext({ console, Date, Math, String, Number, Array, Object, JSON, RegExp, Set, encodeURIComponent });
+/* migrateFav / collectFavorites 已复用主文件 FAV 常量（去重），vm 上下文需同步注入 */
+vm.runInContext("globalThis.FAV_KINDS=['mood','shots','schedule','scenes','items','budget','notes','todos']"
+  + ";globalThis.FAV_META={mood:'情绪板',shots:'分镜',schedule:'日程',scenes:'清单',items:'清单',budget:'预算',notes:'协作',todos:'协作'};", ctx);
 for (const n of ['addMin', 'toMin', 'fmtMin', 'dayItems', 'cascadeShift', 'tagKey', 'dedupeTags', 'parseTagsInput', 'mergeVocab', 'migrateTags', 'tagsForDisplay', 'matchByTags', 'renameTag', 'removeTag', 'shiseiItemKey', 'shiseiEntrySame', 'parseCatalog', 'diffCatalog', 'nextPendingBatch', 'mergeShiseiMeta', 'migrate']) vm.runInContext(fn(n), ctx);
 for (const n of ['freshView', 'clearInlineEditState', 'migrateFav', 'isFav', 'favCount', 'favSummary', 'summary40', 'collectFavorites', 'backupItemCount', 'matchBoardScope', 'isActiveStatus', 'parseMultiImage', 'slugPreview', 'cloneDemo', 'demoSpecs', 'buildDemoProject']) vm.runInContext(fn(n), ctx);
 vm.runInContext(fn('suggestTags'), ctx);
@@ -460,6 +463,30 @@ const V22 = vm.runInContext(`(()=>{
 check('v10 ㉒ 有内容时改首日 → 追加为 Day N',
   V22.action === 'append' && V22.dates.join(',') === '2026-12-01,2026-12-11' && V22.dayN === 2 && V22.kept === 1
   && V22.backAction === 'append' && V22.backDayN === 1 && V22.backDates.length === 2, JSON.stringify(V22));
+
+/* ===== v10.2 统一与去重 ===== */
+
+// ㉓ shootCountdown：看板/项目页共用倒计时文案（未来→N 天后，今天→今天，过去/非活动→空）
+vm.runInContext(fn('shootCountdown'), ctx);
+const V23 = vm.runInContext(`(()=>{
+  const mk=(date,status)=>({shootDate:date,status:status});
+  return {
+    future:shootCountdown(mk('2026-12-25','待拍摄'),'2026-11-19'),
+    today:shootCountdown(mk('2026-11-19','待拍摄'),'2026-11-19'),
+    past:shootCountdown(mk('2026-11-01','待拍摄'),'2026-11-19'),
+    done:shootCountdown(mk('2026-12-25','已交付'),'2026-11-19')};
+})()`, ctx);
+check('v10.2 ㉓ 倒计时文案四态（未来/今天/过去/非活动）',
+  V23.future.text === ' · 36 天后' && V23.today.text === ' · 今天' && V23.past.text === '' && V23.done.text === '', JSON.stringify(V23));
+
+// ㉔ collectFavorites 复用注入的 FAV_META：module 文案不回归
+const V24 = vm.runInContext(`(()=>{
+  const p={id:'p1',mood:[{id:'m1',fav:true,content:'逆光小巷'}],shots:[{id:'s1',fav:true,name:'巷口回眸'}],schedule:[],scenes:[],items:[],budget:[],notes:[],todos:[]};
+  return collectFavorites([p]);
+})()`, ctx);
+check('v10.2 ㉔ 收藏汇总文案取自统一 FAV_META',
+  V24.length === 2 && V24[0].module === '情绪板' && V24[1].module === '分镜'
+  && V24[0].summary === '逆光小巷' && V24[1].summary === '巷口回眸', JSON.stringify(V24));
 
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);
