@@ -521,17 +521,21 @@ check('v10.3 ㉖ 城市清单完整且无重名',
   && ['北京','上海','广州','深圳','南京','杭州','成都','西安'].every(c => V26.names.includes(c)),
   'total=' + V26.names.length + ' dupe=' + V26.dupe.join(',') + ' missing=' + V26.missing.join(','));
 
-// ㉗ v10.4 老数据迁移：mood 图片 key 补进 refs（按 key 去重、不动原 mood 项）
+// ㉗ v10.4.1 老数据迁移：图片全进 refs；未收藏的移出情绪板，收藏的（精选）保留
 const V27 = vm.runInContext(`(()=>{
   const p=migrate({name:'x',shots:[],budget:[],mood:[
     {id:'m1',type:'image',content:'k1',tag:'a',tags:['a']},
     {id:'m2',type:'image',content:'k1',tag:'a',tags:['a']},
-    {id:'m3',type:'text',content:'hello'}]});
+    {id:'m3',type:'image',content:'k2',tag:'b',tags:['b'],fav:true},
+    {id:'m4',type:'text',content:'hello'}]});
   return {keys:p.refs.map(r=>r.key).join(','),ids:p.refs.map(r=>r.id).join(','),
-    mood:p.mood.length,tags:p.refs[0].tags.join(','),favOk:p.refs.every(r=>r.fav===false)};
+    mood:p.mood.map(m=>m.id||m.type).join(','),tags:p.refs[0].tags.join(','),
+    kept:(p.mood.filter(m=>m.type==='image')[0]||{}).content||'',
+    favOk:p.refs.every(r=>r.fav===false)};
 })()`, ctx);
-check('v10.4 ㉗ 迁移把 mood 图片补进 refs 且按 key 去重',
-  V27.keys === 'k1' && V27.ids === 'k1' && V27.mood === 3 && V27.tags === 'a' && V27.favOk, JSON.stringify(V27));
+check('v10.4.1 ㉗ 未收藏图片移出情绪板、收藏图片保留、全部进 refs',
+  V27.keys === 'k1,k2' && V27.ids === 'k1,k2' && V27.mood === 'm3,m4' &&
+  V27.kept === 'k2' && V27.tags === 'a' && V27.favOk, JSON.stringify(V27));
 
 // ㉘ v10.4 幂等：已有 refs 时重复 migrate 不再补条目
 const V28 = vm.runInContext(`(()=>{

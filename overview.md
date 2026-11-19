@@ -1,7 +1,7 @@
 # 瞬刻摄影工作台 · Stillmark 功能索引（开发视角）
 
 ## 版本
-- 当前：v10.4（`shotflow.html`，单文件全内联零依赖，88 项逻辑测试通过）
+- 当前：v10.4.1（`shotflow.html`，单文件全内联零依赖，88 项逻辑测试通过）
 - 历史：v9（收藏 / 只读示例 / 多图 / 行内编辑）、v7（姿势图库）、v6（素材标签）、v5（提案封面）、v4（IndexedDB/导入确认/时间级联）、v1 `photo-planner.html`（表单版）、v2（分镜中枢 + 看板 + 拍摄日模式）
 
 ## v3 + v9 + v10 数据模型
@@ -50,7 +50,7 @@ project = {
 - 标签体系（v6）：`tagKey` NFKC/大小写/空白归一化 → `dedupeTags` 保留首次显示形式 → `migrateTags` 幂等补齐 `tags/tagVocab` → `matchByTags` any|all 筛选（情绪板与分镜 ref picker 共用）→ `renameTag`/`removeTag` 全局同步且不触碰 `refIds`；写路径仍同步只读兼容字段 `tag`
 - AI 接口预留（v6）：`suggestTags` 恒关闭、注册表 `TagProviders` 默认空、零网络请求；失败降级 toast，建议先落 `autoTags` 并经用户确认后由 `applyAiSuggestion` 合并；`aiConfig`（含 apiKey）只在内存与 `sessionStorage`，不进项目 JSON / IndexedDB / 导出
 - 姿势图库同步（v7）：`parseCatalog` 映射 `data/catalog.json` 的 `id/class_cn/name_*/views` 到 `images/line/w300/{file}`；`diffCatalog` 以远端为准；`nextPendingBatch`/`mergeShiseiMeta` 管理游标与不可变 meta；`startShiseiSync` 仅在可见 / 联网 / 空闲 / 距上次检查 ≥24h 时经 jsDelivr 拉取，并发 ≤3、超时重试，隐藏 / 离线暂停；shisei 分类词不写入 `tagVocab`，导出排除图库
-- 图片归档（v10.4）：`ingestImageFile(f,tags,silent,target)` 压缩入库后**总是**写 `p.refs`，只有 `target==='mood'`（情绪板页「上传精选图」）才额外写 `p.mood`；分镜页 `addShotImg` 默认 `'ref'`；分镜 ref picker 从 `p.refs` 派生；情绪板 `toggleRefPicker`/`selectRefToMood` 提供显式精选（已在 mood 则按钮禁用，`updateCur` 单点只读守卫）；`cacheProjectImages` 预载 mood image + refs.key + shots.refIds（去重、跳过 shisei），`collectImages` 导出同样含 refs.key；`migrate` 把历史 mood 图片 key 补进 refs（按 key 去重、幂等、不动 mood、vm 安全用 key 作迁移条目 id）
+- 图片归档（v10.4）：`ingestImageFile(f,tags,silent,target)` 压缩入库后**总是**写 `p.refs`，只有 `target==='mood'`（情绪板页「上传精选图」）才额外写 `p.mood`；分镜页 `addShotImg` 默认 `'ref'`；分镜 ref picker 从 `p.refs` 派生；情绪板 `toggleRefPicker`/`selectRefToMood` 提供显式精选（已在 mood 则按钮禁用，`updateCur` 单点只读守卫）；`cacheProjectImages` 预载 mood image + refs.key + shots.refIds（去重、跳过 shisei），`collectImages` 导出同样含 refs.key；`migrate` 把历史 mood 图片全部转入 refs（按 key 去重、幂等、vm 安全用 key 作迁移条目 id）；v10.4.1 起未收藏的从 mood 移出，仅 `fav:true` 与示例图保留，提案只渲染精选图
 - 文档图片尺寸（v10.4）：`.doc .shot-ref/ .shot-ref-miss` 56→112px + `max-width:none` 覆盖 `.doc img{max-width:110px}`，`.doc .ref-cell{white-space:normal}`，`@media screen and (max-width:768px)` 降到 84px（打印保持 112），表格其余列结构与 `li()` 列数不变
 - 分镜交互（v8）：表单草稿 `view.shotDraft` 六字段 oninput 写入 + 重绘回填（选图 / 分类切换 / 同步钩子不再清空输入）；姿势图库 `view.poseCat` 折叠（点分类展开、再点收起，默认收起）；`view.editingShotId/replaceIdx` 分镜参考图编辑态（灯箱 `openRefViewer` 看大图、`removeShotRef` 移除、更换进入选图态、占位图禁看大图可移除）；分镜页 `addShotImg` 经共享 `ingestImageFile(f,tags)` 入库（解耦情绪板 `#m_tag` 依赖）；页签分组块化并随激活组强调
 - 示例注入（v9）：`ensureV9Demo()` 独立于 `seed()`，`wb_sf_demo_v9` + 项目 `v9:1` 双 guard；只追加 5 个完整示例（灵感期 / 策划中 / 后期中 / 已交付 / 已归档），待拍摄沿用旧「城市漫游者」，最终共 6 个示例；并给旧项目补 demo / 一张图 / 一条 fav；`slugPreview` 生成内联 SVG dataURL，`imgCache` 预热 + `idb.put` 落库，离线可见

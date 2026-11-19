@@ -1014,17 +1014,24 @@ function migrate(p){
   p.mood=p.mood||[]; p.scenes=p.scenes||[]; p.shots=p.shots||[]; p.items=p.items||[]; p.budget=p.budget||[];
   p.schedule=p.schedule||[]; p.notes=p.notes||[]; p.todos=p.todos||[];
   p.dayInit=Array.isArray(p.dayInit)?p.dayInit:[];        // v10：已完成默认项初始化的日期（删掉集合/收工后不复活）
-  /* v10.4：参考图库元数据（二进制仍在 IndexedDB images store）。
-     老项目：把 mood 里的图片 key 补进 refs（按 key 去重，不动原 mood 项，保证历史分镜引用不丢）。
-     migrate 会被 tests 用 fn() 单独抽取进 vm，故不能依赖 uid —— 迁移条目的 id 直接用 key。 */
+  /* v10.4.1：参考图库元数据（二进制仍在 IndexedDB images store）。
+     老项目升级：mood 里的图片全部转入参考图库；只有用户显式收藏过（fav:true）的
+     仍留在情绪板（＝真正的精选），其余移出，避免客户提案堆满历史参考图。
+     标签随条目带到 refs，图片 key 不变 → 分镜引用不丢。
+     migrate 会被 tests 单独抽取进 vm，不能依赖 uid —— 迁移条目 id 直接用 key。 */
   p.refs=Array.isArray(p.refs)?p.refs.slice():[];
   const refKeys=new Set(p.refs.map(function(r){return String((r&&r.key)||'');}).filter(Boolean));
-  (p.mood||[]).filter(function(m){return m&&m.type==='image'&&m.content;}).forEach(function(m){
+  const keptMood=[];
+  (p.mood||[]).forEach(function(m){
+    if(!m||m.type!=='image'||!m.content){ keptMood.push(m); return; }
     const k=String(m.content);
-    if(refKeys.has(k)) return;
-    refKeys.add(k);
-    p.refs.push({id:k,key:k,name:'',tags:(Array.isArray(m.tags)?m.tags.slice():(m.tag?[m.tag]:[])),createdAt:0,fav:false});
+    if(!refKeys.has(k)){
+      refKeys.add(k);
+      p.refs.push({id:k,key:k,name:'',tags:(Array.isArray(m.tags)?m.tags.slice():(m.tag?[m.tag]:[])),createdAt:0,fav:false});
+    }
+    if(m.fav===true||p.demo===true) keptMood.push(m);   // 显式收藏 = 精选；示例项目的图本就是展示用精选，均留在情绪板
   });
+  p.mood=keptMood;
   /* v10 多日拍摄：shootDates 为真源，shootDate 恒等于 shootDates[0]（看板倒计时 / 通告单等消费方零改动）。
      与 normalizeShootDates 同源逻辑，因 migrate 会被 tests 单独抽取进 vm，这里必须自包含。 */
   p.shootDates=(Array.isArray(p.shootDates)?p.shootDates:[])
