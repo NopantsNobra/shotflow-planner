@@ -69,6 +69,16 @@ svg{display:inline-block;vertical-align:middle}
 .inline-edit{background:var(--accent-soft);border-left:2px solid var(--accent);border-radius:6px;padding:8px 10px;margin:6px 0}
 .inline-edit input,.inline-edit select{height:34px;font-size:13px;background:var(--surface)}
 .inline-edit .row{gap:8px}
+/* 分镜编辑面板：独立成块 + 两行网格，避免多字段在行内被挤压/截断；分镜页与日程页共用 */
+.shot,.tl-item{flex-wrap:wrap}
+.shot .shot-edit,.tl-item .shot-edit{flex:1 0 100%;margin-top:8px}
+.shot-edit{display:flex;flex-direction:column;gap:8px;background:var(--accent-soft);border-left:2px solid var(--accent);border-radius:8px;padding:10px 12px;min-width:0}
+.shot-edit .se-fld{min-width:0}
+.shot-edit label{display:block;font-size:11px;color:var(--ink3);margin-bottom:3px;letter-spacing:.02em}
+.shot-edit input,.shot-edit select{height:34px;font-size:13px;width:100%;max-width:none;background:var(--surface)}
+.shot-edit .se-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.shot-edit .se-actions{display:flex;gap:8px;justify-content:flex-end}
+@media (max-width:640px){.shot-edit .se-grid{grid-template-columns:1fr 1fr}}
 .badge.demo{background:#fbf0d8;color:#8a6520;border:1px solid #ead8a9;font-size:10px;padding:2px 8px;border-radius:999px;white-space:nowrap}
 .fav-focus,.focus-highlight{box-shadow:0 0 0 3px var(--accent),0 0 22px 6px rgba(212,164,88,.42)!important;border-color:var(--accent)!important;outline:none}
 .selrefs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 12px;padding:9px 11px;background:var(--surface-2);border:1px dashed var(--line2);border-radius:10px}
@@ -1581,7 +1591,7 @@ async function renderShots(p){
       +'<span class="muted" style="align-self:center">图库引用同样最多 3 张</span></div></div>';
   document.getElementById('tabBody').innerHTML=(editBar?'<div class="card" style="padding:14px 18px">'+editBar+'</div>':'')
     +'<div class="card"><h2>分镜表 · 数据中枢</h2>'
-    +'<p class="muted" style="margin-bottom:12px">每条分镜可挂 1-3 张参考图（我的素材 + 姿势图库）+ 场景 + 机位 + 光线。时间不需手填，日程页会从 10:00 起顺序排期并避开流程环节；拖动左侧手柄排序，拖到另一日期分组会自动改期。</p>'
+    +'<p class="muted" style="margin-bottom:12px">每条分镜可挂 1-3 张参考图（我的素材 + 姿势图库）+ 场景 + 机位 + 光线。分镜按顺序自动排入日程，无需手填时间；拖动左侧手柄排序，拖到另一日期分组会自动改期。</p>'
     +'<div class="row" style="margin-bottom:6px">'
     +'<input id="s_name" class="grow" placeholder="分镜内容，如：巷口逆光回眸（中景）" value="'+esc(D.name||'')+'" oninput="saveShotDraft(\'name\',this.value)">'
     +'<select id="s_date" style="max-width:180px" onchange="pickShotDate(this.value)">'
@@ -1595,7 +1605,6 @@ async function renderShots(p){
       +'<option value="">'+(p.scenes.length?'— 场景 —':'还没有场景，点「＋ 新建场景」添加')+'</option>'
       +p.scenes.map(s=>'<option value="'+s.id+'" '+(D.scene===s.id?'selected':'')+'>'+esc(s.name)+'</option>').join('')
       +'<option value="__new" '+(D.scene==='__new'?'selected':'')+'>＋ 新建场景…</option></select>'
-    +'<button class="btn btn-ghost btn-sm" onclick="view.tab=\'stuff\';renderProject()">管理</button>'
     +'<select id="s_pos" style="max-width:108px" onchange="saveShotDraft(\'position\',this.value)"><option value="">— 机位 —</option>'+POSITION_OPTS.map(o=>'<option value="'+o+'" '+(D.position===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
     +'<select id="s_light" style="max-width:108px" onchange="saveShotDraft(\'light\',this.value)"><option value="">— 光线 —</option>'+LIGHT_OPTS.map(o=>'<option value="'+o+'" '+(D.light===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
     +'<input id="s_note" class="grow" placeholder="补充描述（姿势 / 构图 / 道具…）" value="'+esc(D.note||'')+'" oninput="saveShotDraft(\'note\',this.value)">'
@@ -1633,21 +1642,13 @@ async function renderShots(p){
           }).join('')
           :'<button class="noref-add" onclick="openShotRefEditor('+jstr(s.id)+')">+ 添加参考图</button>';
         const editingThis=view.editingShotEditId===s.id;    // v10：行内编辑文字（与参考图选图态 editingShotId 正交）
-        const meta=[s.date||'未定',s.slot||'','约 '+(+s.duration||10)+' 分钟',
+        const meta=[s.date||'未定','约 '+(+s.duration||10)+' 分钟',
           scene?scene.name:'',s.position||'',s.light||'',s.note||''].filter(Boolean).join(' · ');
         const body=editingThis
-          ?'<div class="grow inline-edit"><div class="row">'
-            +'<input id="esh_name" class="grow" placeholder="分镜内容" value="'+esc(s.name)+'">'
-            +'<select id="esh_dur" style="max-width:100px">'+[10,15,20,30,45,60,90].map(d=>'<option value="'+d+'" '+((+s.duration||10)===d?'selected':'')+'>'+d+' 分钟</option>').join('')+'</select>'
-            +'<select id="esh_scene" style="max-width:140px"><option value="">— 场景 —</option>'+p.scenes.map(x=>'<option value="'+x.id+'" '+(s.sceneId===x.id?'selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select>'
-            +'<select id="esh_pos" style="max-width:100px"><option value="">— 机位 —</option>'+POSITION_OPTS.map(o=>'<option value="'+o+'" '+(s.position===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
-            +'<select id="esh_light" style="max-width:100px"><option value="">— 光线 —</option>'+LIGHT_OPTS.map(o=>'<option value="'+o+'" '+(s.light===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
-            +'<input id="esh_note" class="grow" placeholder="备注…" value="'+esc(s.note||'')+'">'
-            +'<button class="btn btn-primary btn-sm" onclick="saveShotEdit('+jstr(s.id)+')">保存</button>'
-            +'<button class="btn btn-ghost btn-sm" onclick="cancelShotEdit()">取消</button></div></div>'
+          ? shotEditPanel(s,p)
           :'<div class="grow" style="min-width:150px"><div class="'+(s.done?'done-text':'')+'" style="font-weight:600">'+esc(s.name)+(clash?' <span class="tag red">时间重叠</span>':'')+'</div>'
             +'<div class="muted" style="font-size:12px;margin-top:2px">'+esc(meta)+'</div></div>';
-        return '<div class="shot '+(s.done?'done':'')+'" data-id="'+s.id+'" data-fid="'+esc(s.id)+'">'
+        return '<div class="shot '+(s.done?'done':'')+(editingThis?' editing':'')+'" data-id="'+s.id+'" data-fid="'+esc(s.id)+'">'
           +'<span class="drag-handle" title="拖拽排序"><svg width="12" height="18" viewBox="0 0 12 18" fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></svg></span>'
           +'<button class="chk '+(s.done?'on':'')+'" onclick="toggleShot(\''+s.id+'\')">'+(s.done?'✓':'')+'</button>'
           +'<div class="refs">'+refHtml+'</div>'
@@ -1694,6 +1695,26 @@ function addSceneInline(){
 }
 function cancelSceneInline(){ saveShotDraft('scene',''); renderShots(cur()); }
 /* v10：分镜行内编辑（6 项，不含日期时间） */
+/* 分镜行内编辑面板：分镜页与日程页共用同一套元素 id 与保存逻辑，保证两处编辑同源同步 */
+function shotEditPanel(s,p){
+  const dur=[10,15,20,30,45,60,90].map(d=>'<option value="'+d+'" '+((+s.duration||10)===d?'selected':'')+'>'+d+' 分钟</option>').join('');
+  return '<div class="shot-edit">'
+    +'<div class="se-fld"><label>分镜内容</label><input id="esh_name" value="'+esc(s.name)+'" placeholder="如：巷口逆光回眸（中景）"></div>'
+    +'<div class="se-grid">'
+    +'<div class="se-fld"><label>时长</label><select id="esh_dur">'+dur+'</select></div>'
+    +'<div class="se-fld"><label>场景</label><select id="esh_scene"><option value="">— 未指定 —</option>'
+      +(p.scenes||[]).map(x=>'<option value="'+x.id+'" '+(s.sceneId===x.id?'selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select></div>'
+    +'<div class="se-fld"><label>机位</label><select id="esh_pos"><option value="">— 未指定 —</option>'
+      +POSITION_OPTS.map(o=>'<option value="'+o+'" '+(s.position===o?'selected':'')+'>'+o+'</option>').join('')+'</select></div>'
+    +'<div class="se-fld"><label>光线</label><select id="esh_light"><option value="">— 未指定 —</option>'
+      +LIGHT_OPTS.map(o=>'<option value="'+o+'" '+(s.light===o?'selected':'')+'>'+o+'</option>').join('')+'</select></div>'
+    +'</div>'
+    +'<div class="se-fld"><label>备注</label><input id="esh_note" value="'+esc(s.note||'')+'" placeholder="姿势 / 构图 / 道具 / 注意事项…"></div>'
+    +'<div class="se-actions">'
+    +'<button class="btn btn-ghost btn-sm" onclick="cancelShotEdit()">取消</button>'
+    +'<button class="btn btn-primary btn-sm" onclick="saveShotEdit('+jstr(s.id)+')">保存修改</button>'
+    +'</div></div>';
+}
 function saveShotEdit(id){
   const el=document.getElementById('esh_name');
   const name=(el?el.value:'').trim();
@@ -2387,10 +2408,15 @@ function timelineHtml(p,date){
     if(it._t==='shot'){
       const sc=p.scenes.find(x=>x.id===it.sceneId);
       const extra=[sc?sc.name:'',it.position||'',it.light||'',it.note||''].filter(Boolean).map(t=>esc(t)).join(' · ');
-      return '<div class="tl-item shot-row"><div class="tl-time">'+esc(time)+'</div><div class="tl-dot" style="background:var(--accent)"></div>'
-        +'<div class="tl-body"><div class="tl-title"><span class="tag">分镜</span> '+esc(it.name)+' <span class="muted" style="font-weight:400">· 约 '+it.duration+' 分钟</span>'+cflag+'</div>'
-        +'<div class="tl-note">'+extra+'</div></div>'
-        +'<button class="chk '+(it.done?'on':'')+'" onclick="toggleShot(\''+it.id+'\')">'+(it.done?'✓':'')+'</button></div>';
+      const sdEditing=view.editingShotEditId===it.id;   // 日程里的分镜同样可行内编辑，保存后反写同一份 shots 数据
+      return '<div class="tl-item shot-row'+(sdEditing?' editing':'')+'"><div class="tl-time">'+esc(time)+'</div><div class="tl-dot" style="background:var(--accent)"></div>'
+        +(sdEditing
+          ? shotEditPanel(it,p)
+          : '<div class="tl-body"><div class="tl-title"><span class="tag">分镜</span> '+esc(it.name)+' <span class="muted" style="font-weight:400">· 约 '+it.duration+' 分钟</span>'+cflag+'</div>'
+            +'<div class="tl-note">'+extra+'</div></div>')
+        +'<button class="chk '+(it.done?'on':'')+'" onclick="toggleShot(\''+it.id+'\')">'+(it.done?'✓':'')+'</button>'
+        +(sdEditing?'':'<button class="rowbtn" title="编辑本分镜" onclick="beginInlineEdit(\'Shot\',\''+it.id+'\')">✎编辑</button>')
+        +'</div>';
     }
     const editing=view.editingNodeId===it.id;
     const autoN=it.auto==='wrap';                // 收工时间由 planDay 计算 → 只读；集合仍可改（它决定分镜链起点）
