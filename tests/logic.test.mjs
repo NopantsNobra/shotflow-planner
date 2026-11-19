@@ -488,5 +488,38 @@ check('v10.2 ㉔ 收藏汇总文案取自统一 FAV_META',
   V24.length === 2 && V24[0].module === '情绪板' && V24[1].module === '分镜'
   && V24[0].summary === '逆光小巷' && V24[1].summary === '巷口回眸', JSON.stringify(V24));
 
+/* ===== v10.3 城市选择 ===== */
+
+// ㉕ cityMatch：±0.15° 容差匹配城市；无匹配 → null（自定义地点）；空/非法 → null
+vm.runInContext(fn('cityMatch'), ctx);
+const V25 = vm.runInContext(`(()=>{
+  const list=[['南京',32.06,118.78],['三亚',18.25,109.51]];
+  return {
+    hit:cityMatch({lat:'32.06',lng:'118.78'},list),
+    nearHit:cityMatch({lat:32.1,lng:118.9},list),      // 手输小偏差仍在容差内
+    miss:cityMatch({lat:'31.90',lng:'117.00'},list),   // 超容差 → null
+    empty:cityMatch({lat:'',lng:''},list),
+    bad:cityMatch({lat:'abc',lng:'xyz'},list)};
+})()`, ctx);
+check('v10.3 ㉕ cityMatch 容差匹配与自定义判定',
+  V25.hit && V25.hit[0] === '南京' && V25.nearHit && V25.nearHit[0] === '南京'
+  && V25.miss === null && V25.empty === null && V25.bad === null, JSON.stringify(V25 && {hit:V25.hit[0],nearHit:V25.nearHit[0],miss:V25.miss,empty:V25.empty,bad:V25.bad}));
+
+// ㉖ 全量城市清单（CITY_GROUPS）无重名、覆盖省会与原有快捷 8 城
+const V26 = (() => {
+  const html = fs.readFileSync(target, 'utf8');
+  const mBlock = html.match(/const CITY_GROUPS=\[([\s\S]*?)\n\];/);
+  if (!mBlock) return { names: [], dupe: ['BLOCK_NOT_FOUND'] };
+  const names = [...mBlock[1].matchAll(/\['([^']+)',(-?[\d.]+),(-?[\d.]+)\]/g)].map(x => x[1]);
+  const dupe = names.filter((n, i) => names.indexOf(n) !== i);
+  const missing = ['哈尔滨','长春','沈阳','石家庄','太原','呼和浩特','济南','郑州','武汉','长沙','合肥','南昌','福州','昆明','贵阳','南宁','海口','兰州','西宁','银川','乌鲁木齐','拉萨','天津','重庆','香港','澳门']
+    .filter(c => !names.includes(c));
+  return { names, dupe, missing };
+})();
+check('v10.3 ㉖ 城市清单完整且无重名',
+  V26.names.length >= 50 && V26.dupe.length === 0 && V26.missing.length === 0
+  && ['北京','上海','广州','深圳','南京','杭州','成都','西安'].every(c => V26.names.includes(c)),
+  'total=' + V26.names.length + ' dupe=' + V26.dupe.join(',') + ' missing=' + V26.missing.join(','));
+
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

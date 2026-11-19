@@ -332,6 +332,11 @@ svg{display:inline-block;vertical-align:middle}
 .doc .kv dt{color:var(--ink2)}
 .doc img{max-width:110px;border-radius:8px;margin:4px}
 .doc .swatch{display:inline-block;width:38px;height:38px;border-radius:8px;margin:4px;vertical-align:middle;border:1px solid var(--line)}
+/* 执行手册 · 分镜参考图缩略（打印 / 预览一致） */
+.doc .ref-cell{white-space:nowrap}
+.doc td.nw{white-space:nowrap}   /* 时间 / 时长等短列不逐字换行 */
+.doc .shot-ref{width:56px;height:56px;object-fit:cover;border-radius:6px;margin:2px 3px 2px 0;vertical-align:middle;border:1px solid #ded6ca}
+.doc .shot-ref-miss{width:56px;height:56px;border-radius:6px;margin:2px 3px 2px 0;vertical-align:middle;border:1px dashed #cfc5b3;background:#f3efe6;color:#9c9389;font-size:9px;line-height:1.3;display:inline-flex;align-items:center;justify-content:center;text-align:center;padding:3px;box-sizing:border-box}
 
 .backup-tip{background:#fdf8ec;border:1px solid #eadfc4;color:#7c6222;padding:10px 16px;border-radius:10px;font-size:12.5px;margin-bottom:16px;display:none;align-items:center;gap:8px}
 .backup-tip.show{display:flex}
@@ -391,6 +396,7 @@ svg{display:inline-block;vertical-align:middle}
     <div class="doc-bar no-print">
       <span class="doc-bar-title">文档预览</span>
       <div class="row">
+        <button class="btn btn-ghost btn-sm" id="docExportBtn" style="display:none" title="生成可直接发送给客户的单文件 HTML（图片内嵌）" onclick="exportProposalFile()">导出 HTML 文件</button>
         <button class="btn btn-primary btn-sm" onclick="window.print()">打印 / 存为 PDF</button>
         <button class="btn btn-ghost btn-sm" onclick="closeDoc()">关闭</button>
       </div>
@@ -569,6 +575,39 @@ function coverHtml(p){
 const STATUSES=['灵感期','策划中','待拍摄','后期中','已交付','已归档'];
 const STATUS_TAG=['gray','blue','red','purple','green','ink'];
 const CITIES=[['北京',39.90,116.40],['上海',31.23,121.47],['广州',23.13,113.26],['深圳',22.54,114.06],['南京',32.06,118.78],['杭州',30.27,120.16],['成都',30.57,104.07],['西安',34.34,108.94]];
+/* 全量城市坐标（省会 + 直辖市 + 港澳 + 主要二线），按大区分组，供下拉选择；
+   算法（sunTimes）本身支持任意经纬度，这里只是常用预设 */
+const CITY_GROUPS=[
+  ['华北',[['北京',39.90,116.40],['天津',39.13,117.20],['石家庄',38.04,114.51],['太原',37.87,112.55],['呼和浩特',40.84,111.75]]],
+  ['东北',[['沈阳',41.80,123.43],['大连',38.91,121.61],['长春',43.88,125.32],['哈尔滨',45.80,126.53]]],
+  ['华东',[['上海',31.23,121.47],['南京',32.06,118.78],['苏州',31.30,120.58],['无锡',31.49,120.31],['常州',31.78,119.95],['南通',31.98,120.89],['杭州',30.27,120.16],['宁波',29.87,121.54],['温州',28.00,120.67],['嘉兴',30.75,120.76],['绍兴',30.03,120.58],['合肥',31.82,117.23],['福州',26.07,119.30],['厦门',24.48,118.09],['泉州',24.87,118.68],['南昌',28.68,115.86],['济南',36.65,117.12],['青岛',36.07,120.38],['烟台',37.46,121.39],['威海',37.51,122.12]]],
+  ['华中',[['郑州',34.75,113.63],['洛阳',34.62,112.45],['武汉',30.59,114.30],['长沙',28.23,112.94]]],
+  ['华南',[['广州',23.13,113.26],['深圳',22.54,114.06],['珠海',22.27,113.58],['佛山',23.02,113.12],['东莞',23.02,113.75],['中山',22.52,113.39],['惠州',23.11,114.42],['南宁',22.82,108.32],['海口',20.04,110.35],['三亚',18.25,109.51],['香港',22.32,114.17],['澳门',22.20,113.55]]],
+  ['西南',[['重庆',29.56,106.55],['成都',30.57,104.07],['贵阳',26.65,106.63],['昆明',24.88,102.83],['拉萨',29.65,91.14]]],
+  ['西北',[['西安',34.34,108.94],['兰州',36.06,103.83],['西宁',36.62,101.78],['银川',38.47,106.27],['乌鲁木齐',43.83,87.62]]]
+];
+const CITY_ALL=[].concat.apply([],CITY_GROUPS.map(g=>g[1]));
+/* 当前经纬度匹配到的城市（±0.15° 容差，兼容手输小数位差异）；无匹配 → null（视为自定义地点） */
+function cityMatch(p,all){
+  all=all||CITY_ALL;
+  const la=parseFloat(p&&p.lat), ln=parseFloat(p&&p.lng);
+  if(isNaN(la)||isNaN(ln)) return null;
+  for(let i=0;i<all.length;i++){ if(Math.abs(all[i][1]-la)<=0.15&&Math.abs(all[i][2]-ln)<=0.15) return all[i]; }
+  return null;
+}
+/* 城市下拉选择：城市 → 写入坐标；自定义地点 → 引导手输经纬度（不改动现有值） */
+function pickCity(v){
+  const p=cur();
+  if(p&&p.demo){ toast('示例项目只读，请点「复制为我的项目」后再修改'); return; }   // 提前拦截，避免成功提示覆盖只读提示
+  if(v==='__custom'){
+    toast('已选「自定义地点」，请在右侧经纬度栏直接输入坐标');
+    const el=document.getElementById('p_lat'); if(el&&!el.disabled) el.focus();
+    return;
+  }
+  const c=CITY_ALL.find(x=>x[0]===v); if(!c) return;
+  setLL(String(c[1]),String(c[2]));
+  toast('已切换为 '+c[0]+'，日照按当地坐标计算');
+}
 
 /* IndexedDB：图片 + 项目主存储 + 姿势图库（v4 起项目不再存 localStorage） */
 const idb={db:null,
@@ -969,7 +1008,7 @@ function migrate(p){
   p.mood=p.mood||[]; p.scenes=p.scenes||[]; p.shots=p.shots||[]; p.items=p.items||[]; p.budget=p.budget||[];
   p.schedule=p.schedule||[]; p.notes=p.notes||[]; p.todos=p.todos||[];
   p.dayInit=Array.isArray(p.dayInit)?p.dayInit:[];        // v10：已完成默认项初始化的日期（删掉集合/收工后不复活）
-  /* v10 多日拍摄：shootDates 为真源，shootDate 恒等于 shootDates[0]（看板倒计时 / Call Sheet 等消费方零改动）。
+  /* v10 多日拍摄：shootDates 为真源，shootDate 恒等于 shootDates[0]（看板倒计时 / 通告单等消费方零改动）。
      与 normalizeShootDates 同源逻辑，因 migrate 会被 tests 单独抽取进 vm，这里必须自包含。 */
   p.shootDates=(Array.isArray(p.shootDates)?p.shootDates:[])
     .filter(function(d){ return /^\d{4}-\d{2}-\d{2}$/.test(String(d==null?'':d)); });
@@ -1353,13 +1392,24 @@ function renderProject(){
     +'<div class="fld"><label>项目阶段</label><select onchange="setP(\'status\',this.value)"'+dis+'>'+STATUSES.map(s=>'<option '+(p.status===s?'selected':'')+'>'+s+'</option>').join('')+'</select></div>'
     +'<div class="fld"><label>Day 1 · 首个拍摄日</label><input type="date" id="p_shootdate" value="'+esc(p.shootDate)+'" onchange="setShootDate(this.value)"'+dis+'></div>'
     +'<div class="fld"><label>拍摄地点</label><input value="'+esc(p.location||'')+'" onchange="setP(\'location\',this.value)" placeholder="如：南京 · 老门东"'+dis+'></div>'
-    /* 经纬度合并为一格（消除第三行单列空洞）；标签中文化并说明用途。全局 input{width:100%} 需覆盖为 flex 平分 */
+    /* 经纬度合并为一格（消除第三行单列空洞）；标签中文化并说明用途。
+       width:0 + flex:1 让 flexbox 完全接管宽度，避免 input intrinsic 尺寸把 grid 列 min-content 撑爆（移动端溢出） */
     +'<div class="fld"><label>经纬度 · 用于估算日落</label><div class="row" style="gap:8px;flex-wrap:nowrap">'
-      +'<input style="min-width:0;width:auto;flex:1" value="'+esc(p.lat==null?'':p.lat)+'" onchange="setP(\'lat\',this.value)" placeholder="纬度 32.06"'+dis+'>'
-      +'<input style="min-width:0;width:auto;flex:1" value="'+esc(p.lng==null?'':p.lng)+'" onchange="setP(\'lng\',this.value)" placeholder="经度 118.78"'+dis+'></div></div>'
+      +'<input id="p_lat" style="min-width:0;width:0;flex:1" value="'+esc(p.lat==null?'':p.lat)+'" onchange="setP(\'lat\',this.value)" placeholder="纬度 32.06"'+dis+'>'
+      +'<input id="p_lng" style="min-width:0;width:0;flex:1" value="'+esc(p.lng==null?'':p.lng)+'" onchange="setP(\'lng\',this.value)" placeholder="经度 118.78"'+dis+'></div></div>'
     +'</div><div class="cityrow">'
-    +CITIES.map(c=>'<button class="chip" onclick="setLL(\''+c[1]+'\',\''+c[2]+'\')"'+dis+'>'+c[0]+'</button>').join('')
-    +'<span class="muted" style="margin-left:4px">快速填入城市中心坐标，日落时间据此估算</span></div></div>'
+    +CITIES.map(c=>'<button class="chip" title="'+c[0]+'（'+c[1]+', '+c[2]+'）" onclick="setLL(\''+c[1]+'\',\''+c[2]+'\')"'+dis+'>'+c[0]+'</button>').join('')
+    /* 城市下拉：全部省会/直辖市/港澳/主要二线（按大区分组）+ 自定义地点；回显当前坐标匹配项 */
+    +(function(){
+      const m=cityMatch(p);
+      const sel=m?m[0]:((String(p.lat==null?'':p.lat).trim()!==''||String(p.lng==null?'':p.lng).trim()!=='')?'__custom':'');
+      return '<select id="cityPick" style="max-width:150px;height:34px;font-size:12.5px;padding:4px 8px" onchange="pickCity(this.value)" title="选择城市自动填入坐标，或选自定义地点后手输经纬度"'+dis+'>'
+        +'<option value="" disabled hidden>'+(m?'城市 ▾':'选择城市…')+'</option>'
+        +CITY_GROUPS.map(g=>'<optgroup label="'+g[0]+'">'+g[1].map(c=>'<option value="'+c[0]+'" '+(sel===c[0]?'selected':'')+'>'+c[0]+' '+c[1]+'</option>').join('')+'</optgroup>').join('')
+        +'<option value="__custom" '+(sel==='__custom'?'selected':'')+'>自定义地点 · 手输经纬度</option>'
+        +'</select>';
+    })()
+    +'<span class="muted" style="margin-left:4px">常用城市一键填入；更多城市从下拉选择；任意坐标均会按 NOAA 近似算法计算日出日落</span></div></div>'
     +'<div class="ptabs">'
     +TABS.reduce(function(segs,tb){                 /* 按 TABS 顺序聚成分组段：组词眉题在上，组内页签在下 */
       let g=segs[segs.length-1];
@@ -1375,8 +1425,7 @@ function renderProject(){
     +'<div class="subbar">'
     +'<span class="muted" style="font-size:10px;letter-spacing:.14em">文档输出 ▸</span>'
     +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'proposal\')">客户提案</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="exportProposalFile()">发送提案文件</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'callsheet\')">Call Sheet</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'callsheet\')">拍摄通告单</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'manual\')">执行手册</button></div>'
     +'<div id="tabBody"></div>';
   document.getElementById('app').innerHTML=h;
@@ -2265,7 +2314,7 @@ function weekdayCN(d){
 /* ===================== v10 排程引擎（纯函数层） =====================
    模型要点：
    1. 分镜时间不再由用户输入，而是由 planDay 顺序派生（起点 = max(10:00, 集合结束)），
-      派生结果物化写回 shot.slot —— dayItems / 时间轴 / Call Sheet / 拍摄日只读 slot，零改动。
+      派生结果物化写回 shot.slot —— dayItems / 时间轴 / 通告单 / 拍摄日只读 slot，零改动。
    2. 集合（auto:'call'）与收工（auto:'wrap'）是自动节点：集合时间由用户改（影响链起点），
       收工时间永远由 planDay 计算 = 当天最晚结束 + 15 分钟。
    3. 其余节点是用户显式输入的位置，**不自动改写**；只有「本轮插入/编辑的节点」之后的节点，
@@ -2885,9 +2934,9 @@ function callSheetHtml(p){
   const scenes=p.scenes.map(s=>'<li>'+esc(s.name)+(s.note?'：'+esc(s.note):'')+'</li>').join('')||'<li>待定</li>';
   const kit=p.items.map(i=>'<li>'+esc(i.kind)+' · '+esc(i.name)+(i.note?'（'+esc(i.note)+'）':'')+'</li>').join('')||'<li>无</li>';
   const notes=[...(p.notes||[])].sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,3).map(n=>'<li>['+esc(n.kind)+'] '+esc(n.content)+'</li>').join('')||'<li>无</li>';
-  return '<h1>拍摄通告 · Call Sheet</h1>'
+  return '<h1>拍摄通告单</h1>'
     +'<p class="doc-sub">'+esc(p.name)+' · '+date+' · '+esc(p.location||'地点待定')+'</p>'
-    +'<p style="text-align:center;font-size:12px;color:#746c5f">瞬刻摄影工作台 · Stillmark｜定格一瞬，刻下永恒。</p>'
+    +'<p style="text-align:center;font-size:12px;color:#746c5f">CALL SHEET｜瞬刻摄影工作台 · Stillmark｜定格一瞬，刻下永恒。</p>'
     +'<h2>当日时间线</h2><table><tr><th>时间</th><th>事项</th><th>场景</th><th>时长</th>'
     +(anyPos?'<th>机位</th>':'')+(anyLight?'<th>光线</th>':'')+'</tr>'+rows+'</table>'
     +(sun?'<p class="muted">日照参考：日出 '+sun.sunrise+' · 黄金时刻 '+sun.goldenStart+' · 日落 '+sun.sunset+'（近似值）</p>':'')
@@ -2903,6 +2952,9 @@ function callSheetHtml(p){
 async function openDoc(kind){
   const p=cur(); if(!p) return;
   await ensureShiseiRefs(p);
+  /* 提案才提供「导出 HTML 文件」（原独立按钮已移入此处），通告单 / 手册走打印 */
+  const exBtn=document.getElementById('docExportBtn');
+  if(exBtn) exBtn.style.display=(kind==='proposal')?'':'none';
   if(kind==='callsheet'){
     document.getElementById('docBody').innerHTML=callSheetHtml(p);
     document.getElementById('docModal').classList.add('show');
@@ -2934,13 +2986,26 @@ async function openDoc(kind){
       +'<tr><td>拍摄服务套餐（'+esc(p.name)+'）</td><td>¥'+total.toLocaleString()+'</td></tr></table>'
       +'<p class="muted" style="margin-top:6px">* 报价基于成本核算，最终价格以双方确认合同为准。</p>';
   } else {
-    h+='<h2>三、分镜头清单</h2><table><tr><th>时间</th><th>分镜</th><th>场景</th><th>时长</th>'
+    /* v10.3：执行手册分镜表按需追加「参考图」列——取每条分镜挂的参考图（我的素材 + 姿势图库，已由
+       ensureShiseiRefs / cacheProjectImages 预载到 imgCache），图文对照便于现场直接执行；
+       shisei 引用未同步到本机时给占位提示，不静默丢列 */
+    const shotRefs=s=>(s.refIds||[]);
+    const refCell=s=>shotRefs(s).length
+      ?shotRefs(s).map(r=>imgCache[r]
+        ?'<img class="shot-ref" src="'+esc(imgCache[r])+'" title="参考图">'
+        :(String(r||'').startsWith('shisei:')?'<span class="shot-ref shot-ref-miss">图库未同步</span>':'')).join('')
+      :'—';
+    const anyRefs=p.shots.some(s=>shotRefs(s).length);
+    h+='<h2>三、分镜头清单</h2><table><tr><th>时间</th><th>分镜</th>'+(anyRefs?'<th>参考图</th>':'')+'<th>场景</th><th>时长</th>'
       +(anyPos?'<th>机位</th>':'')+(anyLight?'<th>光线</th>':'')+'<th>备注</th></tr>'
       +li([...p.shots].sort((a,b)=>shotSortKey(a)<shotSortKey(b)?-1:1),
-        s=>{const sc=p.scenes.find(x=>x.id===s.sceneId);return '<tr><td>'+esc(s.date||'')+' '+esc(s.slot||'')+'</td><td>'+esc(s.name)+'</td><td>'+esc(sc?sc.name:'—')+'</td><td>'+s.duration+' 分钟</td>'
+        s=>{const sc=p.scenes.find(x=>x.id===s.sceneId);return '<tr><td class="nw">'+esc(s.date||'')+' '+esc(s.slot||'')+'</td><td>'+esc(s.name)+'</td>'
+          +(anyRefs?'<td class="ref-cell">'+refCell(s)+'</td>':'')
+          +'<td>'+esc(sc?sc.name:'—')+'</td><td class="nw">'+s.duration+' 分钟</td>'
           +(anyPos?'<td>'+esc(s.position||'—')+'</td>':'')
           +(anyLight?'<td>'+esc(s.light||'—')+'</td>':'')
-          +'<td>'+esc(s.note||'—')+'</td></tr>';},5+(anyPos?1:0)+(anyLight?1:0))+'</table>'
+          +'<td>'+esc(s.note||'—')+'</td></tr>';},6+(anyRefs?1:0)+(anyPos?1:0)+(anyLight?1:0))
+      +(anyRefs?'<p class="muted" style="margin:6px 0 14px">分镜参考图随手册打印 / 存为 PDF 一并输出；「图库未同步」的姿势参考需回应用端同步姿势图库后重新打开。</p>':'')+'</table>'
       +'<h2>四、拍摄日流程</h2><table><tr><th>时间</th><th>环节</th><th>内容</th><th>备注</th></tr>'
       +li([...p.schedule].sort((a,b)=>(a.start||'99')<(b.start||'99')?-1:1),
         n=>'<tr><td>'+esc(n.start||'')+(n.end?' – '+esc(n.end):'')+'</td><td>'+esc(n.type)+'</td><td>'+esc(n.title)+'</td><td>'+esc(n.note||'—')+'</td></tr>',4)+'</table>'
@@ -2960,7 +3025,10 @@ async function openDoc(kind){
   document.getElementById('docModal').classList.add('show');
   fitCovers();
 }
-function closeDoc(){ document.getElementById('docModal').classList.remove('show'); }
+function closeDoc(){
+  document.getElementById('docModal').classList.remove('show');
+  const exBtn=document.getElementById('docExportBtn'); if(exBtn) exBtn.style.display='none';
+}
 
 /* 导出可发送的提案 HTML 文件（图片内嵌，微信可直接发） */
 function exportProposalFile(){

@@ -16,7 +16,7 @@ project = {
   tagVocab:[string],
   scenes:[{id,name,note,done,fav}],
   dayInit:[ISODate],          // v10：已完成默认项初始化的日期（集合/收工不重复补，删了不复活）
-  shootDates:[ISODate],       // v10：拍摄日清单（升序去重）；shootDate 恒 = shootDates[0] || ''，供看板倒计时 / Call Sheet 复用
+  shootDates:[ISODate],       // v10：拍摄日清单（升序去重）；shootDate 恒 = shootDates[0] || ''，供看板倒计时 / 通告单复用
   shots:[{id,name,date,slot,duration,sceneId,refIds:[≤3],position,light,note,done,ord,fav}],
   schedule:[{id,type,title,start,end,note,date,done,fav,auto?:'call'|'wrap'}],  // v10：slot 由排程引擎派生并物化
   items:[{id,kind:'服装道具|器材',name,note,done,fav}],
@@ -25,7 +25,7 @@ project = {
   todos:[{id,title,owner,due,done,fav}]
 }
 ```
-`slot` 不再由用户输入：`rescheduleDay` 把 `planDay` 的计算结果写回，读取方（`dayItems`/时间轴/Call Sheet/拍摄日）零改动。`auto:'call'` 是集合（时间仍可改，决定分镜链起点），`auto:'wrap'` 是收工（时间由引擎计算，UI 只读）。
+`slot` 不再由用户输入：`rescheduleDay` 把 `planDay` 的计算结果写回，读取方（`dayItems`/时间轴/通告单/拍摄日）零改动。`auto:'call'` 是集合（时间仍可改，决定分镜链起点），`auto:'wrap'` 是收工（时间由引擎计算，UI 只读）。
 
 八类条目统一 `fav:boolean`（`migrateFav` 幂等补齐，默认 false）；`view` 为纯会话状态（含 allowDemoWrite / 五个行内编辑指针 / refViewer / focusRef），不持久化、不导出。
 存储（v4）：项目主数据 IndexedDB 库 `shotflow` / store `projects`（key `all`）；图片同库 store `images`。loadP() 同步读内存缓存 projectsCache，saveP() 200ms 合并写入 IDB。
@@ -44,7 +44,7 @@ project = {
 - 渲染期自愈（v10）：`renderSchedule`/`renderShootDay` 进入某日期先 `autoSyncDay`——demo 直接跳过、`dayInit` 已含且无 drift 时提前返回，避免「渲染 → 写盘 → 重绘」循环；被顺延节点用 `view.lastShift` 临时标「已顺延」（30 秒或下次重排清除）
 - 看板检索：boardQuery + boardScope（全部/进行中/已归档），匹配项目名/客户/地点/主题/调性/分镜/沟通记录
 - 备份：exportJSON() 全量；exportProject() 单案；importJSON() → askConfirm 二次确认 → applyImport()（单案追加，全量覆盖）
-- 文档：openDoc('proposal'|'manual'|'callsheet')，Call Sheet 为 A4 一页纸，天气/联系电话留白
+- 文档：openDoc('proposal'|'manual'|'callsheet')，拍摄通告单（Call Sheet）为 A4 一页纸，天气/联系电话留白
 - 提案封面（v5）：`coverData()` 从项目名/概念页/元数据取值 → `coverHtml()` 生成 1080×1620 画廊扉页（双层菱形暗纹 + 天头/地脚细线 + 三栏规格表）；`fitCovers()` 按容器宽度缩放并自动收缩过长文字。弹窗预览与「发送提案文件」共用同一套 `PUBLIC_STYLE`，导出文件内嵌样式与缩放脚本，离线/微信可用
 - 标签体系（v6）：`tagKey` NFKC/大小写/空白归一化 → `dedupeTags` 保留首次显示形式 → `migrateTags` 幂等补齐 `tags/tagVocab` → `matchByTags` any|all 筛选（情绪板与分镜 ref picker 共用）→ `renameTag`/`removeTag` 全局同步且不触碰 `refIds`；写路径仍同步只读兼容字段 `tag`
 - AI 接口预留（v6）：`suggestTags` 恒关闭、注册表 `TagProviders` 默认空、零网络请求；失败降级 toast，建议先落 `autoTags` 并经用户确认后由 `applyAiSuggestion` 合并；`aiConfig`（含 apiKey）只在内存与 `sessionStorage`，不进项目 JSON / IndexedDB / 导出

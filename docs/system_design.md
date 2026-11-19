@@ -28,7 +28,7 @@
 
 ### 1.2 为什么选「物化 slot」而非「纯派生」
 
-- 消费 `slot` 的地方共 **8 处**（`shotSortKey` 1468、分镜列表元信息 1543、`renderSchedule` 1719、`dayItems` 1753-1754、`renderShootDay` 2034-2037、`callSheetHtml` 2077、`openDoc` 2132、`cascadeShift` 1784）。纯派生 = 这 8 处全部要改成「先调 planDay 再取」——`dayItems` 签名要变（它被 5 处调用）、`renderShootDay` 的 `_time` 语义要变、导出/Call Sheet 要串行重算。
+- 消费 `slot` 的地方共 **8 处**（`shotSortKey` 1468、分镜列表元信息 1543、`renderSchedule` 1719、`dayItems` 1753-1754、`renderShootDay` 2034-2037、`callSheetHtml` 2077、`openDoc` 2132、`cascadeShift` 1784）。纯派生 = 这 8 处全部要改成「先调 planDay 再取」——`dayItems` 签名要变（它被 5 处调用）、`renderShootDay` 的 `_time` 语义要变、导出/通告单要串行重算。
 - 物化 = 8 处**零改动**，只需在 9 个写入口调 `rescheduleDay`。改动面从「8 个读取点」收敛到「9 个写入点」，且写入点全部集中在 `updateCur` 回调内，天然受 demo 只读守卫保护。
 - 代价：数据的 `slot` 与 `ord/duration/schedule` 之间出现一次「派生 → 写回」的耦合，任何漏掉的写入口会让时间轴短暂不一致。**§4 的 9 条调用链就是这张漏改清单**，任务分解（§5）按它做验收。
 
@@ -527,7 +527,7 @@ openShootDay() → sdDate=p.shootDate → autoSyncDay(sdDate) → renderShootDay
 ### T04 拍摄日模式 + 文档输出（P1）
 - **改动单元**：`renderShootDay` 2042-2048；`sdPostpone` 2062-2067 重写；`callSheetHtml` 2075-2087；`openDoc` 2130-2132；CSS `.sd-tag`
 - **依赖**：T01、T03
-- **验收**：拍摄日分镜行显示「分镜」小标签；「整日顺延 1 小时」把当天全部节点 +60 且分镜重排，无节点时给提示不报错；Call Sheet 与执行手册分镜表出现机位/光线列（仅当有值时）
+- **验收**：拍摄日分镜行显示「分镜」小标签；「整日顺延 1 小时」把当天全部节点 +60 且分镜重排，无节点时给提示不报错；通告单与执行手册分镜表出现机位/光线列（仅当有值时）
 
 ### T05 集成验证 + 文档与缓存版本（P1）
 - **改动单元**：`shotflow-sw.js` `CACHE` 版本；`README.md` §六/§七；`docs/system_design.md` + 两张 mermaid；全量人工回归清单
@@ -663,7 +663,7 @@ vm.runInContext('const DAY_BASE="10:00",COLLECT_START="09:30",COLLECT_MIN=30,WRA
 | 字段 | 说明 |
 |---|---|
 | `p.shootDates: ISODate[]` | 拍摄日清单，**升序去重**；新增/删除只能经 `addShootDate` / `removeShootDay`（后者走 `updateCur`） |
-| `p.shootDate` | **恒等于 `shootDates[0] || ''`**。看板倒计时、Call Sheet、提案、拍摄日模式等既有消费方一律不改 |
+| `p.shootDate` | **恒等于 `shootDates[0] || ''`**。看板倒计时、通告单、提案、拍摄日模式等既有消费方一律不改 |
 | `migrate` | `shootDates = 合法值去重升序`；为空且 `shootDate` 有值 → `[shootDate]`；再回写 `shootDate = shootDates[0] || ''` |
 
 **清单只在「该日首次有内容」时增长**：`ensureShootDate(date)` 的三个调用点是 `addShot` / `addNode` / `persistOrder`（跨日拖拽）；`chooseSchedDate`（Day tab 与顶部日期框）只切 `schedDate`，**不写 `shootDates`**；`autoSyncDay` 对未登记日期直接返回（不补集合/收工、不写盘），否则会变成「看一眼就登记 / 生成垃圾日程」。
