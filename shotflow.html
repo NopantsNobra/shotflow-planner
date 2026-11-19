@@ -332,11 +332,12 @@ svg{display:inline-block;vertical-align:middle}
 .doc .kv dt{color:var(--ink2)}
 .doc img{max-width:110px;border-radius:8px;margin:4px}
 .doc .swatch{display:inline-block;width:38px;height:38px;border-radius:8px;margin:4px;vertical-align:middle;border:1px solid var(--line)}
-/* 执行手册 · 分镜参考图缩略（打印 / 预览一致） */
-.doc .ref-cell{white-space:nowrap}
+/* 执行手册 · 分镜参考图（v10.4：56→112px 两倍显示，打印同尺寸；窄屏降到 1.5 倍保文字列） */
+.doc .ref-cell{white-space:normal}
 .doc td.nw{white-space:nowrap}   /* 时间 / 时长等短列不逐字换行 */
-.doc .shot-ref{width:56px;height:56px;object-fit:cover;border-radius:6px;margin:2px 3px 2px 0;vertical-align:middle;border:1px solid #ded6ca}
-.doc .shot-ref-miss{width:56px;height:56px;border-radius:6px;margin:2px 3px 2px 0;vertical-align:middle;border:1px dashed #cfc5b3;background:#f3efe6;color:#9c9389;font-size:9px;line-height:1.3;display:inline-flex;align-items:center;justify-content:center;text-align:center;padding:3px;box-sizing:border-box}
+.doc .shot-ref{width:112px;height:112px;max-width:none;object-fit:cover;border-radius:6px;margin:2px 3px 2px 0;vertical-align:middle;border:1px solid #ded6ca}
+.doc .shot-ref-miss{width:112px;height:112px;max-width:none;border-radius:6px;margin:2px 3px 2px 0;vertical-align:middle;border:1px dashed #cfc5b3;background:#f3efe6;color:#9c9389;font-size:11px;line-height:1.3;display:inline-flex;align-items:center;justify-content:center;text-align:center;padding:4px;box-sizing:border-box}
+@media screen and (max-width:768px){.doc .shot-ref,.doc .shot-ref-miss{width:84px;height:84px}}  /* 仅屏幕窄屏降档；打印始终 112px */
 
 .backup-tip{background:#fdf8ec;border:1px solid #eadfc4;color:#7c6222;padding:10px 16px;border-radius:10px;font-size:12.5px;margin-bottom:16px;display:none;align-items:center;gap:8px}
 .backup-tip.show{display:flex}
@@ -641,7 +642,12 @@ const idb={db:null,
 };
 const imgCache={};
 async function cacheProjectImages(p){
-  const ids=(p.mood||[]).filter(m=>m.type==='image').map(m=>m.content);
+  /* v10.4：上传图不再写 mood，预载必须覆盖参考图库与分镜引用，否则打开项目时分镜缩略图会全空 */
+  const ids=[];
+  const add=id=>{ const k=String(id==null?'':id); if(k&&!k.startsWith('shisei:')&&ids.indexOf(k)<0) ids.push(k); };
+  (p.mood||[]).filter(m=>m.type==='image').forEach(m=>add(m.content));
+  (p.refs||[]).forEach(r=>add(r&&r.key));
+  (p.shots||[]).forEach(s=>(s.refIds||[]).forEach(add));
   for(const id of ids){ if(!imgCache[id]){ const v=await idb.get(id); if(v) imgCache[id]=v; } }
 }
 
@@ -650,7 +656,7 @@ function freshView(patch){
   const d={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',
     moodFilter:[],moodFilterMode:'any',shotDraft:{},poseCat:null,editingShotId:null,editingShotEditId:null,replaceIdx:-1,
     allowDemoWrite:false,editingNodeId:null,editingStuffId:null,editingStuffKey:null,
-    editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null,lastShift:null,newDay:false};
+    editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null,lastShift:null,newDay:false,moodRefPicker:false};
   return Object.assign(d,patch||{});
 }
 let view=freshView();
@@ -1008,6 +1014,17 @@ function migrate(p){
   p.mood=p.mood||[]; p.scenes=p.scenes||[]; p.shots=p.shots||[]; p.items=p.items||[]; p.budget=p.budget||[];
   p.schedule=p.schedule||[]; p.notes=p.notes||[]; p.todos=p.todos||[];
   p.dayInit=Array.isArray(p.dayInit)?p.dayInit:[];        // v10：已完成默认项初始化的日期（删掉集合/收工后不复活）
+  /* v10.4：参考图库元数据（二进制仍在 IndexedDB images store）。
+     老项目：把 mood 里的图片 key 补进 refs（按 key 去重，不动原 mood 项，保证历史分镜引用不丢）。
+     migrate 会被 tests 用 fn() 单独抽取进 vm，故不能依赖 uid —— 迁移条目的 id 直接用 key。 */
+  p.refs=Array.isArray(p.refs)?p.refs.slice():[];
+  const refKeys=new Set(p.refs.map(function(r){return String((r&&r.key)||'');}).filter(Boolean));
+  (p.mood||[]).filter(function(m){return m&&m.type==='image'&&m.content;}).forEach(function(m){
+    const k=String(m.content);
+    if(refKeys.has(k)) return;
+    refKeys.add(k);
+    p.refs.push({id:k,key:k,name:'',tags:(Array.isArray(m.tags)?m.tags.slice():(m.tag?[m.tag]:[])),createdAt:0,fav:false});
+  });
   /* v10 多日拍摄：shootDates 为真源，shootDate 恒等于 shootDates[0]（看板倒计时 / 通告单等消费方零改动）。
      与 normalizeShootDates 同源逻辑，因 migrate 会被 tests 单独抽取进 vm，这里必须自包含。 */
   p.shootDates=(Array.isArray(p.shootDates)?p.shootDates:[])
@@ -1483,8 +1500,10 @@ function renderMood(p){
     +'<input type="color" id="m_color" value="#c8a97e" style="width:54px;height:44px;padding:4px">'
     +'<button class="btn btn-ghost" onclick="addMood(\'text\')">加文字</button>'
     +'<button class="btn btn-ghost" onclick="addMood(\'color\')">加色彩</button>'
-    +'<button class="btn btn-primary" onclick="document.getElementById(\'m_img\').click()">上传图片</button>'
+    +'<button class="btn btn-primary" onclick="document.getElementById(\'m_img\').click()">上传精选图</button>'
+    +'<button class="btn btn-ghost" onclick="toggleRefPicker()">'+(view.moodRefPicker?'收起参考图库':'＋ 从参考图库精选')+'</button>'
     +'<input type="file" id="m_img" accept="image/*" style="display:none" onchange="addMoodImg(event)"></div>'
+    +(view.moodRefPicker?refPickerHtml(p):'')
     +'<div id="tagEditor"></div>'
     +'<div class="tag-filter"><input id="m_filter" placeholder="按标签筛选，逗号分隔…" value="'+esc(view.moodFilter.join(', '))+'" oninput="setMoodFilter(this.value)">'
     +'<div class="seg"><button class="'+(view.moodFilterMode==='any'?'on':'')+'" onclick="setMoodFilterMode(\'any\')">任一命中</button>'
@@ -1619,8 +1638,10 @@ function addMood(type){
     p.tagVocab=mergeVocab(p.tagVocab,tags);
   }); renderProject();
 }
-/* 图片入库共享链路：压缩 → IndexedDB → 情绪板。tags 由调用方决定（情绪板读输入框，分镜页传空后补） */
-async function ingestImageFile(f,tags,silent){
+/* v10.4 图片入库共享链路：压缩 → IndexedDB → 参考图库 p.refs（总是）；
+   target==='mood' 时才额外精选到情绪板（仅「情绪板页上传精选图」这一显式动作）。
+   压缩策略与 800px/.72 不变；tags 由调用方决定（情绪板读输入框，分镜页传空）。 */
+async function ingestImageFile(f,tags,silent,target){
   if(!f) return null;
   return new Promise(res=>{
     const rd=new FileReader();
@@ -1633,7 +1654,11 @@ async function ingestImageFile(f,tags,silent){
           const imgId=uid(); const data=c.toDataURL('image/jpeg',.72);
           await idb.put(imgId,data); imgCache[imgId]=data;
           updateCur(p=>{
-            p.mood.push({id:uid(),type:'image',content:imgId,tag:(tags&&tags[0])||'',tags:tags||[],fav:false});
+            p.refs=Array.isArray(p.refs)?p.refs:[];
+            p.refs.push({id:uid(),key:imgId,name:(f&&f.name)||'',tags:(tags||[]).slice(),createdAt:Date.now(),fav:false});
+            if(target==='mood'){
+              p.mood.push({id:uid(),type:'image',content:imgId,tag:(tags&&tags[0])||'',tags:(tags||[]).slice(),fav:false});
+            }
             p.tagVocab=mergeVocab(p.tagVocab,tags||[]);
           });
           res(imgId);
@@ -1653,11 +1678,48 @@ async function addMoodImg(e){
   }
   const f=e.target.files[0]; if(!f) return;
   const tags=parseTagsInput(gv('m_tag'));   // 异步前同步读取，避免压缩期间切页丢输入
-  const imgId=await ingestImageFile(f,tags);
+  const imgId=await ingestImageFile(f,tags,false,'mood');   // 情绪板页主动上传＝精选，同时进 refs 与 mood
   e.target.value='';
   if(imgId) renderProject();
 }
 function delMood(id){ updateCur(p=>p.mood=p.mood.filter(m=>m.id!==id)); renderProject(); }
+
+/* v10.4：情绪板「从参考图库精选」——上传的图默认只在 refs，精选动作才会写进 mood（提案不再混入执行参考图） */
+function toggleRefPicker(){ view.moodRefPicker=!view.moodRefPicker; renderProject(); }
+function refPickerHtml(p){
+  const refs=(p.refs||[]).slice().sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0);});
+  const inMood=new Set((p.mood||[]).filter(function(m){return m.type==='image';}).map(function(m){return String(m.content);}));
+  if(!refs.length) return '<div class="src-panel" style="margin:10px 0"><div class="muted">参考图库还是空的。在分镜页上传的图片会存到这里，不会自动进入情绪板。</div></div>';
+  return '<div class="src-panel" style="margin:10px 0">'
+    +'<p class="src-note">从参考图库挑选表达整体基调的图加入情绪板；已在情绪板的图不能重复加入。</p>'
+    +'<div class="ref-picker">'+refs.map(function(r){
+      const key=String(r&&r.key||'');
+      const has=inMood.has(key), tags=(r&&r.tags)||[];
+      return '<div style="width:auto;min-width:112px;max-width:152px;border:1px solid var(--line);border-radius:9px;padding:6px;text-align:center;background:var(--surface)">'
+        +(imgCache[key]?'<img src="'+esc(imgCache[key])+'" style="width:96px;height:72px;object-fit:cover;border-radius:6px;display:block;margin:0 auto 5px">'
+          :'<div class="muted" style="height:72px;display:flex;align-items:center;justify-content:center">原图缺失</div>')
+        +'<div class="muted" style="font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.name||key)+'">'+esc(r.name||'参考图')+'</div>'
+        +'<div style="font-size:9.5px;color:var(--accent-ink);margin:2px 0 5px">'+esc(tags.map(function(t){return '#'+t;}).join(' ')||'—')+'</div>'
+        +'<button class="btn '+(has?'btn-ghost':'btn-primary')+' btn-sm" style="width:100%" '+((has||p.demo)?'disabled':'')
+          +' onclick="selectRefToMood('+jstr(r.id||key)+')">'+(has?'已在情绪板':'加入情绪板')+'</button></div>';
+    }).join('')+'</div></div>';
+}
+function selectRefToMood(refId){
+  const p=cur(); if(!p) return;
+  if(p.demo){ toast('示例项目只读，请点「复制为我的项目」后再修改'); return; }
+  const r=(p.refs||[]).filter(function(x){return x&&(x.id===refId||x.key===refId);})[0];
+  if(!r) return;
+  const key=String(r.key||'');
+  if((p.mood||[]).some(function(m){return m.type==='image'&&m.content===key;})){ toast('该图已在情绪板'); return; }
+  let ok=false;
+  updateCur(pp=>{
+    if((pp.mood||[]).some(function(m){return m.type==='image'&&m.content===key;})) return;
+    pp.mood.push({id:uid(),type:'image',content:key,tag:(r.tags&&r.tags[0])||'',tags:(r.tags||[]).slice(),fav:false});
+    ok=true;                       // 沿用 refs 已有 tags，不改 tagVocab
+  });
+  if(ok) toast('已加入情绪板');
+  renderProject();
+}
 
 /* ---- 分镜（中枢） ---- */
 let selRefs=[];
@@ -1672,7 +1734,9 @@ async function renderShots(p){
   const curDay=(D.date!=null&&D.date!=='')?D.date:fallbackDay;
   const dayOpts=(days.indexOf(curDay)>=0?days.slice():days.concat([curDay]).sort());
   await ensureShiseiRefs(p);
-  const moodImgs=p.mood.filter(m=>m.type==='image'&&matchByTags(m,view.moodFilter,view.moodFilterMode));
+  /* v10.4：分镜参考图 picker 从参考图库 p.refs 派生（不再依赖情绪板；上传图默认只进 refs） */
+  const moodImgs=(p.refs||[]).map(r=>({id:r.id,type:'image',content:r.key,tags:r.tags||[],fav:!!r.fav}))
+    .filter(m=>matchByTags(m,view.moodFilter,view.moodFilterMode));
   let gallery=[];
   try{ gallery=await idb.shiseiIndex(); }catch(e){ gallery=[]; }
   const cats=[...new Set(gallery.map(r=>r.cat).filter(Boolean))];
@@ -1981,7 +2045,7 @@ async function addShotImg(e){
     okIds.slice(0,need).forEach(id=>{ if(!selRefs.includes(id)){ selRefs.push(id); hung++; } });
   }
   const only=okIds.length-hung;
-  toast('已存入情绪板 '+okIds.length+' 张，挂到分镜 '+hung+' 张'+(only?'，仅入库 '+only+' 张':'')+(failN.length?'，失败 '+failN.length+' 张':''));
+  toast('已存入参考图库 '+okIds.length+' 张，挂到分镜 '+hung+' 张'+(only?'，仅入库 '+only+' 张':'')+(failN.length?'，失败 '+failN.length+' 张':''));
   renderShots(cur());
 }
 function addShot(){
@@ -3079,6 +3143,7 @@ function collectImages(ps){
   const ids=new Set();
   ps.forEach(p=>{
     (p.mood||[]).filter(m=>m.type==='image').forEach(m=>ids.add(m.content));
+    (p.refs||[]).forEach(r=>{ if(r&&r.key&&!String(r.key).startsWith('shisei:')) ids.add(r.key); });  // v10.4：参考图库也随备份导出
     (p.shots||[]).forEach(s=>(s.refIds||[]).forEach(r=>{ if(!String(r||'').startsWith('shisei:')) ids.add(r); }));
   });
   return ids;

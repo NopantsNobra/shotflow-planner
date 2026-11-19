@@ -521,5 +521,27 @@ check('v10.3 ㉖ 城市清单完整且无重名',
   && ['北京','上海','广州','深圳','南京','杭州','成都','西安'].every(c => V26.names.includes(c)),
   'total=' + V26.names.length + ' dupe=' + V26.dupe.join(',') + ' missing=' + V26.missing.join(','));
 
+// ㉗ v10.4 老数据迁移：mood 图片 key 补进 refs（按 key 去重、不动原 mood 项）
+const V27 = vm.runInContext(`(()=>{
+  const p=migrate({name:'x',shots:[],budget:[],mood:[
+    {id:'m1',type:'image',content:'k1',tag:'a',tags:['a']},
+    {id:'m2',type:'image',content:'k1',tag:'a',tags:['a']},
+    {id:'m3',type:'text',content:'hello'}]});
+  return {keys:p.refs.map(r=>r.key).join(','),ids:p.refs.map(r=>r.id).join(','),
+    mood:p.mood.length,tags:p.refs[0].tags.join(','),favOk:p.refs.every(r=>r.fav===false)};
+})()`, ctx);
+check('v10.4 ㉗ 迁移把 mood 图片补进 refs 且按 key 去重',
+  V27.keys === 'k1' && V27.ids === 'k1' && V27.mood === 3 && V27.tags === 'a' && V27.favOk, JSON.stringify(V27));
+
+// ㉘ v10.4 幂等：已有 refs 时重复 migrate 不再补条目
+const V28 = vm.runInContext(`(()=>{
+  const p=migrate({name:'y',shots:[],budget:[],mood:[{type:'image',content:'k2'}],
+    refs:[{id:'r1',key:'k2',name:'',tags:[],createdAt:1,fav:false}]});
+  const before=JSON.stringify(p.refs);
+  migrate(p);
+  return {n:p.refs.length,same:before===JSON.stringify(p.refs)};
+})()`, ctx);
+check('v10.4 ㉘ refs 迁移幂等（不重复补）', V28.n === 1 && V28.same, JSON.stringify(V28));
+
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

@@ -1,7 +1,7 @@
 # 瞬刻摄影工作台 · Stillmark 功能索引（开发视角）
 
 ## 版本
-- 当前：v10.1（`shotflow.html`，单文件全内联零依赖，82 项逻辑测试通过）
+- 当前：v10.4（`shotflow.html`，单文件全内联零依赖，88 项逻辑测试通过）
 - 历史：v9（收藏 / 只读示例 / 多图 / 行内编辑）、v7（姿势图库）、v6（素材标签）、v5（提案封面）、v4（IndexedDB/导入确认/时间级联）、v1 `photo-planner.html`（表单版）、v2（分镜中枢 + 看板 + 拍摄日模式）
 
 ## v3 + v9 + v10 数据模型
@@ -12,7 +12,8 @@ project = {
   v9?:number,                 // v9：示例注入幂等标记（cloneDemo 删除）
   createdAt,updatedAt,
   concept:{theme,model,style,audience,usage,note},
-  mood:[{id,type:'text|color|image',content,tag,tags:string[],autoTags?:string[],fav:boolean}], // image 的 content 是 IndexedDB key
+  mood:[{id,type:'text|color|image',content,tag,tags:string[],autoTags?:string[],fav:boolean}], // image 的 content 是 IndexedDB key（v10.4 起仅存「精选图」）
+  refs:[{id,key,name,tags:string[],createdAt,fav}], // v10.4：参考图库元数据；二进制仍在 IndexedDB images store
   tagVocab:[string],
   scenes:[{id,name,note,done,fav}],
   dayInit:[ISODate],          // v10：已完成默认项初始化的日期（集合/收工不重复补，删了不复活）
@@ -49,19 +50,21 @@ project = {
 - 标签体系（v6）：`tagKey` NFKC/大小写/空白归一化 → `dedupeTags` 保留首次显示形式 → `migrateTags` 幂等补齐 `tags/tagVocab` → `matchByTags` any|all 筛选（情绪板与分镜 ref picker 共用）→ `renameTag`/`removeTag` 全局同步且不触碰 `refIds`；写路径仍同步只读兼容字段 `tag`
 - AI 接口预留（v6）：`suggestTags` 恒关闭、注册表 `TagProviders` 默认空、零网络请求；失败降级 toast，建议先落 `autoTags` 并经用户确认后由 `applyAiSuggestion` 合并；`aiConfig`（含 apiKey）只在内存与 `sessionStorage`，不进项目 JSON / IndexedDB / 导出
 - 姿势图库同步（v7）：`parseCatalog` 映射 `data/catalog.json` 的 `id/class_cn/name_*/views` 到 `images/line/w300/{file}`；`diffCatalog` 以远端为准；`nextPendingBatch`/`mergeShiseiMeta` 管理游标与不可变 meta；`startShiseiSync` 仅在可见 / 联网 / 空闲 / 距上次检查 ≥24h 时经 jsDelivr 拉取，并发 ≤3、超时重试，隐藏 / 离线暂停；shisei 分类词不写入 `tagVocab`，导出排除图库
+- 图片归档（v10.4）：`ingestImageFile(f,tags,silent,target)` 压缩入库后**总是**写 `p.refs`，只有 `target==='mood'`（情绪板页「上传精选图」）才额外写 `p.mood`；分镜页 `addShotImg` 默认 `'ref'`；分镜 ref picker 从 `p.refs` 派生；情绪板 `toggleRefPicker`/`selectRefToMood` 提供显式精选（已在 mood 则按钮禁用，`updateCur` 单点只读守卫）；`cacheProjectImages` 预载 mood image + refs.key + shots.refIds（去重、跳过 shisei），`collectImages` 导出同样含 refs.key；`migrate` 把历史 mood 图片 key 补进 refs（按 key 去重、幂等、不动 mood、vm 安全用 key 作迁移条目 id）
+- 文档图片尺寸（v10.4）：`.doc .shot-ref/ .shot-ref-miss` 56→112px + `max-width:none` 覆盖 `.doc img{max-width:110px}`，`.doc .ref-cell{white-space:normal}`，`@media screen and (max-width:768px)` 降到 84px（打印保持 112），表格其余列结构与 `li()` 列数不变
 - 分镜交互（v8）：表单草稿 `view.shotDraft` 六字段 oninput 写入 + 重绘回填（选图 / 分类切换 / 同步钩子不再清空输入）；姿势图库 `view.poseCat` 折叠（点分类展开、再点收起，默认收起）；`view.editingShotId/replaceIdx` 分镜参考图编辑态（灯箱 `openRefViewer` 看大图、`removeShotRef` 移除、更换进入选图态、占位图禁看大图可移除）；分镜页 `addShotImg` 经共享 `ingestImageFile(f,tags)` 入库（解耦情绪板 `#m_tag` 依赖）；页签分组块化并随激活组强调
 - 示例注入（v9）：`ensureV9Demo()` 独立于 `seed()`，`wb_sf_demo_v9` + 项目 `v9:1` 双 guard；只追加 5 个完整示例（灵感期 / 策划中 / 后期中 / 已交付 / 已归档），待拍摄沿用旧「城市漫游者」，最终共 6 个示例；并给旧项目补 demo / 一张图 / 一条 fav；`slugPreview` 生成内联 SVG dataURL，`imgCache` 预热 + `idb.put` 落库，离线可见
 - 示例只读与复制（v9）：唯一写守卫在 `updateCur()`（`p.demo && !view.allowDemoWrite` → toast + return；分镜多图上传 / 情绪板文字 / 情绪板上传三个入口另各做一次提前提示，避免重复 toast）；渲染层只做角标 / 按钮显隐 / disabled；`cloneDemo` 删 demo/v9、新 id、名字加「（副本）」、图片 key 共享，`copyDemoToMine` 是唯一逃生阀
-- 多图与灯箱（v9）：`parseMultiImage` 取文件 → `for...of await ingestImageFile` 顺序入库、单张失败跳过；新增态补 `selRefs` 到 3、替换态只改 `refIds[i]`、其余仅入情绪板；一次汇总 toast + 一次 `renderShots`；灯箱 `refNav(±1)` 环形切换、`shisei:` 占位禁大图但可换可删
+- 多图与灯箱（v9）：`parseMultiImage` 取文件 → `for...of await ingestImageFile` 顺序入库、单张失败跳过；新增态补 `selRefs` 到 3、替换态只改 `refIds[i]`、其余仅入参考图库（v10.4 起不再进情绪板）；一次汇总 toast + 一次 `renderShots`；灯箱 `refNav(±1)` 环形切换、`shisei:` 占位禁大图但可换可删
 - 行内编辑与收藏定位（v9）：`beginInlineEdit` 先清五个指针，只开一行；保存白名单不动 done/date/ts/fav/kind；`collectFavorites` 按项目 → 模块分组，`jumpToFav` 设 `schedDate`/`focusRef`，高亮 3 秒后按 id 复核清除；Esc 优先级 refViewer → confirmModal → 行内编辑 → 其它弹窗
 - 看板筛选（v9）：`matchBoardScope`/`isActiveStatus` 单一真源，「已归档」= 已交付 + 已归档；备份提醒 `backupItemCount` 排除 demo
-- 测试：`tests/logic.test.mjs`（node 直接运行，82 项：多日/跨日 10 项：addDays 跨月跨年/溢出 toDate/收工重算/migrate shootDates/升序去重/跨日落地/递归上限/超长不跨日；时间逻辑/迁移/封面字段映射/标签纯函数/AI 零网络桩/图库纯函数/v9 fav/demo/示例完整性 + v10 排程引擎 12 项：连排/避让/集合改晚/收工/重叠/幂等/ord/时长/默认项幂等/迁移/adopt/ensureDayDefaults）；`verify_export` 另验导出 HTML 完整性与文件名
-- PWA：manifest id=shotflow-planner；SW cache v10；updatefound → toast 提示刷新
+- 测试：`tests/logic.test.mjs`（node 直接运行，88 项：v10.4 refs 迁移去重/幂等 2 项；多日/跨日 10 项：addDays 跨月跨年/溢出 toDate/收工重算/migrate shootDates/升序去重/跨日落地/递归上限/超长不跨日；时间逻辑/迁移/封面字段映射/标签纯函数/AI 零网络桩/图库纯函数/v9 fav/demo/示例完整性 + v10 排程引擎 12 项：连排/避让/集合改晚/收工/重叠/幂等/ord/时长/默认项幂等/迁移/adopt/ensureDayDefaults）；`verify_export` 另验导出 HTML 完整性与文件名
+- PWA：manifest id=shotflow-planner；SW cache v10-5；updatefound → toast 提示刷新
 - 部署原则：源码一律相对路径，不写任何平台访问码
 
 ## 文件结构
 - `shotflow.html` / `shotflow-app/shotflow.html`：源文件与部署副本（同一份内容）
-- `tests/logic.test.mjs`：82 项核心逻辑测试（node 直接运行）
+- `tests/logic.test.mjs`：88 项核心逻辑测试（node 直接运行）
 - `docs/`：设计文档（`system_design.md` / `class-diagram.mermaid` / `sequence-diagram.mermaid`）
 - `shotflow-manifest.json` / `shotflow-sw.js` / `icon-*.png`：PWA 资源
 
