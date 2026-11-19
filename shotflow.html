@@ -1753,7 +1753,7 @@ async function renderShots(p){
     +selRefs.map((key,i)=>'<span class="sr"><img src="'+esc(imgCache[key]||'')+'" alt="参考图 '+(i+1)+'"><i>'+(i+1)+'</i>'
       +'<button title="取消选择" onclick="removeSelRef('+i+')">×</button></span>').join('')
     +'<button class="btn btn-ghost btn-sm" onclick="clearSelRefs()">清空选择</button></div>':'';
-  const editBar=editing?'<div class="edit-bar"><span>正在编辑「'+esc(editing.name)+'」的参考图 — 点击下方图片'+(view.replaceIdx>=0?'替换第 '+(view.replaceIdx+1)+' 张':'添加')+'，完成后点「完成」。</span><button class="btn btn-primary btn-sm" onclick="exitShotRefEditor()">完成</button></div>':'';
+  const editBar=editing?'<div class="edit-bar"><span>正在编辑「'+esc(editing.name)+'」的参考图 — '+(view.replaceIdx>=0?'点击下方图片替换第 '+(view.replaceIdx+1)+' 张，点一张即完成。':'可连续点选添加（当前 '+((editing.refIds||[]).length)+'/3 张），再点已选可取消；完成后点「完成」。')+'</span><button class="btn btn-primary btn-sm" onclick="exitShotRefEditor()">完成</button></div>':'';
   const mineHead='<div class="ref-group-head"><span>我的素材</span><div class="chips">'
     +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'s_img\').click()">上传图片</button>'
     +'<input type="file" id="s_img" accept="image/*" multiple style="display:none" onchange="addShotImg(event)">'
@@ -1969,15 +1969,24 @@ function cancelShotEdit(){
 /* 参考图选图态：新增模式用 selRefs；编辑模式 view.editingShotId 指向目标分镜，replaceIdx>=0 表示替换该位置 */
 function toggleRef(id){
   if(view.editingShotId){
+    /* 更换模式：点一张即替换该下标并退出；添加模式：可连续点选最多 3 张，直到点「完成」 */
+    const replacing=view.replaceIdx>=0;
+    let done=false, full=false, changed=false;
     updateCur(p=>{
-      const s=p.shots.find(x=>x.id===view.editingShotId); if(!s){ view.editingShotId=null; return; }
+      const s=p.shots.find(x=>x.id===view.editingShotId); if(!s){ view.editingShotId=null; view.replaceIdx=-1; return; }
       s.refIds=s.refIds||[];
-      if(view.replaceIdx>=0){ if(s.refIds[view.replaceIdx]===id){ view.editingShotId=null; view.replaceIdx=-1; return; } s.refIds[view.replaceIdx]=id; }
-      else if(s.refIds.length>=3){ toast('每条分镜最多挂 3 张参考图'); return; }
-      else if(s.refIds.includes(id)){ s.refIds=s.refIds.filter(x=>x!==id); }
-      else s.refIds.push(id);
-      view.editingShotId=null; view.replaceIdx=-1;
+      if(replacing){
+        if(s.refIds[view.replaceIdx]===id){ view.editingShotId=null; view.replaceIdx=-1; return; }
+        s.refIds[view.replaceIdx]=id; view.editingShotId=null; view.replaceIdx=-1; done=true; changed=true;
+        return;
+      }
+      const i=s.refIds.indexOf(id);
+      if(i>=0){ s.refIds.splice(i,1); changed=true; }
+      else if(s.refIds.length>=3){ full=true; }
+      else { s.refIds.push(id); changed=true; }
     });
+    if(full) toast('每条分镜最多挂 3 张参考图');
+    else if(changed) toast(replacing?'已更换该参考图':'已添加，可继续点选，完成后点「完成」');
     renderShots(cur());
     return;
   }
