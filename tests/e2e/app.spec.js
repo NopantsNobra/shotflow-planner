@@ -40,7 +40,9 @@ test('核心路径：新建项目 → 加分镜 → 排程 → 导出提案文�
   await page.getByRole('button', { name: '客户提案' }).click();
   await expect(page.locator('#docModal')).toHaveClass(/show/);
   await expect(page.locator('#docExportBtn')).toBeVisible();
-  expect(await page.locator('#docBody').innerText()).toContain('服务报价');
+  // openDoc 提案用「四、报价」标题（导出 HTML 文件才用「服务报价」），断言两者共有文案
+  expect(await page.locator('#docBody').innerText()).toContain('报价');
+  expect(await page.locator('#docBody').innerText()).toContain('E2E 核心路径');
 
   // 执行手册：含分镜头清单，且有刚才添加的分镜内容
   await page.getByRole('button', { name: '关闭' }).click();
