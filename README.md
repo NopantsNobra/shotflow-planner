@@ -84,11 +84,17 @@
 ├── overview.md              # 功能索引（开发视角）
 ├── README.md                # 本说明
 ├── 竞品调研与升级方案.md    # 竞品分析与版本升级方案（含二次分析复核）
-├── tests/logic.test.mjs     # 核心逻辑测试（node tests/logic.test.mjs）
+├── tests/                   # 测试：logic.test.mjs（纯函数）+ e2e/app.spec.js（Playwright）
+├── scripts/sync-app.mjs     # 部署副本同步脚本（含 --check 校验）
+├── package.json             # 测试脚本与 Playwright 依赖
+├── playwright.config.js     # E2E 配置（含零依赖静态服务器）
 └── shotflow-app/            # 部署快照目录（与线上同步的副本）
 ```
 
-> 修改源文件后，需同步复制到 `shotflow-app/` 再重新部署，线上才会更新。
+> **部署副本同步**：修改源文件后，运行 `node scripts/sync-app.mjs` 一键同步到 `shotflow-app/`，再重新部署，线上才会更新。
+> 用 `node scripts/sync-app.mjs --check` 校验两端是否一致（CI 会自动执行）。不要手动逐个复制文件，以免遗漏（manifest / sw / 图标也要同步）。
+>
+> **测试**：`npm install` 后，`npm run test:logic` 跑核心逻辑测试（无需浏览器），`npm run test:e2e` 跑浏览器端关键路径测试（首次需 `npx playwright install chromium`），`npm test` 两者都跑。
 
 ---
 

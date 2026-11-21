@@ -547,5 +547,62 @@ const V28 = vm.runInContext(`(()=>{
 })()`, ctx);
 check('v10.4 ㉘ refs 迁移幂等（不重复补）', V28.n === 1 && V28.same, JSON.stringify(V28));
 
+/* ===== P0 持久化加固：串行写入 / 退避重试 / 隐藏冲刷（saveP 改造） ===== */
+for (const n of ['persistRetryDelay', 'writeProjects', 'flushPersist', 'saveP', 'bindPersistFlush']) vm.runInContext(fn(n), ctx);
+// 公共 mock：可控成功/失败的 idb、收集提示的 toast、Promise
+vm.runInContext(`
+  globalThis.Promise=Promise;
+  globalThis.PERSIST_MAX_RETRY=5;
+  globalThis.persistChain=Promise.resolve(); globalThis.persistTimer=null;
+  globalThis.pendingPersist=false; globalThis.persistFailed=false; globalThis.projectsCache=null;
+  globalThis.__toasts=[]; globalThis.toast=m=>{ globalThis.__toasts.push(String(m)); };
+  globalThis.__putCalls=[]; globalThis.__putFail=0;
+  globalThis.idb={ putProjects: async snap => {
+    globalThis.__putCalls.push(snap);
+    if(globalThis.__putFail>0){ globalThis.__putFail--; throw new Error('IDB_FAIL'); }
+    return true;
+  }};
+`, ctx);
+check('P0 退避延迟 200/400/800/3200/封顶10000',
+  vm.runInContext('[0,1,2,4,20].map(persistRetryDelay).join(",")', ctx) === '200,400,800,3200,10000');
+
+// 组A：记录型 setTimeout —— 验证防抖合并 + flush 立即落盘
+vm.runInContext(`globalThis.__timers=[]; globalThis.__timerId=0;
+  globalThis.setTimeout=(fn2,ms)=>{ const id=++__timerId; __timers.push({id,fn:fn2,ms}); return id; };
+  globalThis.clearTimeout=(id)=>{ __timers=__timers.filter(t=>t.id!==id); };`, ctx);
+const VA = vm.runInContext(`(()=>{
+  persistChain=Promise.resolve(); persistTimer=null; pendingPersist=false; persistFailed=false; projectsCache=null;
+  __putCalls.length=0; __putFail=0; __timers=[];
+  saveP([{id:'a'}]); const t1=persistTimer;
+  saveP([{id:'b'}]); const t2=persistTimer;
+  return {timerCount:__timers.length, t1cleared:!__timers.some(t=>t.id===t1), t2active:__timers.some(t=>t.id===t2), cache:projectsCache[0].id};
+})()`, ctx);
+check('P0 saveP 防抖合并：仅保留最后一个定时器且缓存为最新', VA.timerCount===1 && VA.t1cleared && VA.t2active && VA.cache==='b', JSON.stringify(VA));
+const VB = await vm.runInContext(`(async()=>{
+  flushPersist(); await persistChain;
+  return {calls:__putCalls.length, last:__putCalls[__putCalls.length-1][0].id, pending:pendingPersist, timers:__timers.length};
+})()`, ctx);
+check('P0 flushPersist 立即落盘最新数据并清空定时器', VB.calls===1 && VB.last==='b' && VB.pending===false && VB.timers===0, JSON.stringify(VB));
+
+// 组B：立即执行型 setTimeout —— 验证退避重试成功与耗尽降级
+vm.runInContext(`globalThis.setTimeout=(fn2,ms)=>{ if(typeof fn2==='function') fn2(); return 0; }; globalThis.clearTimeout=()=>{};`, ctx);
+const VC = await vm.runInContext(`(async()=>{
+  persistChain=Promise.resolve(); pendingPersist=false; persistFailed=false; __putCalls.length=0; __toasts.length=0; __putFail=2;
+  const ok=await writeProjects([{id:'retry'}],0);
+  return {ok, calls:__putCalls.length, pending:pendingPersist, failed:persistFailed, toasts:__toasts.slice()};
+})()`, ctx);
+check('P0 落盘失败退避重试后成功并清除失败标记', VC.ok===true && VC.calls===3 && VC.pending===false && VC.failed===false && VC.toasts.some(t=>t.indexOf('重试')>=0) && VC.toasts.some(t=>t.indexOf('已保存成功')>=0), JSON.stringify(VC));
+const VD = await vm.runInContext(`(async()=>{
+  persistChain=Promise.resolve(); pendingPersist=false; persistFailed=false; __putCalls.length=0; __toasts.length=0; __putFail=999;
+  const ok=await writeProjects([{id:'dead'}],0);
+  return {ok, calls:__putCalls.length, pending:pendingPersist, failed:persistFailed, toasts:__toasts.slice()};
+})()`, ctx);
+check('P0 重试耗尽后降级提示且保留待落盘标记', VD.ok===false && VD.calls===6 && VD.pending===true && VD.failed===true && VD.toasts.some(t=>t.indexOf('导出备份')>=0), JSON.stringify(VD));
+
+// 页面隐藏/关闭绑定验证
+vm.runInContext(`globalThis.__evts=[]; globalThis.document={addEventListener:(n2,f2)=>__evts.push(n2)}; globalThis.window={addEventListener:(n2,f2)=>__evts.push(n2)};`, ctx);
+vm.runInContext('bindPersistFlush()', ctx);
+check('P0 页面隐藏与关闭均绑定 flush', vm.runInContext('__evts.join(",")', ctx)==='visibilitychange,pagehide');
+
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

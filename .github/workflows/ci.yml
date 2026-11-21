@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  # 纯逻辑测试：零依赖，Node 直接运行，作为最快的回归门禁
+  logic:
+    name: 核心逻辑测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 运行 88+ 项逻辑测试
+        run: node tests/logic.test.mjs
+
+  # 部署副本一致性：防止源文件已改但 shotflow-app/ 未同步就合入
+  sync-check:
+    name: 部署副本一致性校验
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 校验 shotflow-app/ 与真源一致
+        run: node scripts/sync-app.mjs --check
+
+  # E2E 测试：浏览器端关键路径（新建→分镜→排程→导出 / 渲染层回归 / 持久化）
+  e2e:
+    name: E2E 关键路径测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: 安装依赖
+        run: npm ci
+      - name: 安装 Chromium 及系统依赖
+        run: npx playwright install --with-deps chromium
+      - name: 运行 E2E
+        run: npm run test:e2e
+      - name: 上传失败追踪（便于定位渲染层回归）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-trace
+          path: playwright-report/
+          retention-days: 7
