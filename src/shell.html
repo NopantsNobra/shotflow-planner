@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>瞬刻摄影工作台 · Stillmark｜灵感·分镜·提案·实拍</title>
+<meta name="theme-color" content="#9c6b30">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="瞬刻摄影工作台">
+<meta name="description" content="瞬刻摄影工作台，给独立摄影师和小团队用的轻量策划小工具。从情绪板上的一缕灵感，到分镜表里的每一格画面，再到提案与拍摄日程，最后走进实拍现场——把一瞬间，刻成永恒画面。零散想法、参考图和执行细节稳稳收在一处；小项目一个接一个，慢慢沉淀成属于你的策划档案。">
+<link rel="manifest" href="shotflow-manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<!--__STYLES__-->
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<!-- 拍摄日模式 -->
+<div class="sd-overlay" id="sdOverlay"><div class="sd-inner" id="sdBody"></div></div>
+
+<!-- 文档弹窗 -->
+<div class="modal-mask" id="docModal">
+  <div class="modal doc-modal">
+    <div class="doc-bar no-print">
+      <span class="doc-bar-title">文档预览</span>
+      <div class="row">
+        <button class="btn btn-ghost btn-sm" id="docExportBtn" style="display:none" title="生成可直接发送给客户的单文件 HTML（图片内嵌）" onclick="exportProposalFile()">导出 HTML 文件</button>
+        <button class="btn btn-primary btn-sm" onclick="window.print()">打印 / 存为 PDF</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeDoc()">关闭</button>
+      </div>
+    </div>
+    <div class="doc" id="docBody"></div>
+  </div>
+</div>
+
+<!-- 参考图大图查看 -->
+<div class="modal-mask" id="refViewer">
+  <div class="modal" style="max-width:640px;text-align:center" id="refViewerBody"></div>
+</div>
+
+<!-- 确认弹窗 -->
+<div class="modal-mask" id="confirmModal">
+  <div class="modal confirm-box">
+    <h3 style="margin-bottom:10px" id="confirmTitle">确认操作？</h3>
+    <p class="muted" id="confirmDesc" style="margin-bottom:18px"></p>
+    <div class="row" style="justify-content:center">
+      <button class="btn btn-ghost" onclick="closeConfirm()">取消</button>
+      <button class="btn btn-danger" style="background:var(--red);color:#fff" id="confirmOk">确认</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新建策划案弹窗（替代原生 prompt，支持 Enter 提交 / Esc 取消） -->
+<div class="modal-mask" id="nameModal">
+  <div class="modal confirm-box" style="text-align:left">
+    <h3 style="margin-bottom:14px">新建策划案</h3>
+    <div class="fld"><label>项目名称</label>
+      <input id="nameInput" maxlength="40" placeholder="如：城市漫游者 · 人像写真" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmNewProject();}"></div>
+    <p class="muted" style="margin:8px 0 18px">建好后可在项目信息卡补充客户、拍摄日与地点。</p>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeNameModal()">取消</button>
+      <button class="btn btn-primary" onclick="confirmNewProject()">创建</button>
+    </div>
+  </div>
+</div>
+
+<!--__JS__-->
+</body>
+</html>
