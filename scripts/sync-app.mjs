@@ -11,13 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TARGET = path.join(ROOT, 'shotflow-app');
-const FILES = [
-  'shotflow.html',
-  'shotflow-manifest.json',
-  'shotflow-sw.js',
-  'icon-192.png',
-  'icon-512.png'
-];
+const FILES = ['shotflow.html', 'shotflow-manifest.json', 'shotflow-sw.js', 'icon-192.png', 'icon-512.png'];
 const checkOnly = process.argv.includes('--check');
 
 if (!fs.existsSync(TARGET)) {
