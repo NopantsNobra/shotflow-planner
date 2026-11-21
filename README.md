@@ -84,17 +84,23 @@
 ├── overview.md              # 功能索引（开发视角）
 ├── README.md                # 本说明
 ├── 竞品调研与升级方案.md    # 竞品分析与版本升级方案（含二次分析复核）
+├── src/                     # 源码（P3 拆分）：shell.html + styles.css + js/01..05（分段）
+├── scripts/                 # build.mjs / verify-build.mjs / sync-app.mjs
 ├── tests/                   # 测试：logic.test.mjs（纯函数）+ e2e/app.spec.js（Playwright）
-├── scripts/sync-app.mjs     # 部署副本同步脚本（含 --check 校验）
-├── package.json             # 测试脚本与 Playwright 依赖
+├── package.json             # 构建/测试脚本与依赖（Playwright / ESLint / Prettier）
 ├── playwright.config.js     # E2E 配置（含零依赖静态服务器）
+├── eslint.config.js         # ESLint flat config
+├── .prettierrc              # Prettier 配置
 └── shotflow-app/            # 部署快照目录（与线上同步的副本）
 ```
 
-> **部署副本同步**：修改源文件后，运行 `node scripts/sync-app.mjs` 一键同步到 `shotflow-app/`，再重新部署，线上才会更新。
-> 用 `node scripts/sync-app.mjs --check` 校验两端是否一致（CI 会自动执行）。不要手动逐个复制文件，以免遗漏（manifest / sw / 图标也要同步）。
+> **源码与构建（P3）**：`shotflow.html` 现在是由 `src/` 多文件源码**构建产出**的单文件交付物（仍可双击即用、零运行时依赖）。
+> 修改功能时请改 `src/`（样式改 `src/styles.css`，逻辑改 `src/js/0x-*.js`，骨架改 `src/shell.html`），然后运行 `npm run build` 重新生成 `shotflow.html`。
+> `npm run verify:build` 校验交付物与源码一致（CI 自动执行）——若有人直接改了 `shotflow.html` 而没改源码，会在此处被拦截。
 >
-> **测试**：`npm install` 后，`npm run test:logic` 跑核心逻辑测试（无需浏览器），`npm run test:e2e` 跑浏览器端关键路径测试（首次需 `npx playwright install chromium`），`npm test` 两者都跑。
+> **部署副本同步**：构建后运行 `node scripts/sync-app.mjs` 同步到 `shotflow-app/` 再部署；`--check` 校验两端一致（CI 自动执行）。
+>
+> **测试与规范**：`npm install` 后，`npm run test:logic` 跑逻辑测试，`npm run test:e2e` 跑浏览器 E2E（首次需 `npx playwright install chromium`），`npm test` 两者都跑；`npm run lint`、`npm run format:check` 检查代码规范。CI 有 4 个 job（构建一致性/逻辑/E2E/副本同步）。
 
 ---
 

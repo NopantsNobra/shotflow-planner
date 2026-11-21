@@ -64,11 +64,16 @@ project = {
 - 部署原则：源码一律相对路径，不写任何平台访问码
 
 ## 文件结构
-- `shotflow.html` / `shotflow-app/shotflow.html`：源文件与部署副本（同一份内容）
-- `tests/logic.test.mjs`：88 项核心逻辑测试（node 直接运行）
+- `src/shell.html` + `src/styles.css` + `src/js/01-data.js`~`05-boot.js`：P3 拆分后的多文件源码（按连续区间切分，保持顺序）
+- `shotflow.html`：由 `src/` 经 `scripts/build.mjs` 构建产出的自包含单文件交付物（与拆分前逐字节一致，双击即用）
+- `shotflow-app/shotflow.html`：部署副本（与根目录交付物同一份内容，由 sync-app.mjs 同步）
+- `scripts/build.mjs` / `verify-build.mjs` / `sync-app.mjs`：构建 / 一致性校验 / 副本同步
+- `tests/logic.test.mjs`：99 项核心逻辑测试（node 直接运行，仍从构建产物抽取函数）
+- `tests/e2e/app.spec.js`：4 项 Playwright E2E（含 P2 注入回归）
 - `docs/`：设计文档（`system_design.md` / `class-diagram.mermaid` / `sequence-diagram.mermaid`）
 - `shotflow-manifest.json` / `shotflow-sw.js` / `icon-*.png`：PWA 资源
 
 ## 部署
-- 流程：改源文件 → cp 到 shotflow-app/ → 部署 shotflow-app/（静态站点，入口 shotflow.html）
+- 流程：改 `src/` → `npm run build` 生成 shotflow.html → `npm run sync` 同步到 shotflow-app/ → 部署 shotflow-app/（静态站点，入口 shotflow.html）
+- `npm run verify:build` 保证交付物与源码一致；`npm run sync:check` 保证副本与交付物一致（CI 均自动执行）
 - 若托管平台要求 sharecode 一类访问参数，在部署侧注入；不入库
