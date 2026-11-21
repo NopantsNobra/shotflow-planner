@@ -35,16 +35,18 @@ test('核心路径：新建项目 → 加分镜 → 排程 → 导出提案文�
   await expect(page.locator('#tabBody')).toContainText('集合');
   await expect(page.locator('#tabBody')).toContainText('收工');
 
-  // 文档输出：提案弹窗出现，导出 HTML 按钮仅提案可见，文档正文含分镜内容
+  // 文档输出：提案弹窗出现，导出 HTML 按钮仅提案可见
+  // 注意：客户提案按设计只含主题/情绪/拍摄安排/报价，不含逐条分镜清单（分镜在执行手册里）
   await page.getByRole('button', { name: '客户提案' }).click();
   await expect(page.locator('#docModal')).toHaveClass(/show/);
   await expect(page.locator('#docExportBtn')).toBeVisible();
-  expect(await page.locator('#docBody').innerText()).toContain('巷口逆光回眸');
+  expect(await page.locator('#docBody').innerText()).toContain('服务报价');
 
-  // 执行手册：切换后可渲染，不报错
+  // 执行手册：含分镜头清单，且有刚才添加的分镜内容
   await page.getByRole('button', { name: '关闭' }).click();
   await page.getByRole('button', { name: '执行手册' }).click();
   await expect(page.locator('#docBody')).toContainText('分镜头清单');
+  await expect(page.locator('#docBody')).toContainText('巷口逆光回眸');
 });
 
 test('FB-1 渲染层回归：输入分镜名后触发重绘，草稿不丢失', async ({ page }) => {
