@@ -1,8 +1,8 @@
 # 瞬刻摄影工作台 · Stillmark 功能索引（开发视角）
 
 ## 版本
-- 当前：v10.4.2（`shotflow.html`，单文件全内联零依赖，88 项逻辑测试通过）
-- 历史：v9（收藏 / 只读示例 / 多图 / 行内编辑）、v7（姿势图库）、v6（素材标签）、v5（提案封面）、v4（IndexedDB/导入确认/时间级联）、v1 `photo-planner.html`（表单版）、v2（分镜中枢 + 看板 + 拍摄日模式）
+- 当前：v10.4.2（`shotflow.html` 由 `src/` 构建产出的单文件、全内联零依赖；99 项逻辑测试 + 4 项 E2E 通过）
+- 历史：v9（收藏 / 只读示例 / 多图 / 行内编辑）、v7（姿势图库）、v6（素材标签）、v5（提案封面）、v4（IndexedDB/导入确认/时间级联）、v1 `legacy/photo-planner.html`（表单版，已归档）、v2（分镜中枢 + 看板 + 拍摄日模式）
 
 ## v3 + v9 + v10 数据模型
 ```
@@ -59,7 +59,7 @@ project = {
 - 多图与灯箱（v9）：`parseMultiImage` 取文件 → `for...of await ingestImageFile` 顺序入库、单张失败跳过；新增态补 `selRefs` 到 3、替换态只改 `refIds[i]`、其余仅入参考图库（v10.4 起不再进情绪板）；一次汇总 toast + 一次 `renderShots`；灯箱 `refNav(±1)` 环形切换、`shisei:` 占位禁大图但可换可删
 - 行内编辑与收藏定位（v9）：`beginInlineEdit` 先清五个指针，只开一行；保存白名单不动 done/date/ts/fav/kind；`collectFavorites` 按项目 → 模块分组，`jumpToFav` 设 `schedDate`/`focusRef`，高亮 3 秒后按 id 复核清除；Esc 优先级 refViewer → confirmModal → 行内编辑 → 其它弹窗
 - 看板筛选（v9）：`matchBoardScope`/`isActiveStatus` 单一真源，「已归档」= 已交付 + 已归档；备份提醒 `backupItemCount` 排除 demo
-- 测试：`tests/logic.test.mjs`（node 直接运行，88 项：v10.4 refs 迁移去重/幂等 2 项；多日/跨日 10 项：addDays 跨月跨年/溢出 toDate/收工重算/migrate shootDates/升序去重/跨日落地/递归上限/超长不跨日；时间逻辑/迁移/封面字段映射/标签纯函数/AI 零网络桩/图库纯函数/v9 fav/demo/示例完整性 + v10 排程引擎 12 项：连排/避让/集合改晚/收工/重叠/幂等/ord/时长/默认项幂等/迁移/adopt/ensureDayDefaults）；`verify_export` 另验导出 HTML 完整性与文件名
+- 测试：`tests/logic.test.mjs`（node 直接运行，99 项：在上述 88 项基础上新增 P0 持久化加固 6 项（退避/串行/冲刷）+ P2 safeColor 白名单 5 项（合法值/注入回退/边界）；原有 88 项含 v10.4 refs 迁移去重/幂等 2 项、多日/跨日 10 项、时间逻辑/迁移/封面字段映射/标签纯函数/AI 零网络桩/图库纯函数/v9 fav/demo/示例完整性、v10 排程引擎 12 项）；`tests/e2e/app.spec.js` 4 项 Playwright 用例（核心路径/渲染层回归/P2 注入/持久化）；`verify_export` 另验导出 HTML 完整性与文件名
 - PWA：manifest id=shotflow-planner；SW cache v10-5；updatefound → toast 提示刷新
 - 部署原则：源码一律相对路径，不写任何平台访问码
 

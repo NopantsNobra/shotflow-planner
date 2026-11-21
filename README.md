@@ -74,12 +74,12 @@
 
 ```
 摄影策划工具/
-├── shotflow.html            # 主程序 v10.3（单文件，全内联，零依赖）
+├── shotflow.html            # 主程序（由 src/ 构建产出的单文件，全内联零依赖）
 ├── shotflow-manifest.json   # PWA 清单
-├── shotflow-sw.js           # Service Worker（离线缓存 v10-7）
+├── shotflow-sw.js           # Service Worker（离线缓存版本见文件内 CACHE 常量）
 ├── icon-192.png             # PWA 图标 192×192
 ├── icon-512.png             # PWA 图标 512×512
-├── photo-planner.html       # v1 模块表单版（早期版本，保留对照）
+├── legacy/                  # 历史版本归档（v1 模块表单版 photo-planner.html）
 ├── docs/                    # 设计文档（系统设计 / 类图 / 时序图）
 ├── overview.md              # 功能索引（开发视角）
 ├── README.md                # 本说明
@@ -97,6 +97,7 @@
 > **源码与构建（P3）**：`shotflow.html` 现在是由 `src/` 多文件源码**构建产出**的单文件交付物（仍可双击即用、零运行时依赖）。
 > 修改功能时请改 `src/`（样式改 `src/styles.css`，逻辑改 `src/js/0x-*.js`，骨架改 `src/shell.html`），然后运行 `npm run build` 重新生成 `shotflow.html`。
 > `npm run verify:build` 校验交付物与源码一致（CI 自动执行）——若有人直接改了 `shotflow.html` 而没改源码，会在此处被拦截。
+> `npm run verify:version` 以 `package.json` 的版本为真源，校验 README / overview / lock 的「当前版本」标注一致（CI 自动执行）——升级版本时只需改 `package.json`（+ `npm install` 更新 lock）并按提示同步文档标注。SW 缓存版本是独立序列，由 `sync:check` 保证两端一致。
 >
 > **部署副本同步**：构建后运行 `node scripts/sync-app.mjs` 同步到 `shotflow-app/` 再部署；`--check` 校验两端一致（CI 自动执行）。
 >
@@ -147,7 +148,10 @@
 每个示例 7 页签均非空，配图用内联 SVG dataURL 存入本地 IndexedDB，断网也能看。示例只读（元数据 / 概念输入禁用，任意写会提示），点「复制为我的项目」得到可编辑副本；示例不计入备份提醒。示例只在首次启动注入一次，绝不覆盖你已有的项目与字段。
 
 ## 六、迭代记录
-- **v1** `photo-planner.html`：六模块表单版
+
+> 功能版本的完整演进见本节；工程化改造（P0~P3）单独记录于 [CHANGELOG.md](CHANGELOG.md)。贡献指引与提交规范见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+- **v1** `photo-planner.html`（已归档至 `legacy/`）：六模块表单版
 - **v2** `shotflow.html`：分镜中枢架构 + 多项目看板 + 拍摄日模式 + IndexedDB + PWA
 - **v3**：新增日程时间轴、备注协作、多参考图、日落/黄金时刻计算、提案文件导出、看板统计、PWA 更新提示
 - **v7**：修正 PoseAtlas 版权文案；新增 shisei 姿势图库空闲自动同步（IndexedDB 本地缓存、分类筛选、可暂停 / 清除、失败退避；导出保持轻量不包含图库）；测试扩至 44 项
