@@ -19,6 +19,16 @@ const ctx = vm.createContext({ console, Date, Math, String, Number, Array, Objec
 vm.runInContext("globalThis.FAV_KINDS=['mood','shots','schedule','scenes','items','budget','notes','todos']"
   + ";globalThis.FAV_META={mood:'情绪板',shots:'分镜',schedule:'日程',scenes:'清单',items:'清单',budget:'预算',notes:'协作',todos:'协作'};", ctx);
 for (const n of ['addMin', 'toMin', 'fmtMin', 'dayItems', 'cascadeShift', 'tagKey', 'dedupeTags', 'parseTagsInput', 'mergeVocab', 'migrateTags', 'tagsForDisplay', 'matchByTags', 'renameTag', 'removeTag', 'shiseiItemKey', 'shiseiEntrySame', 'parseCatalog', 'diffCatalog', 'nextPendingBatch', 'mergeShiseiMeta', 'migrate']) vm.runInContext(fn(n), ctx);
+for (const n of ['pwItemKey','pwCatalogVersion','pwHairPhrase','pwParsePoseCatalog','pwParseCostumeCatalog',
+  'pwParsePortraitCatalog','pwCatalogSame','pwDiffCatalog','pwNextPendingBatch','pwMergeMeta',
+  'pwMigrateShot','pwBuildPrompt','pwShotPatch','pwFilterItems']) vm.runInContext(fn(n), ctx);
+/* PW 解析函数依赖的词表常量直接从源码抽取，避免测试里另抄一份造成漂移 */
+for (const c of ['PW_ANGLES','PW_POSE_TR','PW_POSE_CAT_TR','PW_COSTUME_CAT_TR','PW_POSE_ORIGIN','PW_COSTUME_ORIGIN','PW_PORTRAIT_ORIGIN']) {
+  const m = src.match(new RegExp('const ' + c + '=[\\s\\S]*?;'));
+  if (!m) throw new Error('missing const ' + c);
+  vm.runInContext(m[0], ctx);
+}
+
 for (const n of ['freshView', 'clearInlineEditState', 'migrateFav', 'isFav', 'favCount', 'favSummary', 'summary40', 'collectFavorites', 'backupItemCount', 'matchBoardScope', 'isActiveStatus', 'parseMultiImage', 'slugPreview', 'cloneDemo', 'demoSpecs', 'buildDemoProject']) vm.runInContext(fn(n), ctx);
 vm.runInContext(fn('suggestTags'), ctx);
 vm.runInContext('const AI_TAGGING_ENABLED=false; const TagProviders=Object.create(null);', ctx);
@@ -546,6 +556,140 @@ const V28 = vm.runInContext(`(()=>{
   return {n:p.refs.length,same:before===JSON.stringify(p.refs)};
 })()`, ctx);
 check('v10.4 ㉘ refs 迁移幂等（不重复补）', V28.n === 1 && V28.same, JSON.stringify(V28));
+
+// ===== v10.5 PoseWear 纯函数层（14 项） =====
+check('PW-01 pwItemKey 三库前缀 / 空角度 / 非法输入', vm.runInContext(`[
+  pwItemKey('pose','P001','front'),pwItemKey('costume','SPR-0001',''),pwItemKey('portrait','abc123'),
+  pwItemKey('pose','', 'front'),pwItemKey(null,null,null)
+].join('|')`, ctx) === 'posewear:pose:P001:front|posewear:costume:SPR-0001|posewear:portrait:abc123||');
+
+const PW02 = vm.runInContext(`(()=>{
+  const raw=[];
+  ['front','high','low','side','diag'].forEach(v=>raw.push({id:'full_single_P001_'+v,'ポーズ名':'S字立ち・腰を横に突き出す','系統':'全身1人・標準系','分類':'立ち',_src:'drop'}));
+  raw.push({id:'full_single_P001_bogus','ポーズ名':'未知'});
+  const a=pwParsePoseCatalog(raw), b=pwParsePoseCatalog({items:raw});
+  return {n:a.length,angles:a[0].angles.length,id:a[0].id,src:JSON.stringify(a).indexOf('_src')>=0,
+    same:JSON.stringify(a)===JSON.stringify(b),zh:a[0].zh,en:a[0].en};
+})()`, ctx);
+check('PW-02 pwParsePoseCatalog 折叠角度/白名单/去 _src/两种入参',
+  PW02.n===1 && PW02.angles===5 && PW02.id==='full_single_P001' && !PW02.src && PW02.same
+  && PW02.zh==='S形站姿·胯部侧顶' && PW02.en==='S-curve standing pose, hip pushed out to the side', JSON.stringify(PW02));
+
+const PW03 = vm.runInContext(`(()=>{
+  const r=pwParseCostumeCatalog([{id:'LNG-0001','カテゴリ':'ランジェリー',kw:'black lace set'},
+    {id:'SPR-0001','カテゴリ':'春',kw:'ivory frill knit denim mini skirt',ti:'大衣 + 荷叶边短裙'}]);
+  return {n:r.length,a1:r[0].a,secondA:r[1].a===undefined,zh:r[0].zh,en:r[0].en,ti:r[1].ti};
+})()`, ctx);
+check('PW-03 pwParseCostumeCatalog 全量不过滤 a:1（管理员决定 B）',
+  PW03.n===2 && PW03.a1===1 && PW03.secondA && PW03.zh==='black lace set。' && PW03.en==='black lace set'
+  && PW03.ti==='大衣 + 荷叶边短裙', JSON.stringify(PW03));
+
+const PW04 = vm.runInContext(`(()=>{
+  const r=pwParsePortraitCatalog([{id:'abc123',sec:'生活照',len:'短发',st:'收腰短发（后颈留长·空气刘海）',
+    zh:'一位亚洲年轻女性，短发，收腰短发（后颈留长·空气刘海）。作为人物面部参考，保持五官和脸型一致。',
+    en:'young Asian woman, short hair, layered short hair, consistent facial features, face reference'}]);
+  return {zh:r[0].zh,en:r[0].en,len:r[0].len,st:r[0].st};
+})()`, ctx);
+check('PW-04 pwParsePortraitCatalog 剥离面部参考尾句且保留 len/st',
+  PW04.zh.indexOf('作为人物面部参考')<0 && PW04.en.indexOf('face reference')<0
+  && PW04.len==='短发' && PW04.st==='收腰短发（后颈留长·空气刘海）', JSON.stringify(PW04));
+
+check('PW-05 pwCatalogVersion 同文同版 / 改字变版 / 空串稳定', vm.runInContext(`(()=>{
+  const a=pwCatalogVersion('abc'), b=pwCatalogVersion('abc'), c=pwCatalogVersion('abd'), e=pwCatalogVersion('');
+  return a===b&&a!==c&&e===pwCatalogVersion('')&&a.length>0;
+})()`, ctx));
+
+const PW06 = vm.runInContext(`(()=>{
+  const local=[{id:'a',zh:'旧',en:'old',cat:'坐姿',angles:[]}];
+  const remote=[{id:'a',zh:'新',en:'new',cat:'坐姿',angles:[]},{id:'b',zh:'B',en:'b',cat:'站姿',angles:[]}];
+  const d=pwDiffCatalog(local,remote);
+  const d2=pwDiffCatalog(remote,remote);
+  const more=pwDiffCatalog(local.concat([{id:'c',zh:'C',en:'c',cat:'站姿',angles:[]}]),remote);
+  return {add:d.toAdd.length,upd:d.toUpdate.length,rem:d.toRemove.length,updId:d.toUpdate[0].id,
+    clean:d2.toAdd.length+d2.toUpdate.length+d2.toRemove.length,remId:more.toRemove[0]};
+})()`, ctx);
+check('PW-06 pwDiffCatalog 新增/更新/删除且幂等',
+  PW06.add===1&&PW06.upd===1&&PW06.rem===0&&PW06.updId==='a'&&PW06.clean===0&&PW06.remId==='c', JSON.stringify(PW06));
+
+const PW07 = vm.runInContext(`(()=>{
+  const m={pending:['a','b','c','d','e'],cursor:1};
+  const b1=pwNextPendingBatch(m,3), b2=pwNextPendingBatch({cursor:1},3);
+  return {keys:b1.items.map(x=>x.key).join(','),cursor:b1.cursor,done:b1.done,empty:b2.items.length||0,badDone:b2.done};
+})()`, ctx);
+check('PW-07 pwNextPendingBatch 分批/游标/末批/非数组安全',
+  PW07.keys==='b,c,d'&&PW07.cursor===4&&PW07.done===false&&PW07.empty===0&&PW07.badDone===true, JSON.stringify(PW07));
+
+const PW08 = vm.runInContext(`(()=>{
+  const m={version:'v1',pending:['a'],cursor:0,paused:false};
+  const r=pwMergeMeta(m,{cursor:2,paused:true});
+  return {unchanged:m.cursor===0,version:r.version,cursor:r.cursor,paused:r.paused};
+})()`, ctx);
+check('PW-08 pwMergeMeta 覆盖同键/保留其余/不改入参',
+  PW08.unchanged&&PW08.version==='v1'&&PW08.cursor===2&&PW08.paused===true, JSON.stringify(PW08));
+
+const PW09 = vm.runInContext(`(()=>{
+  const s={id:'s',name:'x',poseId:'P1',promptZh:'已存',pwPrintKeys:['posewear:costume:X']};
+  const r=pwMigrateShot(s), r2=pwMigrateShot(r);
+  const keys=['poseId','poseAngle','poseZh','poseEn','outfitId','outfitZh','outfitEn','hairId','hairZh','hairEn','promptZh','promptEn'];
+  const migrated=migrate({name:'p',shots:[{id:'s',name:'x',poseId:'P1',promptZh:'已存',pwPrintKeys:['posewear:costume:X']}],budget:[]}).shots[0];
+  return {n:keys.filter(k=>typeof r[k]==='string').length,kept:r.poseId==='P1'&&r.promptZh==='已存',
+    print:r.pwPrintKeys.length===1,idem:JSON.stringify(r)===JSON.stringify(r2),
+    same:keys.every(k=>r[k]===migrated[k]),printSame:migrated.pwPrintKeys.length===1&&migrated.pwPrintKeys[0]==='posewear:costume:X'};
+})()`, ctx);
+check('PW-09 pwMigrateShot 12 字段快照 / 不覆盖 / 幂等 / 与 migrate 内联一致',
+  PW09.n===12&&PW09.kept&&PW09.print&&PW09.idem&&PW09.same&&PW09.printSame, JSON.stringify(PW09));
+
+check('PW-10 pwHairPhrase 中英均剥离面部参考尾句，空输入空串', vm.runInContext(`(()=>{
+  const zh=pwHairPhrase({len:'短发',st:'收腰短发',zh:'一位亚洲年轻女性，短发。作为人物面部参考，保持五官和脸型一致。'},'zh');
+  const en=pwHairPhrase({lenEn:'short hair',stEn:'layered',en:'young Asian woman, short hair, consistent facial features, face reference'},'en');
+  return zh==='一位亚洲年轻女性，短发'&&en==='young Asian woman, short hair'&&pwHairPhrase(null,'zh')==='';
+})()`, ctx));
+
+const PW11 = vm.runInContext(`(()=>{
+  const sel={pose:{id:'P001',zh:'S形站姿·胯部侧顶',en:'S-curve standing pose, hip pushed out to the side',
+      angle:{view:'front',zh:'正面',en:'front view'}},
+    outfit:{id:'SPR-0001',zh:'外穿大衣，下身配象牙白荷叶边针织牛仔短裙，配袜子，脚踩白色运动鞋。',
+      en:'spring outfit, ivory frill knit denim mini skirt, coat, socks, white sneakers'},
+    hair:{id:'f71f',len:'短发',st:'收腰短发（后颈留长·空气刘海）',lenEn:'short hair',stEn:'layered short hair with longer nape, see-through bangs'}};
+  const full=pwBuildPrompt(sel,'zh');
+  const poseOnly=pwBuildPrompt({pose:sel.pose},'zh');
+  const empty=pwBuildPrompt({},'zh');
+  return {zh:full.zh,en:full.en,poseZh:poseOnly.zh,poseEn:poseOnly.en,
+    empty:empty.zh===''&&empty.en==='',dots:(full.zh.match(/。/g)||[]).length};
+})()`, ctx);
+check('PW-11 pwBuildPrompt 与 §5.2 真实样例逐字一致 / 仅姿势退化 / 空选择',
+  PW11.zh==='一位亚洲年轻女性，短发（收腰短发（后颈留长·空气刘海）），S形站姿·胯部侧顶（正面），外穿大衣，下身配象牙白荷叶边针织牛仔短裙，配袜子，脚踩白色运动鞋。'
+  && PW11.en==='young Asian woman, short hair, layered short hair with longer nape, see-through bangs, S-curve standing pose, hip pushed out to the side, front view, spring outfit, ivory frill knit denim mini skirt, coat, socks, white sneakers'
+  && PW11.poseZh==='S形站姿·胯部侧顶（正面）。' && PW11.poseEn==='S-curve standing pose, hip pushed out to the side, front view'
+  && PW11.empty && PW11.dots===1, JSON.stringify({zh:PW11.zh,en:PW11.en,poseZh:PW11.poseZh,dots:PW11.dots}));
+
+const PW12 = vm.runInContext(`(()=>{
+  const sel={pose:{id:'P1',zh:'姿势',en:'pose',angle:{view:'front',zh:'正面',en:'front view'}},
+    outfit:{id:'C1',zh:'服装',en:'outfit'},hair:{id:'H1',len:'短发',st:'风格',lenEn:'short hair',stEn:'style'}};
+  const before=JSON.stringify(sel), r=pwShotPatch(sel), pr=pwBuildPrompt(sel,'zh');
+  const keys=['poseId','poseAngle','poseZh','poseEn','outfitId','outfitZh','outfitEn','hairId','hairZh','hairEn','promptZh','promptEn'];
+  return {n:keys.filter(k=>typeof r[k]==='string').length,sameInput:before===JSON.stringify(sel),
+    prompt:r.promptZh===pr.zh&&r.promptEn===pr.en,poseAngle:r.poseAngle==='front',print:Array.isArray(r.pwPrintKeys)};
+})()`, ctx);
+check('PW-12 pwShotPatch 12 字段快照 / 不改入参 / prompt 一致',
+  PW12.n===12&&PW12.sameInput&&PW12.prompt&&PW12.poseAngle&&!PW12.print, JSON.stringify(PW12));
+
+const PW13 = vm.runInContext(`(()=>{
+  const items=[{id:'a',cat:'坐姿',zh:'坐',en:'sit',a:1},{id:'b',cat:'站姿',zh:'站',en:'stand'}];
+  const all=pwFilterItems(items,'','',true), noAdult=pwFilterItems(items,'','',false);
+  const cat=pwFilterItems(items,'站姿','',true), kw=pwFilterItems(items,'','STAND',true);
+  return {all:all.length,noAdult:noAdult.length,cat:cat.map(x=>x.id).join(','),kw:kw.map(x=>x.id).join(',')};
+})()`, ctx);
+check('PW-13 pwFilterItems 分类+关键词组合过滤 / allowAdult=false 排除 a:1',
+  PW13.all===2&&PW13.noAdult===1&&PW13.cat==='b'&&PW13.kw==='b', JSON.stringify(PW13));
+
+const PW14 = vm.runInContext(`(()=>{
+  const p={shots:[{id:'s',name:'x'}],budget:[]};
+  const key=pwItemKey('pose','P001','front');
+  return {key:key,prefix:key.indexOf('posewear:')===0,noTail:pwItemKey('pose','P001','').slice(-1)!==':'};
+})()`, ctx);
+check('PW-14 所有 PW key 以 posewear: 开头且空角度无尾冒号',
+  PW14.prefix && PW14.noTail && PW14.key==='posewear:pose:P001:front', PW14.key);
 
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

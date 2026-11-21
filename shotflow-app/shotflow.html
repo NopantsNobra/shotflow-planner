@@ -229,6 +229,25 @@ svg{display:inline-block;vertical-align:middle}
 .ref-thumb.ghost{border-style:dashed}
 .noref-add{border:1px dashed var(--line2);border-radius:8px;padding:14px 16px;font-size:12px;color:var(--ink2);background:transparent;flex-shrink:0;transition:border-color .15s,color .15s}
 .noref-add:hover{border-color:var(--accent);color:var(--accent-ink)}
+/* v10.5 PoseWear 面板（挂在分镜页；不新增第 8 个页签） */
+#pwPanel .pw-head{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;margin-bottom:8px}
+#pwPanel .pw-tabs{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0}
+#pwPanel .pw-tabs .ptab{padding:7px 12px 9px}
+#pwPanel .pw-chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+#pwPanel .pw-chips .chip{min-height:28px;padding:3px 10px;font-size:11.5px}
+#pwPanel .pw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:9px;max-height:430px;overflow-y:auto;margin:10px 0}
+.pw-card{border:1px solid var(--line);border-radius:10px;padding:7px;background:var(--surface);cursor:pointer;min-width:0;transition:border-color .15s,box-shadow .15s}
+.pw-card:hover{border-color:var(--line2)}
+.pw-card.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.pw-card img{width:100%;height:86px;object-fit:cover;border-radius:6px;display:block;background:var(--surface-2)}
+.pw-card .pw-miss{width:100%;height:86px;border:1px dashed var(--line2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10.5px;color:var(--ink3);text-align:center;background:var(--surface-2)}
+.pw-card .pw-zh{font-size:12px;font-weight:600;margin-top:5px;line-height:1.4;word-break:break-word}
+.pw-card .pw-en{font-size:10px;color:var(--ink3);line-height:1.35;margin-top:2px;word-break:break-word;max-height:28px;overflow:hidden}
+.pw-card .pw-angles{display:flex;gap:3px;flex-wrap:wrap;margin-top:5px}
+.pw-card .pw-angles button{font-size:10px;padding:2px 6px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2);color:var(--ink2)}
+.pw-card .pw-angles button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+#pwPanel .pw-combo textarea{min-height:72px;font-size:12.5px;margin:6px 0}
+#pwPanel .pw-combo .pw-msg{font-size:11.5px;color:var(--green);min-height:16px}
 
 /* 参考图大图查看 */
 .rv-title{font-size:14px;font-weight:600;margin-bottom:14px}
@@ -338,6 +357,10 @@ svg{display:inline-block;vertical-align:middle}
 .doc .shot-ref{width:112px;height:112px;max-width:none;object-fit:cover;border-radius:6px;margin:2px 3px 2px 0;vertical-align:middle;border:1px solid #ded6ca}
 .doc .shot-ref-miss{width:112px;height:112px;max-width:none;border-radius:6px;margin:2px 3px 2px 0;vertical-align:middle;border:1px dashed #cfc5b3;background:#f3efe6;color:#9c9389;font-size:11px;line-height:1.3;display:inline-flex;align-items:center;justify-content:center;text-align:center;padding:4px;box-sizing:border-box}
 @media screen and (max-width:768px){.doc .shot-ref,.doc .shot-ref-miss{width:84px;height:84px}}  /* 仅屏幕窄屏降档；打印始终 112px */
+.doc th.prompt-col{width:112px}
+.doc .prompt-cell{min-width:105px;max-width:120px;font-size:10.5px;line-height:1.4;white-space:normal;word-break:break-word;vertical-align:top}
+.doc .prompt-cell .muted{font-size:10.5px;line-height:1.4}
+@media screen and (max-width:768px){.doc th.prompt-col{width:88px}.doc .prompt-cell{min-width:80px;max-width:92px}}
 
 .backup-tip{background:#fdf8ec;border:1px solid #eadfc4;color:#7c6222;padding:10px 16px;border-radius:10px;font-size:12.5px;margin-bottom:16px;display:none;align-items:center;gap:8px}
 .backup-tip.show{display:flex}
@@ -480,6 +503,26 @@ const TAG_SUGGESTIONS=[
 const POSITION_OPTS=['平视','俯拍','仰拍','过肩','低机位','鸟瞰','侧背','正面'];
 const LIGHT_OPTS=['顺光','侧光','侧逆光','逆光','顶光','窗光','黄金时刻','剪影','蓝调'];
 
+/* ===== v10.5 PoseWear：全量分类词表（管理员决定 B：含成人向类目，无 18+ 开关、无默认隐藏） =====
+   a:1 只作来源标记，不参与任何过滤；a:1 类目与其他类目一视同仁展示。 */
+const PW_POSE_LINES=['全身·性感','全身·标准','上半身','双人互动'];
+const PW_POSE_CATS=['可爱','坐姿','站姿','跪立','躺卧','侧坐·鸭子坐','蹲姿','前倾','后仰','扭身','性感·大胆','成人向'];
+const PW_COSTUME_CATS=['春季','夏季','秋季','冬季','内衣','派对礼服','泳装','性感'];
+const PW_HAIR_CATS=['正脸','生活照','短发','中长发','半长发','长发'];
+const PW_ANGLES=[
+  {view:'front',zh:'正面',en:'front view',ja:'正面'},
+  {view:'high',zh:'俯拍',en:'high angle, from above',ja:'上から'},
+  {view:'low',zh:'仰拍',en:'low angle, from below',ja:'下から'},
+  {view:'side',zh:'侧面',en:'side view',ja:'横'},
+  {view:'diag',zh:'斜侧',en:'three-quarter view',ja:'斜め'}
+];
+const PW_META_KEY={pose:'catalog:pose',costume:'catalog:costume',portrait:'catalog:portrait'};
+const PW_SYNC_KEY='sync';
+const PW_CREDIT='姿势 / 服装来源：@giaaibusi（AI Pose Gallery / AI Costume Gallery）· 人像来源：@agi_aibusi（AI Portrait Gallery, CC0）｜开源：github.com/atuizz/posewear';
+const PW_POSE_ORIGIN='https://ai-pose-gallery.pages.dev/';
+const PW_COSTUME_ORIGIN='https://ai-costume-gallery.pages.dev/';
+const PW_PORTRAIT_ORIGIN='https://ai-portrait-gallery.pages.dev/';
+
 /* ===== 提案出版系统：画廊扉页封面 + 统一文档排版 ===== */
 const CV_DIAMOND = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 960 1500' fill='none'><path d='M-2000,-3500 L2000,500 M-2000,-3460 L2000,540 M-2000,-3420 L2000,580 M-2000,-3380 L2000,620 M-2000,-3340 L2000,660 M-2000,-3300 L2000,700 M-2000,-3260 L2000,740 M-2000,-3220 L2000,780 M-2000,-3180 L2000,820 M-2000,-3140 L2000,860 M-2000,-3100 L2000,900 M-2000,-3060 L2000,940 M-2000,-3020 L2000,980 M-2000,-2980 L2000,1020 M-2000,-2940 L2000,1060 M-2000,-2900 L2000,1100 M-2000,-2860 L2000,1140 M-2000,-2820 L2000,1180 M-2000,-2780 L2000,1220 M-2000,-2740 L2000,1260 M-2000,-2700 L2000,1300 M-2000,-2660 L2000,1340 M-2000,-2620 L2000,1380 M-2000,-2580 L2000,1420 M-2000,-2540 L2000,1460 M-2000,-2500 L2000,1500 M-2000,-2460 L2000,1540 M-2000,-2420 L2000,1580 M-2000,-2380 L2000,1620 M-2000,-2340 L2000,1660 M-2000,-2300 L2000,1700 M-2000,-2260 L2000,1740 M-2000,-2220 L2000,1780 M-2000,-2180 L2000,1820 M-2000,-2140 L2000,1860 M-2000,-2100 L2000,1900 M-2000,-2060 L2000,1940 M-2000,-2020 L2000,1980 M-2000,-1980 L2000,2020 M-2000,-1940 L2000,2060 M-2000,-1900 L2000,2100 M-2000,-1860 L2000,2140 M-2000,-1820 L2000,2180 M-2000,-1780 L2000,2220 M-2000,-1740 L2000,2260 M-2000,-1700 L2000,2300 M-2000,-1660 L2000,2340 M-2000,-1620 L2000,2380 M-2000,-1580 L2000,2420 M-2000,-1540 L2000,2460 M-2000,-1500 L2000,2500 M-2000,-1460 L2000,2540 M-2000,-1420 L2000,2580 M-2000,-1380 L2000,2620 M-2000,-1340 L2000,2660 M-2000,-1300 L2000,2700 M-2000,-1260 L2000,2740 M-2000,-1220 L2000,2780 M-2000,-1180 L2000,2820 M-2000,-1140 L2000,2860 M-2000,-1100 L2000,2900 M-2000,-1060 L2000,2940 M-2000,1900 L2000,-2100 M-2000,1940 L2000,-2060 M-2000,1980 L2000,-2020 M-2000,2020 L2000,-1980 M-2000,2060 L2000,-1940 M-2000,2100 L2000,-1900 M-2000,2140 L2000,-1860 M-2000,2180 L2000,-1820 M-2000,2220 L2000,-1780 M-2000,2260 L2000,-1740 M-2000,2300 L2000,-1700 M-2000,2340 L2000,-1660 M-2000,2380 L2000,-1620 M-2000,2420 L2000,-1580 M-2000,2460 L2000,-1540 M-2000,2500 L2000,-1500 M-2000,2540 L2000,-1460 M-2000,2580 L2000,-1420 M-2000,2620 L2000,-1380 M-2000,2660 L2000,-1340 M-2000,2700 L2000,-1300 M-2000,2740 L2000,-1260 M-2000,2780 L2000,-1220 M-2000,2820 L2000,-1180 M-2000,2860 L2000,-1140 M-2000,2900 L2000,-1100 M-2000,2940 L2000,-1060 M-2000,2980 L2000,-1020 M-2000,3020 L2000,-980 M-2000,3060 L2000,-940 M-2000,3100 L2000,-900 M-2000,3140 L2000,-860 M-2000,3180 L2000,-820 M-2000,3220 L2000,-780 M-2000,3260 L2000,-740 M-2000,3300 L2000,-700 M-2000,3340 L2000,-660 M-2000,3380 L2000,-620 M-2000,3420 L2000,-580 M-2000,3460 L2000,-540 M-2000,3500 L2000,-500 M-2000,3540 L2000,-460 M-2000,3580 L2000,-420 M-2000,3620 L2000,-380 M-2000,3660 L2000,-340 M-2000,3700 L2000,-300 M-2000,3740 L2000,-260 M-2000,3780 L2000,-220 M-2000,3820 L2000,-180 M-2000,3860 L2000,-140 M-2000,3900 L2000,-100 M-2000,3940 L2000,-60 M-2000,3980 L2000,-20 M-2000,4020 L2000,20 M-2000,4060 L2000,60 M-2000,4100 L2000,100 M-2000,4140 L2000,140 M-2000,4180 L2000,180 M-2000,4220 L2000,220 M-2000,4260 L2000,260 M-2000,4300 L2000,300 M-2000,4340 L2000,340 M-2000,4380 L2000,380 M-2000,4420 L2000,420 M-2000,4460 L2000,460 M-2000,4500 L2000,500 M-2000,4540 L2000,540' stroke='#8A8076' stroke-width='0.6' stroke-opacity='0.1' stroke-linecap='butt'/><path d='M-2000,-3500 L2000,500 M-2000,-3340 L2000,660 M-2000,-3180 L2000,820 M-2000,-3020 L2000,980 M-2000,-2860 L2000,1140 M-2000,-2700 L2000,1300 M-2000,-2540 L2000,1460 M-2000,-2380 L2000,1620 M-2000,-2220 L2000,1780 M-2000,-2060 L2000,1940 M-2000,-1900 L2000,2100 M-2000,-1740 L2000,2260 M-2000,-1580 L2000,2420 M-2000,-1420 L2000,2580 M-2000,-1260 L2000,2740 M-2000,-1100 L2000,2900 M-2000,1900 L2000,-2100 M-2000,2060 L2000,-1940 M-2000,2220 L2000,-1780 M-2000,2380 L2000,-1620 M-2000,2540 L2000,-1460 M-2000,2700 L2000,-1300 M-2000,2860 L2000,-1140 M-2000,3020 L2000,-980 M-2000,3180 L2000,-820 M-2000,3340 L2000,-660 M-2000,3500 L2000,-500 M-2000,3660 L2000,-340 M-2000,3820 L2000,-180 M-2000,3980 L2000,-20 M-2000,4140 L2000,140 M-2000,4300 L2000,300 M-2000,4460 L2000,460' stroke='#8A8076' stroke-width='0.9' stroke-opacity='0.16' stroke-linecap='butt'/></svg>`;
 
@@ -612,12 +655,15 @@ function pickCity(v){
 
 /* IndexedDB：图片 + 项目主存储 + 姿势图库（v4 起项目不再存 localStorage） */
 const idb={db:null,
-  open(){return new Promise((res,rej)=>{const r=indexedDB.open('shotflow',3);
+  open(){return new Promise((res,rej)=>{const r=indexedDB.open('shotflow',4);
     r.onupgradeneeded=e=>{const db=e.target.result;
       if(!db.objectStoreNames.contains('images')) db.createObjectStore('images');
       if(!db.objectStoreNames.contains('projects')) db.createObjectStore('projects');
       if(!db.objectStoreNames.contains('shisei_meta')) db.createObjectStore('shisei_meta');
       if(!db.objectStoreNames.contains('shisei_images')) db.createObjectStore('shisei_images');
+      /* v10.5 PoseWear：独立两库，不碰 shisei_meta/shisei_images/images */
+      if(!db.objectStoreNames.contains('posewear_meta')) db.createObjectStore('posewear_meta');
+      if(!db.objectStoreNames.contains('posewear_images')) db.createObjectStore('posewear_images');
     };
     r.onsuccess=e=>{idb.db=e.target.result;res();};r.onerror=rej;});},
   put(k,v){return new Promise((res,rej)=>{const t=idb.db.transaction('images','readwrite');t.objectStore('images').put(v,k);t.oncomplete=res;t.onerror=rej;});},
@@ -638,7 +684,20 @@ const idb={db:null,
     r.onsuccess=e=>{const c=e.target.result; if(!c){res(out);return;} const v=c.value||{}; out.push({key:c.key,pid:v.pid,cat:v.cat,view:v.view,zh:v.zh,en:v.en,ja:v.ja}); c.continue();};r.onerror=rej;});},
   shiseiImgStats(){return new Promise((res,rej)=>{let count=0,bytes=0;const r=idb.db.transaction('shisei_images').objectStore('shisei_images').openCursor();
     r.onsuccess=e=>{const c=e.target.result; if(!c){res({count,bytes,avg:count?Math.round(bytes/count):0});return;} const v=c.value||{}; count++; bytes+=String(v.data||'').length; c.continue();};r.onerror=rej;});},
-  clearShisei(){return new Promise((res,rej)=>{const t=idb.db.transaction(['shisei_meta','shisei_images'],'readwrite');t.objectStore('shisei_meta').clear();t.objectStore('shisei_images').clear();t.oncomplete=res;t.onerror=()=>rej(t.error);});}
+  clearShisei(){return new Promise((res,rej)=>{const t=idb.db.transaction(['shisei_meta','shisei_images'],'readwrite');t.objectStore('shisei_meta').clear();t.objectStore('shisei_images').clear();t.oncomplete=res;t.onerror=()=>rej(t.error);});},
+  /* v10.5 PoseWear 独立库：所有 key 以 posewear: 开头；只存元数据 + 用户点开的 KB 级缩略图 */
+  getPwMeta(k){return new Promise((res,rej)=>{const r=idb.db.transaction('posewear_meta').objectStore('posewear_meta').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
+  putPwMeta(k,v){return new Promise((res,rej)=>{const t=idb.db.transaction('posewear_meta','readwrite');t.objectStore('posewear_meta').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});},
+  delPwMeta(k){return new Promise((res,rej)=>{const t=idb.db.transaction('posewear_meta','readwrite');t.objectStore('posewear_meta').delete(k);t.oncomplete=res;t.onerror=rej;});},
+  putPwImg(k,v){return new Promise((res,rej)=>{const t=idb.db.transaction('posewear_images','readwrite');t.objectStore('posewear_images').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});},
+  getPwImg(k){return new Promise((res,rej)=>{const r=idb.db.transaction('posewear_images').objectStore('posewear_images').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
+  delPwImg(k){return new Promise((res,rej)=>{const t=idb.db.transaction('posewear_images','readwrite');t.objectStore('posewear_images').delete(k);t.oncomplete=res;t.onerror=rej;});},
+  pwImgKeys(){return new Promise((res,rej)=>{const r=idb.db.transaction('posewear_images').objectStore('posewear_images').getAllKeys();r.onsuccess=()=>res(r.result);r.onerror=rej;});},
+  pwImgStats(){return new Promise((res,rej)=>{let count=0,bytes=0;const r=idb.db.transaction('posewear_images').objectStore('posewear_images').openCursor();
+    r.onsuccess=e=>{const c=e.target.result; if(!c){res({count,bytes,avg:count?Math.round(bytes/count):0});return;} const v=c.value||{}; count++; bytes+=String(v.data||'').length; c.continue();};r.onerror=rej;});},
+  pwIndex(kind){return new Promise((res,rej)=>{const out=[];const r=idb.db.transaction('posewear_images').objectStore('posewear_images').openCursor();
+    r.onsuccess=e=>{const c=e.target.result; if(!c){res(out);return;} const v=c.value||{}; if(!kind||v.kind===kind) out.push({key:c.key,kind:v.kind,zh:v.zh||'',en:v.en||'',cat:v.cat||''}); c.continue();};r.onerror=rej;});},
+  clearPosewear(){return new Promise((res,rej)=>{const t=idb.db.transaction(['posewear_meta','posewear_images'],'readwrite');t.objectStore('posewear_meta').clear();t.objectStore('posewear_images').clear();t.oncomplete=res;t.onerror=()=>rej(t.error);});}
 };
 const imgCache={};
 async function cacheProjectImages(p){
@@ -656,7 +715,8 @@ function freshView(patch){
   const d={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',
     moodFilter:[],moodFilterMode:'any',shotDraft:{},poseCat:null,editingShotId:null,editingShotEditId:null,replaceIdx:-1,
     allowDemoWrite:false,editingNodeId:null,editingStuffId:null,editingStuffKey:null,
-    editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null,lastShift:null,newDay:false,moodRefPicker:false};
+    editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null,lastShift:null,newDay:false,moodRefPicker:false,
+    pwKind:'pose',pwCat:'',pwKw:'',pwLang:'zh',pwSel:{pose:null,poseView:'',outfit:null,hair:null},pwPrint:false,pwStatus:'未导入'};
   return Object.assign(d,patch||{});
 }
 let view=freshView();
@@ -788,6 +848,193 @@ function nextPendingBatch(meta,batch){
 function mergeShiseiMeta(meta,patch){
   const base=(meta&&typeof meta==='object')?meta:{};
   return Object.assign({},base,(patch&&typeof patch==='object')?patch:{});
+}
+
+/* ===== v10.5 PoseWear 纯函数层 =====
+   硬约束：函数体内不出现 document / window / localStorage / idb / fetch / parseInt / isNaN / Boolean(...)。
+   只用 String / Number / Array / Object / JSON / Math / RegExp / Set / Map / Date 与纯计算。 */
+function pwItemKey(kind,id,angle){
+  const k=String(kind==null?'':kind).replace(/[^a-z0-9]/gi,'').toLowerCase()||'item';
+  const i=String(id==null?'':id).trim();
+  if(!i) return '';
+  return 'posewear:'+k+':'+i+(angle?':'+String(angle):'');
+}
+function pwCatalogVersion(text){
+  const s=String(text==null?'':text); let h=5381;
+  for(let i=0;i<s.length;i++) h=(((h<<5)+h)+s.charCodeAt(i))>>>0;
+  return s.length+'-'+h.toString(36);
+}
+/* 上游模板尾句必须剥离，否则会污染出图提示词 */
+function pwHairPhrase(p,lang){
+  if(!p||typeof p!=='object') return '';
+  const zhTail='。作为人物面部参考，保持五官和脸型一致。', enTail=', consistent facial features, face reference';
+  const len=String(p.len==null?'':p.len), st=String(p.st==null?'':p.st);
+  let zh=String(p.zh==null?'':p.zh).split(zhTail)[0];
+  let en=String(p.en==null?'':p.en).split(enTail)[0];
+  if(!zh) zh=len+(st?'（'+st+'）':'');
+  if(!en){ const el=String(p.lenEn==null?'':p.lenEn), es=String(p.stEn==null?'':p.stEn); en=el+(es?(el?', ':'')+es:''); }
+  return lang==='en'?en:zh;
+}
+const PW_POSE_CAT_TR={'立ち':'站姿','座り':'坐姿','膝立ち':'跪立','横座り・女の子座り':'侧坐·鸭子坐',
+  'しゃがみ':'蹲姿','前かがみ':'前倾','のけぞり・反り':'后仰','ひねり':'扭身','寝そべり':'躺卧','かわいい系':'可爱'};
+const PW_COSTUME_CAT_TR={'春':'春季','夏':'夏季','秋':'秋季','冬':'冬季','ランジェリー':'内衣',
+  'パーティ':'派对礼服','水着':'泳装','セクシー':'性感'};
+const PW_POSE_TR={
+  'S字立ち・腰を横に突き出す':{zh:'S形站姿·胯部侧顶',en:'S-curve standing pose, hip pushed out to the side'},
+  '後ろ寄り掛け・片膝立ち':{zh:'后仰坐·单膝立起',en:'leaning back sitting pose, one knee raised'},
+  '立ち・肩越しに振り返る':{zh:'站姿·越肩回眸',en:'standing pose, looking back over the shoulder'}
+};
+function pwParsePoseCatalog(raw){
+  const list=Array.isArray(raw)?raw:(Array.isArray(raw&&raw.items)?raw.items:[]);
+  const groups=[], byId={};
+  list.forEach(function(e){
+    if(!e||!e.id) return;
+    const id=String(e.id), parts=id.split('_'), tail=parts[parts.length-1];
+    const angleRaw=String(e.angle==null?'':e.angle);
+    const av=PW_ANGLES.filter(function(a){return a.view===tail||a.ja===tail||a.zh===tail||a.view===angleRaw||a.ja===angleRaw;})[0];
+    /* 非白名单角度：若同组已存在则整条丢弃，不新建伪分组 */
+    if(!av&&parts.length>1&&byId[parts.slice(0,-1).join('_')]) return;
+    const gid=(av&&parts.length>1)?parts.slice(0,-1).join('_'):id;
+    if(!byId[gid]){
+      const ja=String(e.ja||e['ポーズ名']||gid);
+      const tr=PW_POSE_TR[ja]||{};
+      const sys=String(e.line||e['系統']||'');
+      const jaCat=String(e.cat||e['分類']||'');
+      const g={id:gid,no:String(e.no||e['ポーズ番号']||gid.replace(/^.*_P/,'P')),
+        line:sys,cat:PW_POSE_CAT_TR[jaCat]||jaCat,zh:String(e.zh||tr.zh||ja),en:String(e.en||tr.en||''),
+        ja:ja,angles:[],a:(e.a===1||/性感|二人|2人/.test(sys))?1:0,
+        data:String(e.data||e.thumbData||''),srcFull:String(e.src||'')};
+      byId[gid]=g; groups.push(g);
+    }
+    const g=byId[gid];
+    if(av&&!g.angles.filter(function(a){return a.view===av.view;}).length){
+      g.angles.push({view:av.view,zh:av.zh,en:av.en,
+        t:String(e.t||e.thumb||e['サムネ']||('p/t/'+id+'.webp')),
+        src:String(e.src||(PW_POSE_ORIGIN+'thumbs/'+id+'.jpg'))});
+    }
+  });
+  return groups;
+}
+function pwParseCostumeCatalog(raw){
+  const list=Array.isArray(raw)?raw:(Array.isArray(raw&&raw.items)?raw.items:[]);
+  return list.filter(function(e){return e&&e.id;}).map(function(e){
+    const id=String(e.id), kw=String(e.kw||e['キーワード']||'');
+    const jaCat=String(e.cat||e['カテゴリ']||'');
+    const o={id:id,cat:PW_COSTUME_CAT_TR[jaCat]||jaCat,catEn:String(e.catEn||''),kw:kw,
+      zh:String(e.zh||''),en:String(e.en||''),ti:String(e.ti||e.title||''),
+      t:String(e.t||e.thumb||('c/m/'+id+'.webp')),
+      src:String(e.src||(PW_COSTUME_ORIGIN+'thumbs/'+id+'.webp')),
+      data:String(e.data||e.thumbData||'')};
+    /* 管理员决定 B：a:1 只作来源标记，全量内置；此处绝不过滤 */
+    if(e.a===1||/ランジェリー|セクシー|水着/.test(jaCat)) o.a=1;
+    if(!o.zh) o.zh=kw?(kw+'。'):'';
+    if(!o.en) o.en=kw;
+    if(!o.ti) o.ti=kw;
+    return o;
+  });
+}
+function pwParsePortraitCatalog(raw){
+  const list=Array.isArray(raw)?raw:(Array.isArray(raw&&raw.items)?raw.items:[]);
+  return list.filter(function(e){return e&&e.id;}).map(function(e){
+    const o={id:String(e.id),no:String(e.no||''),sec:String(e.sec||''),len:String(e.len||''),st:String(e.st||e.style||''),
+      zh:'',en:'',t:String(e.t||e.thumb||('r/m/'+String(e.id)+'.webp')),
+      src:String(e.src||(PW_PORTRAIT_ORIGIN+'img/thumb/'+String(e.id)+'.webp')),
+      data:String(e.data||e.thumbData||'')};
+    o.zh=pwHairPhrase({zh:e.zh,len:o.len,st:o.st},'zh');
+    o.en=pwHairPhrase({en:e.en,lenEn:e.lenEn,stEn:e.stEn},'en');
+    return o;
+  });
+}
+function pwCatalogSame(a,b){
+  if(!a||!b) return false;
+  const aa=Array.isArray(a.angles)?a.angles:[], bb=Array.isArray(b.angles)?b.angles:[];
+  return String(a.zh||'')===String(b.zh||'')&&String(a.en||'')===String(b.en||'')
+    &&String(a.cat||'')===String(b.cat||'')&&JSON.stringify(aa)===JSON.stringify(bb);
+}
+function pwDiffCatalog(local,remote){
+  const idx=function(arr){const m={};(Array.isArray(arr)?arr:[]).forEach(function(e){if(e&&e.id)m[String(e.id)]=e;});return m;};
+  const lm=idx(local), rm=idx(remote), toAdd=[],toUpdate=[],toRemove=[];
+  (Array.isArray(remote)?remote:[]).forEach(function(e){
+    if(!e||!e.id) return;
+    const k=String(e.id), old=lm[k];
+    if(!old) toAdd.push(e); else if(!pwCatalogSame(old,e)) toUpdate.push(e);
+  });
+  (Array.isArray(local)?local:[]).forEach(function(e){
+    if(e&&e.id&&!rm[String(e.id)]) toRemove.push(String(e.id));
+  });
+  return {toAdd:toAdd,toUpdate:toUpdate,toRemove:toRemove};
+}
+function pwNextPendingBatch(meta,batch){
+  const size=Math.max(1,Math.trunc(Number(batch)||0)||1);
+  const pending=Array.isArray(meta&&meta.pending)?meta.pending:[];
+  const cursor=Math.max(0,Math.trunc(Number(meta&&meta.cursor)||0));
+  const items=pending.slice(cursor,cursor+size).map(function(x){return typeof x==='string'?{key:x}:x;});
+  const next=cursor+items.length;
+  return {items:items,cursor:next,done:next>=pending.length};
+}
+function pwMergeMeta(meta,patch){
+  const out={}, base=(meta&&typeof meta==='object')?meta:{}, p=(patch&&typeof patch==='object')?patch:{};
+  Object.keys(base).forEach(function(k){out[k]=base[k];});
+  Object.keys(p).forEach(function(k){out[k]=p[k];});
+  return out;
+}
+function pwMigrateShot(s){
+  const o={}, src=(s&&typeof s==='object')?s:{};
+  Object.keys(src).forEach(function(k){o[k]=src[k];});
+  /* 数组内联，保持本函数被 vm 单独抽取时自包含（与 migrate 内联逻辑逐字一致） */
+  ['poseId','poseAngle','poseZh','poseEn','outfitId','outfitZh','outfitEn',
+   'hairId','hairZh','hairEn','promptZh','promptEn'].forEach(function(k){if(o[k]==null)o[k]='';});
+  if(!Array.isArray(o.pwPrintKeys)) o.pwPrintKeys=[];
+  return o;
+}
+function pwBuildPrompt(sel,lang){
+  const s=(sel&&typeof sel==='object')?sel:{};
+  const pose=s.pose||null, outfit=s.outfit||null, hair=s.hair||null;
+  if(!pose&&!outfit&&!hair) return {zh:'',en:''};
+  const angle=(pose&&pose.angle)||null;
+  const zh=[], en=[];
+  if(hair){
+    const hp=pwHairPhrase(hair,'zh')||String(hair.len||'');
+    if(hp) zh.push('一位亚洲年轻女性，'+hp);
+    const he=pwHairPhrase(hair,'en')||String(hair.lenEn||'');
+    if(he) en.push('young Asian woman, '+he);
+  }
+  if(pose){
+    const pz=String(pose.zh||''), pe=String(pose.en||'');
+    const az=angle?String(angle.zh||''):'', ae=angle?String(angle.en||''):'';
+    if(pz||az) zh.push(pz+(az?'（'+az+'）':''));
+    if(pe||ae) en.push(pe+(ae?(pe?', ':'')+ae:''));
+  }
+  if(outfit){
+    const oz=String(outfit.zh||'').replace(/。$/,''), oe=String(outfit.en||'');
+    if(oz) zh.push(oz);
+    if(oe) en.push(oe);
+  }
+  return {zh:zh.join('，')+(zh.length?'。':''),en:en.join(', ')};
+}
+function pwShotPatch(sel){
+  const s=(sel&&typeof sel==='object')?sel:{};
+  const pose=s.pose||null, outfit=s.outfit||null, hair=s.hair||null;
+  const angle=(pose&&pose.angle)||null, pr=pwBuildPrompt(s,'zh');
+  return {poseId:pose?String(pose.id||''):'',poseAngle:angle?String(angle.view||''):'',
+    poseZh:pose?String(pose.zh||''):'',poseEn:pose?String(pose.en||''):'',
+    outfitId:outfit?String(outfit.id||''):'',outfitZh:outfit?String(outfit.zh||''):'',outfitEn:outfit?String(outfit.en||''):'',
+    hairId:hair?String(hair.id||''):'',hairZh:hair?pwHairPhrase(hair,'zh'):'',hairEn:hair?pwHairPhrase(hair,'en'):'',
+    promptZh:pr.zh,promptEn:pr.en};
+}
+function pwFilterItems(items,cat,kw,allowAdult){
+  const out=[], q=String(kw==null?'':kw).trim().toLowerCase();
+  (Array.isArray(items)?items:[]).forEach(function(it){
+    if(!it) return;
+    if(it.a===1&&!allowAdult) return;                 // 仅此函数保留该开关；UI 恒传 true（决策 B 无 18+ 开关）
+    if(cat&&String(it.cat||'')!==String(cat)) return;
+    if(q){
+      const hay=[it.id,it.zh,it.en,it.ti,it.kw,it.cat].map(function(x){return String(x==null?'':x).toLowerCase();}).join(' ');
+      if(hay.indexOf(q)<0) return;
+    }
+    out.push(it);
+  });
+  return out;
 }
 
 /* ===== v9 纯函数层：可由逻辑测试直接抽取，不依赖 DOM / idb / view ===== */
@@ -1048,6 +1295,12 @@ function migrate(p){
     if(s.ord==null) s.ord=0;
     if(s.position==null) s.position='';                   // v10：机位
     if(s.light==null) s.light='';                         // v10：光线
+    /* v10.5 PoseWear：12 个快照字段 + PW 打印图 key。
+       与 pwMigrateShot 逻辑逐字一致；本函数被 tests 单独抽取进 vm，必须自包含。
+       用 == null 而非 !s[k]：已有空串/值不覆盖，重复调用字节一致。 */
+    ['poseId','poseAngle','poseZh','poseEn','outfitId','outfitZh','outfitEn',
+     'hairId','hairZh','hairEn','promptZh','promptEn'].forEach(function(k){ if(s[k]==null) s[k]=''; });
+    if(!Array.isArray(s.pwPrintKeys)) s.pwPrintKeys=[];
   });
   p.schedule.forEach(n=>{ n.done=!!n.done; });
   migrateFav(p);
@@ -1814,12 +2067,274 @@ async function renderShots(p){
     +selRefsBar
     +(mineHtml||galleryHtml?'':'<p class="muted" style="margin-bottom:10px">还没有任何参考图来源。上传图片、到情绪板添加，或在下方「素材来源」开启姿势图库同步。</p>')
     +mineHtml+galleryHtml
+    +'<div class="card" id="pwPanel">'+pwPanelHtml(p)+'</div>'
     +'<div class="row" style="margin-bottom:12px"><input id="s_filter" class="grow" placeholder="搜索分镜 / 场景 / 备注…" value="'+esc(view.shotFilter)+'" oninput="setShotFilter(this.value)"></div>'
     +'<div id="shotListWrap">'+shotListHtml(p,days)+'</div></div>';
   galleryRows.forEach(r=>ensureShiseiImage(r.key));
   attachDrag();
   restoreFocus(focusSnap);
 }
+/* ===== v10.5 PoseWear 面板 / 同步 / 缩略图（只做局部重绘，禁止 renderShots 全量重绘） ===== */
+const pwItems={pose:[],costume:[],portrait:[]};
+async function pwLoadMeta(){
+  for(const kind of ['pose','costume','portrait']){
+    try{ const m=await idb.getPwMeta(PW_META_KEY[kind]); pwItems[kind]=(m&&Array.isArray(m.items))?m.items:[]; }
+    catch(e){ pwItems[kind]=[]; }
+  }
+  try{
+    const s=await idb.getPwMeta(PW_SYNC_KEY);
+    if(s) view.pwStatus=s.paused?'已暂停':(s.version?'已导入元数据':'未导入');
+  }catch(e){}
+  /* 只回载用户点开过的 KB 级缩略图（数量有上限），保证刷新后卡片仍显示图片 */
+  try{
+    const keys=await idb.pwImgKeys();
+    for(const k of keys){ const rec=await idb.getPwImg(k); if(rec&&rec.data) imgCache[k]=rec.data; }
+  }catch(e){}
+}
+function pwPanelHtml(p){
+  const kinds=[['pose','姿势'],['costume','服装'],['hair','人像 / 发型']];
+  /* 三个维度的分类词表常驻可见（决策 B：成人向类目与其他类目一视同仁，无开关/无隐藏） */
+  const vocab='姿势：'+PW_POSE_CATS.join(' / ')+'　服装：'+PW_COSTUME_CATS.join(' / ')+'　发型：'+PW_HAIR_CATS.join(' / ');
+  return '<div class="pw-head"><div><b>动作与穿搭 · PoseWear 参考</b>'
+    +'<div class="muted" style="font-size:11px">'+PW_CREDIT+'</div>'
+    +'<div class="muted" style="font-size:10.5px;line-height:1.5">'+esc(vocab)+'</div></div>'
+    +'<span class="tag" id="pwStatus">'+esc(view.pwStatus||'未导入')+'</span></div>'
+    +'<div class="row" style="margin:8px 0">'
+      +'<input type="file" id="pwFiles" accept=".json,application/json" multiple style="display:none" onchange="pwImportFiles(this.files)">'
+      +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'pwFiles\').click()">导入 JSON</button>'
+      +'<button class="btn btn-ghost btn-sm" onclick="pwRefreshMeta()">刷新元数据</button>'
+      +'<button class="btn btn-danger btn-sm" onclick="pwClearAll()">清空 PoseWear 数据</button>'
+      +'<span class="muted" style="font-size:11px">元数据 + 点开的缩略图（KB 级），不同步 MB 级原图</span></div>'
+    +'<div class="pw-tabs">'+kinds.map(function(k){
+      return '<button class="ptab '+(view.pwKind===k[0]?'active':'')+'" onclick="setPwKind(\''+k[0]+'\')">'+k[1]+'</button>';
+    }).join('')+'</div>'
+    +'<div class="pw-chips" id="pwCats">'+pwCatsHtml()+'</div>'
+    +'<div class="row"><input id="pw_kw" value="'+esc(view.pwKw||'')+'" placeholder="搜索中文 / 英文 / 关键词…" oninput="setPwKw(this.value)"></div>'
+    +'<div class="pw-grid" id="pwGrid">'+pwGridHtml()+'</div>'
+    +'<div class="pw-combo" id="pwCombo">'+pwComboHtml()+'</div>';
+}
+function pwCatsHtml(){
+  const cats=view.pwKind==='pose'?PW_POSE_CATS:(view.pwKind==='costume'?PW_COSTUME_CATS:PW_HAIR_CATS);
+  return ['全部'].concat(cats).map(function(c){
+    return '<button class="chip '+((view.pwCat||'')===(c==='全部'?'':c)?'on':'')+'" onclick="setPwCat('+(c==='全部'?'':jstr(c))+')">'+esc(c)+'</button>';
+  }).join('');
+}
+function pwEntryKey(entry,kind,angle){
+  if(!entry) return '';
+  if(kind==='pose'){
+    const av=angle||(view.pwSel&&view.pwSel.poseView)||PW_ANGLES[0].view;
+    return pwItemKey('pose',entry.id,av);
+  }
+  return pwItemKey(kind,entry.id,'');
+}
+function pwGridHtml(){
+  const kind=view.pwKind==='hair'?'portrait':view.pwKind;
+  const items=pwFilterItems(pwItems[kind]||[],view.pwCat,view.pwKw,true);  // 决策 B：全量，恒传 true
+  if(!items.length) return '<p class="muted">暂无条目。点「导入 JSON」载入 poses / costumes / portraits 词表；词表分类仍可查看与组合。</p>';
+  return items.map(function(it){
+    const k=pwEntryKey(it,view.pwKind), thumb=imgCache[k];
+    const sel=view.pwSel&&((view.pwKind==='pose'&&view.pwSel.pose&&view.pwSel.pose.id===it.id)
+      ||(view.pwKind==='costume'&&view.pwSel.outfit&&view.pwSel.outfit.id===it.id)
+      ||(view.pwKind==='hair'&&view.pwSel.hair&&view.pwSel.hair.id===it.id));
+    const angles=view.pwKind==='pose'?PW_ANGLES.map(function(a){
+      return '<button class="'+((view.pwSel&&view.pwSel.poseView||PW_ANGLES[0].view)===a.view?'on':'')+'" onclick="event.stopPropagation();pwSelectAngle(\''+a.view+'\')">'+a.zh+'</button>';
+    }).join(''):'';
+    const printed=Array.isArray((view.shotDraft||{}).pwPrintKeys)&&view.shotDraft.pwPrintKeys.indexOf(k)>=0;
+    return '<div class="pw-card'+(sel?' on':'')+'" data-id="'+esc(it.id)+'" onclick="pwSelectItem('+jstr(it.id)+')">'
+      +(thumb?'<img src="'+esc(thumb)+'" alt="'+esc(it.zh||it.id)+'">':'<div class="pw-miss">点选加载缩略图</div>')
+      +'<div class="pw-zh">'+esc(it.zh||it.id)+(it.a===1?'':'')+'</div>'
+      +'<div class="pw-en">'+esc(it.en||'')+'</div>'
+      +(angles?'<div class="pw-angles">'+angles+'</div>':'')
+      +'<button class="btn '+(printed?'btn-primary':'btn-ghost')+' btn-sm" style="width:100%;margin-top:5px" onclick="event.stopPropagation();pwTogglePrint('+jstr(k)+')">'
+        +(printed?'已加入手册打印':'加入手册打印')+'</button></div>';
+  }).join('');
+}
+function pwComboHtml(){
+  const r=pwBuildPrompt(view.pwSel,view.pwLang);
+  const text=view.pwLang==='en'?(r.en||''):(r.zh||'');
+  const sel=view.pwSel||{};
+  const desc=[sel.pose?('姿势：'+(sel.pose.zh||sel.pose.id)+(sel.poseView?'（'+(PW_ANGLES.filter(a=>a.view===sel.poseView)[0]||{}).zh+'）':'')):'',
+    sel.outfit?('服装：'+(sel.outfit.zh||sel.outfit.id)):'',
+    sel.hair?('发型：'+pwHairPhrase(sel.hair,'zh')):''].filter(Boolean).join(' · ')||'（未选择）';
+  return '<div class="row" style="justify-content:space-between;margin-top:12px"><b>组合描述</b>'
+    +'<div class="seg"><button class="'+(view.pwLang==='zh'?'on':'')+'" onclick="pwToggleLang(\'zh\')">中文</button>'
+    +'<button class="'+(view.pwLang==='en'?'on':'')+'" onclick="pwToggleLang(\'en\')">English</button></div></div>'
+    +'<div class="muted" style="font-size:11.5px;margin-top:4px">'+esc(desc)+'</div>'
+    +'<textarea id="pw_text" readonly placeholder="点「生成组合描述」…">'+esc(text)+'</textarea>'
+    +'<div class="row"><button class="btn btn-ghost btn-sm" onclick="pwCompose()">生成组合描述</button>'
+    +'<button class="btn btn-primary btn-sm" onclick="pwApplyToDraft()">填入分镜草稿</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="pwCopyCombo()">复制</button>'
+    +'<span class="pw-msg" id="pwComboMsg"></span></div>';
+}
+function renderPwPanel(){ const host=document.getElementById('pwPanel'); if(host&&cur()) host.innerHTML=pwPanelHtml(cur()); }
+function renderPwGrid(){
+  const grid=document.getElementById('pwGrid'), cats=document.getElementById('pwCats');
+  if(cats) cats.innerHTML=pwCatsHtml();
+  if(grid) grid.innerHTML=pwGridHtml();
+}
+function renderPwCombo(){ const host=document.getElementById('pwCombo'); if(host) host.innerHTML=pwComboHtml(); }
+function pwRenderStatus(){ const el=document.getElementById('pwStatus'); if(el) el.textContent=view.pwStatus||'未导入'; }
+function setPwKind(k){
+  view.pwKind=k; view.pwCat='';
+  view.pwSel=(view.pwSel||{}); view.pwSel.poseView=PW_ANGLES[0].view;
+  renderPwPanel();     // 只重建 #pwPanel，不碰分镜表单
+}
+function setPwCat(c){ view.pwCat=c||''; renderPwGrid(); }
+let pwKwTimer=null;
+function setPwKw(v){
+  view.pwKw=v;
+  clearTimeout(pwKwTimer);
+  pwKwTimer=setTimeout(renderPwGrid,160);
+}
+function pwSelectItem(id){
+  const kind=view.pwKind;
+  const arr=pwItems[kind==='hair'?'portrait':kind]||[];
+  const it=arr.filter(function(x){return x&&x.id===id;})[0];
+  if(!it) return;
+  view.pwSel=view.pwSel||{};
+  if(kind==='pose'){
+    const a=PW_ANGLES.filter(function(x){return x.view===(view.pwSel.poseView||PW_ANGLES[0].view);})[0]||PW_ANGLES[0];
+    view.pwSel.pose=Object.assign({},it,{angle:a});
+  } else if(kind==='costume') view.pwSel.outfit=it;
+  else view.pwSel.hair=it;
+  renderPwGrid(); renderPwCombo();
+  pwEnsureThumb(it,kind).then(function(){ renderPwGrid(); });
+}
+function pwSelectAngle(v){
+  view.pwSel=view.pwSel||{};
+  view.pwSel.poseView=v;
+  const pose=view.pwSel.pose;
+  if(pose){ const a=PW_ANGLES.filter(function(x){return x.view===v;})[0]; if(a){ pose.angle=a; pwEnsureThumb(pose,'pose',v).then(renderPwGrid); } }
+  renderPwGrid(); renderPwCombo();
+}
+function pwToggleLang(l){ view.pwLang=l; renderPwCombo(); }
+function pwCompose(){
+  const r=pwBuildPrompt(view.pwSel,view.pwLang);
+  const box=document.getElementById('pw_text'); if(box) box.value=view.pwLang==='en'?(r.en||''):(r.zh||'');
+  return r;
+}
+function pwCopyCombo(){
+  const box=document.getElementById('pw_text'); if(!box) return;
+  try{ navigator.clipboard.writeText(box.value); toast('组合描述已复制'); }catch(e){ toast('复制失败，请手动选中文本'); }
+}
+/* 只改 view.shotDraft，绝不直接 addShot、绝不重绘分镜表单（FB-1：#s_name/#s_note 不丢） */
+function pwApplyToDraft(){
+  const patch=pwShotPatch(view.pwSel);
+  Object.assign(view.shotDraft=view.shotDraft||{},patch);
+  const msg=document.getElementById('pwComboMsg'); if(msg) msg.textContent='已填入，点「添加分镜」落库';
+  toast('已填入分镜草稿');
+}
+function pwTogglePrint(key){
+  const d=view.shotDraft=view.shotDraft||{};
+  d.pwPrintKeys=Array.isArray(d.pwPrintKeys)?d.pwPrintKeys.slice():[];
+  const i=d.pwPrintKeys.indexOf(key);
+  if(i>=0) d.pwPrintKeys.splice(i,1);
+  else { if(d.pwPrintKeys.length>=3){ toast('手册打印参考图最多 3 张'); return; } d.pwPrintKeys.push(key); }
+  renderPwGrid();
+}
+/* 按需缩略图：本地无图才抓一张 KB 级图；无 URL / 网络失败都只显示占位，不影响主流程。
+   复用现有通用 fetch 包装与 Blob→dataURL helper，不新增第二处网络调用入口。 */
+async function pwEnsureThumb(entry,kind,angle){
+  if(!entry) return null;
+  kind=kind||view.pwKind;
+  const k=pwEntryKey(entry,kind,angle);
+  if(!k) return null;
+  if(imgCache[k]) return imgCache[k];
+  let rec=null;
+  try{ rec=await idb.getPwImg(k); }catch(e){}
+  if(rec&&rec.data){ imgCache[k]=rec.data; return rec.data; }
+  /* 导入词表可自带缩略图 dataURL（离线固化），优先走这条，不发网络请求 */
+  const inline=String(entry.data||entry.thumbData||'');
+  const src=String(entry.src||'');
+  let data='';
+  if(inline.indexOf('data:')===0) data=inline;
+  else if(/^https?:/.test(src)){
+    try{
+      const r=await fetchShiseiWithTimeout(src,12000);
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      data=await shiseiBlobToDataURL(await r.blob());
+    }catch(e){ data=''; }     // 失败降级：占位卡片，状态不卡在「同步中」
+  }
+  if(!data) return null;
+  imgCache[k]=data;
+  try{
+    await idb.putPwImg(k,{key:k,kind:kind,data:data,srcUrl:src,bytes:data.length,syncedAt:Date.now(),
+      zh:entry.zh||'',en:entry.en||'',cat:entry.cat||''});
+    const st=await idb.pwImgStats();
+    view.pwStatus='缩略图 '+st.count+' 张'; pwRenderStatus();
+  }catch(e){
+    if(String(e&&e.name).indexOf('Quota')>=0){ view.pwStatus='已暂停：存储空间不足'; pwRenderStatus(); toast('PoseWear 存储空间不足，已暂停'); }
+  }
+  return data;
+}
+function pwDetectKind(raw,name){
+  const n=String(name||'').toLowerCase();
+  if(n.indexOf('pose')>=0) return 'pose';
+  if(n.indexOf('costume')>=0) return 'costume';
+  if(n.indexOf('portrait')>=0||n.indexOf('hair')>=0) return 'portrait';
+  const arr=Array.isArray(raw)?raw:(Array.isArray(raw&&raw.items)?raw.items:[]);
+  const first=arr[0]||{};
+  if(Array.isArray(first.angles)||String(first.id||'').indexOf('full_')===0) return 'pose';
+  if(first.kw||first['キーワード']||/^SPR-/.test(String(first.id||''))) return 'costume';
+  return 'portrait';
+}
+async function pwImportFiles(files){
+  const arr=Array.from(files||[]);
+  if(!arr.length) return;
+  let total=0, skipped=0;
+  for(const f of arr){
+    try{
+      const text=await f.text();
+      const raw=JSON.parse(text);
+      const kind=pwDetectKind(raw,f.name);
+      const items=kind==='pose'?pwParsePoseCatalog(raw):(kind==='costume'?pwParseCostumeCatalog(raw):pwParsePortraitCatalog(raw));
+      await idb.putPwMeta(PW_META_KEY[kind],{version:pwCatalogVersion(text),fetchedAt:Date.now(),items:items});
+      pwItems[kind]=items; total+=items.length;
+    }catch(e){ skipped++; }
+  }
+  view.pwStatus=total?('已导入 '+total+' 条'):view.pwStatus;
+  renderPwPanel();
+  toast('已导入 '+total+' 条'+(skipped?'，跳过 '+skipped+' 个文件':''));
+}
+/* 上游元数据刷新：失败只提示并降级为已导入词表，不卡 UI、不影响既有分镜 */
+function pwExtractCatalog(text){
+  const s=String(text||'');
+  const m=/const\s+D\s*=\s*(\[[\s\S]*?\])\s*;/.exec(s);
+  const body=m?m[1]:(s.slice(Math.max(0,s.indexOf('[')),s.lastIndexOf(']')+1));
+  try{ return JSON.parse(body); }catch(e){ return []; }
+}
+async function pwRefreshMeta(){
+  view.pwStatus='同步中'; pwRenderStatus();
+  let total=0, failed=0;
+  for(const kind of ['pose','costume','portrait']){
+    try{
+      const url=kind==='pose'?PW_POSE_ORIGIN:(kind==='costume'?PW_COSTUME_ORIGIN:PW_PORTRAIT_ORIGIN);
+      const r=await fetchShiseiWithTimeout(url,12000);
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const text=await r.text();
+      const raw={items:pwExtractCatalog(text)};
+      const items=kind==='pose'?pwParsePoseCatalog(raw):(kind==='costume'?pwParseCostumeCatalog(raw):pwParsePortraitCatalog(raw));
+      if(!items.length) throw new Error('EMPTY_CATALOG');
+      await idb.putPwMeta(PW_META_KEY[kind],{version:pwCatalogVersion(text),fetchedAt:Date.now(),items:items});
+      pwItems[kind]=items; total+=items.length;
+    }catch(e){ failed++; }
+  }
+  view.pwStatus=total?('已导入 '+total+' 条'+(failed?'（'+failed+' 项失败，沿用本地词表）':'')):'同步失败，沿用本地词表';
+  renderPwPanel();
+  toast(view.pwStatus);
+}
+function pwClearAll(){
+  const p=cur(); if(!p) return;
+  if(p.demo){ toast('示例项目只读，请点「复制为我的项目」后再修改'); return; }
+  askConfirm('清空 PoseWear 数据？','将删除 posewear_meta / posewear_images 中的元数据与缩略图；不触碰姿势图库、参考图库与项目分镜快照。',async()=>{
+    try{ await idb.clearPosewear(); }catch(e){ toast('清空失败'); return; }
+    pwItems.pose=[]; pwItems.costume=[]; pwItems.portrait=[];
+    Object.keys(imgCache).forEach(function(k){ if(String(k).indexOf('posewear:')===0) delete imgCache[k]; });
+    view.pwStatus='未导入'; view.pwSel={pose:null,poseView:PW_ANGLES[0].view,outfit:null,hair:null};
+    renderPwPanel(); toast('已清空 PoseWear 数据');
+  });
+}
+
 /* 分镜搜索：防抖 + 只重绘 #shotListWrap，表单与搜索框不动，焦点不丢 */
 let shotFilterTimer=null;
 function setShotFilter(v){
@@ -2070,14 +2585,20 @@ function addShot(){
   if(!d||d==='__new'){ toast('请先选择或新建拍摄日'); return; }
   const dur=parseInt(gv('s_dur'),10)||SHOT_DEFAULT_MIN;
   const sc=gv('s_scene'), pos=gv('s_pos')||'', light=gv('s_light')||'', note=gv('s_note').trim();
+  /* v10.5：PoseWear 快照字段来自草稿（pwApplyToDraft 写入），不新增第二条写分镜通路 */
+  const pd=view.shotDraft||{};
+  const pwKeys=['poseId','poseAngle','poseZh','poseEn','outfitId','outfitZh','outfitEn',
+    'hairId','hairZh','hairEn','promptZh','promptEn'];
+  const pwSnap={}; pwKeys.forEach(k=>pwSnap[k]=pd[k]==null?'':pd[k]);
+  const printKeys=Array.isArray(pd.pwPrintKeys)?pd.pwPrintKeys.slice().filter(k=>String(k||'').indexOf('posewear:')===0):[];
   let plan=null;
   ensureShootDate(d);                  // 该日首次产生内容 → 登记为拍摄日（切换查看不登记）
   updateCur(p=>{
     const sameDay=p.shots.filter(x=>(x.date||'')===d);
     const ord=sameDay.length?Math.max(...sameDay.map(x=>x.ord||0))+1:0;
-    p.shots.push({id:uid(),name:name,date:d,duration:dur,
+    p.shots.push(Object.assign({id:uid(),name:name,date:d,duration:dur,
       sceneId:(sc&&sc!=='__new')?sc:'',position:pos,light:light,
-      refIds:[...selRefs].slice(0,3),note:note,done:false,ord:ord,fav:false});
+      refIds:[...selRefs].slice(0,3),note:note,done:false,ord:ord,fav:false,pwPrintKeys:printKeys},pwSnap));
     plan=applyDay(p,d,null);      // 落库即重排：slot 由排程引擎派生（不写死时间）
   });
   selRefs=[]; view.shotDraft={}; if(view.editingShotEditId) view.editingShotEditId=null;
@@ -3032,6 +3553,14 @@ function callSheetHtml(p){
 async function openDoc(kind){
   const p=cur(); if(!p) return;
   await ensureShiseiRefs(p);
+  /* v10.5：执行手册按 shot.pwPrintKeys 内联 PW 缩略图（独立 store；绝不写进 refIds / p.refs） */
+  if(kind==='manual'){
+    const keys=[];
+    (p.shots||[]).forEach(function(s){(s.pwPrintKeys||[]).forEach(function(k){
+      if(String(k||'').indexOf('posewear:')===0&&keys.indexOf(k)<0) keys.push(k);
+    });});
+    for(const k of keys){ if(!imgCache[k]){ try{ const rec=await idb.getPwImg(k); if(rec&&rec.data) imgCache[k]=rec.data; }catch(e){} } }
+  }
   /* 提案才提供「导出 HTML 文件」（原独立按钮已移入此处），通告单 / 手册走打印 */
   const exBtn=document.getElementById('docExportBtn');
   if(exBtn) exBtn.style.display=(kind==='proposal')?'':'none';
@@ -3069,22 +3598,31 @@ async function openDoc(kind){
     /* v10.3：执行手册分镜表按需追加「参考图」列——取每条分镜挂的参考图（我的素材 + 姿势图库，已由
        ensureShiseiRefs / cacheProjectImages 预载到 imgCache），图文对照便于现场直接执行；
        shisei 引用未同步到本机时给占位提示，不静默丢列 */
-    const shotRefs=s=>(s.refIds||[]);
-    const refCell=s=>shotRefs(s).length
-      ?shotRefs(s).map(r=>imgCache[r]
-        ?'<img class="shot-ref" src="'+esc(imgCache[r])+'" title="参考图">'
-        :(String(r||'').startsWith('shisei:')?'<span class="shot-ref shot-ref-miss">图库未同步</span>':'')).join('')
-      :'—';
-    const anyRefs=p.shots.some(s=>shotRefs(s).length);
+    const shotRefs=s=>(s.refIds||[]).slice();
+    /* v10.5 决策 C：pwPrintKeys 只喂执行手册参考图列，绝不回写 refIds / p.refs */
+    const pwKeys=s=>(s.pwPrintKeys||[]).filter(k=>String(k||'').indexOf('posewear:')===0);
+    const refCell=s=>{
+      const all=shotRefs(s).concat(pwKeys(s));
+      return all.length?all.map(function(r){
+        const isPw=String(r||'').indexOf('posewear:')===0;
+        return imgCache[r]
+          ?'<img class="shot-ref" src="'+esc(imgCache[r])+'" title="'+(isPw?'PoseWear 参考':'参考图')+'">'
+          :(String(r||'').startsWith('shisei:')?'<span class="shot-ref shot-ref-miss">图库未同步</span>':'');
+      }).join(''):'—';
+    };
+    const anyRefs=p.shots.some(s=>shotRefs(s).length||pwKeys(s).length);
+    /* v10.5 决策 A：中英描述只进执行手册（内部物料），客户提案保持与基线一致 */
+    const anyPrompt=p.shots.some(s=>s.promptZh||s.promptEn);
     h+='<h2>三、分镜头清单</h2><table><tr><th>时间</th><th>分镜</th>'+(anyRefs?'<th>参考图</th>':'')+'<th>场景</th><th>时长</th>'
-      +(anyPos?'<th>机位</th>':'')+(anyLight?'<th>光线</th>':'')+'<th>备注</th></tr>'
+      +(anyPos?'<th>机位</th>':'')+(anyLight?'<th>光线</th>':'')+(anyPrompt?'<th class="prompt-col">动作与穿搭</th>':'')+'<th>备注</th></tr>'
       +li([...p.shots].sort((a,b)=>shotSortKey(a)<shotSortKey(b)?-1:1),
         s=>{const sc=p.scenes.find(x=>x.id===s.sceneId);return '<tr><td class="nw">'+esc(s.date||'')+' '+esc(s.slot||'')+'</td><td>'+esc(s.name)+'</td>'
           +(anyRefs?'<td class="ref-cell">'+refCell(s)+'</td>':'')
           +'<td>'+esc(sc?sc.name:'—')+'</td><td class="nw">'+s.duration+' 分钟</td>'
           +(anyPos?'<td>'+esc(s.position||'—')+'</td>':'')
           +(anyLight?'<td>'+esc(s.light||'—')+'</td>':'')
-          +'<td>'+esc(s.note||'—')+'</td></tr>';},6+(anyRefs?1:0)+(anyPos?1:0)+(anyLight?1:0))
+          +(anyPrompt?'<td class="prompt-cell">'+esc(s.promptZh||'—')+(s.promptEn?'<div class="muted">'+esc(s.promptEn)+'</div>':'')+'</td>':'')
+          +'<td>'+esc(s.note||'—')+'</td></tr>';},6+(anyRefs?1:0)+(anyPos?1:0)+(anyLight?1:0)+(anyPrompt?1:0))
       +(anyRefs?'<p class="muted" style="margin:6px 0 14px">分镜参考图随手册打印 / 存为 PDF 一并输出；「图库未同步」的姿势参考需回应用端同步姿势图库后重新打开。</p>':'')+'</table>'
       +'<h2>四、拍摄日流程</h2><table><tr><th>时间</th><th>环节</th><th>内容</th><th>备注</th></tr>'
       +li([...p.schedule].sort((a,b)=>(a.start||'99')<(b.start||'99')?-1:1),
@@ -3538,7 +4076,9 @@ document.addEventListener('keydown',e=>{
 (async()=>{
   document.head.insertAdjacentHTML('beforeend','<style id="cvPublicStyle">'+PUBLIC_STYLE+'</style>');
   window.addEventListener('resize',fitCovers);
-  await initData(); seed(); await ensureV9Demo(); renderBoard();
+  await initData(); seed(); await ensureV9Demo();
+  await pwLoadMeta();                 // v10.5：PW 词表缓存（失败降级为空，UI 仍显示分类面板）
+  renderBoard();
   shiseiInitReady=true; startShiseiSync();
 })();
 document.addEventListener('visibilitychange',()=>{
