@@ -717,5 +717,12 @@ check('PW-15 真实 portrait 条目组合：与 §5.2 逐字一致且人像前�
   JSON.stringify({zhOk:PW15.zhOk,enOk:PW15.enOk,zhPrefix:PW15.zhPrefix,enPrefix:PW15.enPrefix,
     zh:(PW15.zh||'').slice(0,70),patchOk:PW15.patchOk}));
 
+// PW-16（QA P2）：上游「系統」为日文，a:1 来源标记需识别 セクシー
+const PW16 = vm.runInContext(`(()=>{
+  const r=pwParsePoseCatalog([{id:'full_sexy_P001_front','系統':'全身1人・セクシー系','分類':'立ち'}]);
+  return {a:r[0].a,cat:r[0].cat};
+})()`, ctx);
+check('PW-16 姿势 a:1 标记识别上游日文 セクシー', PW16.a===1&&PW16.cat==='站姿', JSON.stringify(PW16));
+
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

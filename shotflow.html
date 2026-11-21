@@ -361,6 +361,12 @@ svg{display:inline-block;vertical-align:middle}
 .doc .prompt-cell{min-width:105px;max-width:120px;font-size:10.5px;line-height:1.4;white-space:normal;word-break:break-word;vertical-align:top}
 .doc .prompt-cell .muted{font-size:10.5px;line-height:1.4}
 @media screen and (max-width:768px){.doc th.prompt-col{width:88px}.doc .prompt-cell{min-width:80px;max-width:92px}}
+/* 执行手册是内部物料：纸面略宽，给「动作与穿搭」更多横向空间，降低长提示词造成的行高/分页浪费 */
+.doc-modal.manual .modal{max-width:1020px}
+.doc-modal.manual .doc{max-width:920px}
+.doc-modal.manual .doc th.prompt-col{width:180px}
+.doc-modal.manual .doc .prompt-cell{min-width:160px;max-width:210px}
+@media screen and (max-width:768px){.doc-modal.manual .doc th.prompt-col{width:88px}.doc-modal.manual .doc .prompt-cell{min-width:80px;max-width:92px}}
 
 .backup-tip{background:#fdf8ec;border:1px solid #eadfc4;color:#7c6222;padding:10px 16px;border-radius:10px;font-size:12.5px;margin-bottom:16px;display:none;align-items:center;gap:8px}
 .backup-tip.show{display:flex}
@@ -903,7 +909,7 @@ function pwParsePoseCatalog(raw){
       const jaCat=String(e.cat||e['分類']||'');
       const g={id:gid,no:String(e.no||e['ポーズ番号']||gid.replace(/^.*_P/,'P')),
         line:sys,cat:PW_POSE_CAT_TR[jaCat]||jaCat,zh:String(e.zh||tr.zh||ja),en:String(e.en||tr.en||''),
-        ja:ja,angles:[],a:(e.a===1||/性感|二人|2人/.test(sys))?1:0,
+        ja:ja,angles:[],a:(e.a===1||/性感|セクシー|二人|2人/.test(sys))?1:0,
         data:String(e.data||e.thumbData||''),srcFull:String(e.src||'')};
       byId[gid]=g; groups.push(g);
     }
@@ -2146,7 +2152,7 @@ function pwGridHtml(){
     const printed=Array.isArray((view.shotDraft||{}).pwPrintKeys)&&view.shotDraft.pwPrintKeys.indexOf(k)>=0;
     return '<div class="pw-card'+(sel?' on':'')+'" data-id="'+esc(it.id)+'" onclick="pwSelectItem('+jstr(it.id)+')">'
       +(thumb?'<img src="'+esc(thumb)+'" alt="'+esc(it.zh||it.id)+'">':'<div class="pw-miss">点选加载缩略图</div>')
-      +'<div class="pw-zh">'+esc(it.zh||it.id)+(it.a===1?'':'')+'</div>'
+      +'<div class="pw-zh">'+esc(it.zh||it.id)+'</div>'
       +'<div class="pw-en">'+esc(it.en||'')+'</div>'
       +(angles?'<div class="pw-angles">'+angles+'</div>':'')
       +'<button class="btn '+(printed?'btn-primary':'btn-ghost')+' btn-sm" style="width:100%;margin-top:5px" onclick="event.stopPropagation();pwTogglePrint('+jstr(k)+')">'
@@ -3556,6 +3562,7 @@ function callSheetHtml(p){
 }
 async function openDoc(kind){
   const p=cur(); if(!p) return;
+  document.getElementById('docModal').classList.toggle('manual',kind==='manual');
   await ensureShiseiRefs(p);
   /* v10.5：执行手册按 shot.pwPrintKeys 内联 PW 缩略图（独立 store；绝不写进 refIds / p.refs） */
   if(kind==='manual'){
@@ -3611,7 +3618,8 @@ async function openDoc(kind){
         const isPw=String(r||'').indexOf('posewear:')===0;
         return imgCache[r]
           ?'<img class="shot-ref" src="'+esc(imgCache[r])+'" title="'+(isPw?'PoseWear 参考':'参考图')+'">'
-          :(String(r||'').startsWith('shisei:')?'<span class="shot-ref shot-ref-miss">图库未同步</span>':'');
+          :(String(r||'').startsWith('shisei:')?'<span class="shot-ref shot-ref-miss">图库未同步</span>'
+            :(isPw?'<span class="shot-ref shot-ref-miss">PW 图未同步</span>':''));
       }).join(''):'—';
     };
     const anyRefs=p.shots.some(s=>shotRefs(s).length||pwKeys(s).length);
@@ -3649,6 +3657,7 @@ async function openDoc(kind){
 }
 function closeDoc(){
   document.getElementById('docModal').classList.remove('show');
+  document.getElementById('docModal').classList.remove('manual');
   const exBtn=document.getElementById('docExportBtn'); if(exBtn) exBtn.style.display='none';
 }
 
