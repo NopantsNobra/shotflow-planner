@@ -865,14 +865,15 @@ function pwCatalogVersion(text){
   return s.length+'-'+h.toString(36);
 }
 /* 上游模板尾句必须剥离，否则会污染出图提示词 */
+/* 设计 §4：只取 len + st 组成「发型短语」，保证不出现「面部参考」尾句，
+   也不能复用上游整句 zh/en（否则组合时会重复「一位亚洲年轻女性 / young Asian woman」前缀）。 */
 function pwHairPhrase(p,lang){
   if(!p||typeof p!=='object') return '';
   const zhTail='。作为人物面部参考，保持五官和脸型一致。', enTail=', consistent facial features, face reference';
   const len=String(p.len==null?'':p.len), st=String(p.st==null?'':p.st);
-  let zh=String(p.zh==null?'':p.zh).split(zhTail)[0];
-  let en=String(p.en==null?'':p.en).split(enTail)[0];
-  if(!zh) zh=len+(st?'（'+st+'）':'');
-  if(!en){ const el=String(p.lenEn==null?'':p.lenEn), es=String(p.stEn==null?'':p.stEn); en=el+(es?(el?', ':'')+es:''); }
+  const lenEn=String(p.lenEn==null?'':p.lenEn), stEn=String(p.stEn==null?'':p.stEn);
+  const zh=(len+(st?'（'+st+'）':'')).split(zhTail)[0];
+  const en=(lenEn+(stEn?(lenEn?', ':'')+stEn:'')).split(enTail)[0];
   return lang==='en'?en:zh;
 }
 const PW_POSE_CAT_TR={'立ち':'站姿','座り':'坐姿','膝立ち':'跪立','横座り・女の子座り':'侧坐·鸭子坐',
@@ -937,11 +938,14 @@ function pwParsePortraitCatalog(raw){
   const list=Array.isArray(raw)?raw:(Array.isArray(raw&&raw.items)?raw.items:[]);
   return list.filter(function(e){return e&&e.id;}).map(function(e){
     const o={id:String(e.id),no:String(e.no||''),sec:String(e.sec||''),len:String(e.len||''),st:String(e.st||e.style||''),
+      lenEn:String(e.lenEn||''),stEn:String(e.stEn||''),   // 英文短语素材，供 pwHairPhrase 组合用
       zh:'',en:'',t:String(e.t||e.thumb||('r/m/'+String(e.id)+'.webp')),
       src:String(e.src||(PW_PORTRAIT_ORIGIN+'img/thumb/'+String(e.id)+'.webp')),
       data:String(e.data||e.thumbData||'')};
-    o.zh=pwHairPhrase({zh:e.zh,len:o.len,st:o.st},'zh');
-    o.en=pwHairPhrase({en:e.en,lenEn:e.lenEn,stEn:e.stEn},'en');
+    /* 卡片描述保留上游整句（仅剥离模板尾句）；组合用短语由 pwHairPhrase 单独取 len/st，二者口径不同 */
+    const zhTail='。作为人物面部参考，保持五官和脸型一致。', enTail=', consistent facial features, face reference';
+    o.zh=String(e.zh==null?'':e.zh).split(zhTail)[0]||('一位亚洲年轻女性，'+pwHairPhrase(o,'zh')+'。');
+    o.en=String(e.en==null?'':e.en).split(enTail)[0]||('young Asian woman, '+pwHairPhrase(o,'en'));
     return o;
   });
 }

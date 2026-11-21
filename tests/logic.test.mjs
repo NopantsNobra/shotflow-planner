@@ -639,10 +639,10 @@ const PW09 = vm.runInContext(`(()=>{
 check('PW-09 pwMigrateShot 12 字段快照 / 不覆盖 / 幂等 / 与 migrate 内联一致',
   PW09.n===12&&PW09.kept&&PW09.print&&PW09.idem&&PW09.same&&PW09.printSame, JSON.stringify(PW09));
 
-check('PW-10 pwHairPhrase 中英均剥离面部参考尾句，空输入空串', vm.runInContext(`(()=>{
+check('PW-10 pwHairPhrase 只取 len/st（不复用整句前缀、不含面部参考尾句）', vm.runInContext(`(()=>{
   const zh=pwHairPhrase({len:'短发',st:'收腰短发',zh:'一位亚洲年轻女性，短发。作为人物面部参考，保持五官和脸型一致。'},'zh');
   const en=pwHairPhrase({lenEn:'short hair',stEn:'layered',en:'young Asian woman, short hair, consistent facial features, face reference'},'en');
-  return zh==='一位亚洲年轻女性，短发'&&en==='young Asian woman, short hair'&&pwHairPhrase(null,'zh')==='';
+  return zh==='短发（收腰短发）'&&en==='short hair, layered'&&pwHairPhrase(null,'zh')==='';
 })()`, ctx));
 
 const PW11 = vm.runInContext(`(()=>{
@@ -690,6 +690,32 @@ const PW14 = vm.runInContext(`(()=>{
 })()`, ctx);
 check('PW-14 所有 PW key 以 posewear: 开头且空角度无尾冒号',
   PW14.prefix && PW14.noTail && PW14.key==='posewear:pose:P001:front', PW14.key);
+
+// PW-15（QA PW-B4-01 回归）：真实人像条目（含上游模板尾句）经 parse → buildPrompt，前缀只出现一次
+const PW15 = vm.runInContext(`(()=>{
+  const raw=[{id:'f71f980dde3',sec:'生活照',len:'短发',st:'收腰短发（后颈留长·空气刘海）',
+    lenEn:'short hair',stEn:'layered short hair with longer nape, see-through bangs',
+    zh:'一位亚洲年轻女性，短发，收腰短发（后颈留长·空气刘海），正面半身肖像，浅灰纯色背景，柔和均匀的光线。作为人物面部参考，保持五官和脸型一致。',
+    en:'young Asian woman, short hair, layered short hair with longer nape, see-through bangs, front portrait, consistent facial features, face reference'}];
+  const hair=pwParsePortraitCatalog(raw)[0];
+  const pose={id:'P001',zh:'S形站姿·胯部侧顶',en:'S-curve standing pose, hip pushed out to the side',
+    angle:{view:'front',zh:'正面',en:'front view'}};
+  const outfit={id:'SPR-0001',zh:'外穿大衣，下身配象牙白荷叶边针织牛仔短裙，配袜子，脚踩白色运动鞋。',
+    en:'spring outfit, ivory frill knit denim mini skirt, coat, socks, white sneakers'};
+  const sel={pose:pose,outfit:outfit,hair:hair};
+  const r=pwBuildPrompt(sel,'zh'), patch=pwShotPatch(sel);
+  const cnt=(str,sub)=>str.split(sub).length-1;
+  const EXP_ZH='一位亚洲年轻女性，短发（收腰短发（后颈留长·空气刘海）），S形站姿·胯部侧顶（正面），外穿大衣，下身配象牙白荷叶边针织牛仔短裙，配袜子，脚踩白色运动鞋。';
+  const EXP_EN='young Asian woman, short hair, layered short hair with longer nape, see-through bangs, S-curve standing pose, hip pushed out to the side, front view, spring outfit, ivory frill knit denim mini skirt, coat, socks, white sneakers';
+  return {zh:r.zh,en:r.en,zhOk:r.zh===EXP_ZH,enOk:r.en===EXP_EN,
+    zhPrefix:cnt(r.zh,'一位亚洲年轻女性'),enPrefix:cnt(r.en,'young Asian woman'),
+    hairZh:patch.hairZh,hairEn:patch.hairEn,
+    patchOk:patch.hairZh==='短发（收腰短发（后颈留长·空气刘海））'&&patch.promptZh===r.zh};
+})()`, ctx);
+check('PW-15 真实 portrait 条目组合：与 §5.2 逐字一致且人像前缀只出现 1 次',
+  PW15.zhOk && PW15.enOk && PW15.zhPrefix === 1 && PW15.enPrefix === 1 && PW15.patchOk,
+  JSON.stringify({zhOk:PW15.zhOk,enOk:PW15.enOk,zhPrefix:PW15.zhPrefix,enPrefix:PW15.enPrefix,
+    zh:(PW15.zh||'').slice(0,70),patchOk:PW15.patchOk}));
 
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);
