@@ -2,10 +2,29 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, 'refactor/**']
   pull_request:
 
 jobs:
+  # P3 构建一致性 + 代码规范：确认 shotflow.html 与 src/ 源码一致，且 lint/format 无 error
+  build-quality:
+    name: 构建一致性与代码规范
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: 安装依赖
+        run: npm ci
+      - name: 构建产物一致性
+        run: npm run verify:build
+      - name: ESLint
+        run: npm run lint
+      - name: Prettier 格式检查
+        run: npm run format:check
+
   # 纯逻辑测试：零依赖，Node 直接运行，作为最快的回归门禁
   logic:
     name: 核心逻辑测试
