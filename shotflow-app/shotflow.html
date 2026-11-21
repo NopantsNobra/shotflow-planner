@@ -448,6 +448,24 @@ const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMo
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const jstr=s=>esc(JSON.stringify(String(s==null?'':s)));   // 安全注入内联事件参数
+/* P2 安全加固：颜色值白名单校验。仅允许 hex / rgb() / hsl() 字面量，其余回退默认色。
+   esc() 只做 HTML 属性转义，无法阻挡 CSS 上下文注入（如 `red;position:fixed`），故需此函数。
+   纯函数、无外部依赖，可被逻辑测试直接抽取。 */
+function safeColor(v){
+  const s=String(v==null?'':v).trim();
+  if(/^#[0-9a-fA-F]{3}$/.test(s)||/^#[0-9a-fA-F]{6}$/.test(s)) return s;
+  const c255='(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)';       // 0-255
+  const c360='(?:360|3[0-5]\\d|2\\d\\d|1?\\d?\\d)';   // 0-360（色相，含 360 边界）
+  const c100='(?:100|\\d?\\d)';                        // 0-100（百分比）
+  const alpha='(?:0|1|0?\\.\\d+)';                     // 0-1
+  const rgb='rgb\\(\\s*'+c255+'\\s*,\\s*'+c255+'\\s*,\\s*'+c255+'\\s*\\)';
+  const rgba='rgba\\(\\s*'+c255+'\\s*,\\s*'+c255+'\\s*,\\s*'+c255+'\\s*,\\s*'+alpha+'\\s*\\)';
+  const hsl='hsl\\(\\s*'+c360+'\\s*,\\s*'+c100+'%\\s*,\\s*'+c100+'%\\s*\\)';
+  if(new RegExp('^'+rgb+'$').test(s)) return s;
+  if(new RegExp('^'+rgba+'$').test(s)) return s;
+  if(new RegExp('^'+hsl+'$').test(s)) return s;
+  return '#c8a97e';
+}
 
 /* ===== 素材标签：常量与会话配置 ===== */
 const AI_TAGGING_ENABLED=false;                 // 编译期总开关，本期恒关闭
@@ -1604,7 +1622,7 @@ function renderMoodGrid(p){
     html=filtered.map(m=>{
       let body='';
       if(m.type==='image') body='<img src="'+esc(imgCache[m.content]||'')+'">';
-      else if(m.type==='color') body='<div class="mcolor" style="background:'+esc(m.content)+'"></div>';
+      else if(m.type==='color') body='<div class="mcolor" style="background:'+esc(safeColor(m.content))+'"></div>';
       else body='<div class="mtext">'+esc(m.content)+'</div>';
       const tags=tagsForDisplay(m);
       const chips=tags.length?tags.map(t=>'<button class="tagchip" title="编辑标签" onclick="openTagEditor('+jstr(m.id)+')">#'+esc(t)+'</button>').join(''):'<span class="muted">无标签</span>';
@@ -1678,7 +1696,7 @@ function addMood(type){
   const p=cur();
   if(p&&p.demo){ toast('示例项目只读，请点「复制为我的项目」后再修改'); return; }
   const tags=parseTagsInput(gv('m_tag'));
-  let content=type==='text'?gv('m_text').trim():gv('m_color').value;
+  let content=type==='text'?gv('m_text').trim():safeColor(gv('m_color').value);
   if(type==='text'&&!content){toast('先写点灵感内容');return;}
   updateCur(p=>{
     p.mood.push({id:uid(),type,content,tag:tags[0]||'',tags,fav:false});
@@ -3095,8 +3113,8 @@ async function openDoc(kind){
     +'<dt>目标受众</dt><dd>'+esc(c.audience||'—')+'</dd><dt>成片用途</dt><dd>'+esc(c.usage||'—')+'</dd>'
     +'<dt>创意阐述</dt><dd>'+esc(c.note||'—')+'</dd></dl>'
     +'<h2>二、情绪板</h2>'
-    +(moodColors.length?'<p>'+moodColors.map(m=>'<span class="swatch" style="background:'+esc(m.content)+'"></span>').join('')+'</p>':'')
-    +(moodImgs.length?'<p>'+moodImgs.map(m=>'<img src="'+(imgCache[m.content]||'')+'">').join('')+'</p>':'')
+    +(moodColors.length?'<p>'+moodColors.map(m=>'<span class="swatch" style="background:'+esc(safeColor(m.content))+'"></span>').join('')+'</p>':'')
+    +(moodImgs.length?'<p>'+moodImgs.map(m=>'<img src="'+esc(imgCache[m.content]||'')+'">').join('')+'</p>':'')
     +(moodTexts.length?'<ul>'+moodTexts.map(m=>'<li>'+esc(m.content)+(kind==='manual'?tagsForDisplay(m).map(t=>' <b>#'+esc(t)+'</b>').join(''):'')+'</li>').join('')+'</ul>':'');
   if(kind==='proposal'){
     h+='<h2>三、拍摄安排</h2><dl class="kv"><dt>拍摄日期</dt><dd>'+esc(p.shootDate||'待定')+'</dd>'
@@ -3171,8 +3189,8 @@ async function writeProposalFile(p){
     +'<dt>成片用途</dt><dd>'+esc(c.usage||'—')+'</dd>'
     +'<dt>创意阐述</dt><dd>'+esc(c.note||'—')+'</dd></dl>'
     +'<h2>情绪参考</h2>'
-    +(moodImgs.length?'<div class="imgs">'+moodImgs.map(m=>'<img src="'+(imgCache[m.content]||'')+'">').join('')+'</div>':'')
-    +(moodColors.length?'<div>'+moodColors.map(m=>'<span class="sw" style="background:'+esc(m.content)+'"></span>').join('')+'</div>':'')
+    +(moodImgs.length?'<div class="imgs">'+moodImgs.map(m=>'<img src="'+esc(imgCache[m.content]||'')+'">').join('')+'</div>':'')
+    +(moodColors.length?'<div>'+moodColors.map(m=>'<span class="sw" style="background:'+esc(safeColor(m.content))+'"></span>').join('')+'</div>':'')
     +(moodTexts.length?'<ul>'+moodTexts.map(m=>'<li>'+esc(m.content)+'</li>').join('')+'</ul>':'')
     +'<h2>拍摄安排</h2><dl class="kv">'
     +'<dt>拍摄日期</dt><dd>'+esc(p.shootDate||'待定')+'</dd>'

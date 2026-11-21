@@ -74,6 +74,29 @@ test('FB-1 渲染层回归：输入分镜名后触发重绘，草稿不丢失', 
   await expect(page.locator('#s_name')).toHaveValue('不应丢失的分镜名');
 });
 
+test('P2 安全加固：恶意颜色值在情绪板渲染时被 safeColor 回退，不产生 CSS 注入', async ({ page }) => {
+  await openFreshApp(page);
+  // 直接注入一个带恶意颜色 content 的项目到内存缓存，再进入其情绪板页验证渲染层防护
+  await page.evaluate(() => {
+    const p = {
+      id: 'p2_inject_test', name: 'P2 注入测试', status: '策划中',
+      mood: [{ id: 'm1', type: 'color', content: 'red;position:fixed;top:0;z-index:9999', tags: [], fav: false }],
+      refs: [], shots: [], schedule: [], scenes: [], items: [], budget: [], notes: [], todos: [],
+      dayInit: [], shootDates: [], tagVocab: [], v3: 1, createdAt: Date.now(), updatedAt: Date.now()
+    };
+    const arr = loadP(); arr.push(p); saveP(arr);
+  });
+  await page.evaluate(async () => { await openProject('p2_inject_test'); });
+  await page.locator('.ptab', { hasText: '情绪板' }).click();
+  await expect(page.locator('#moodGrid')).toBeVisible();
+  // 色块 style 应为 safeColor 回退后的默认色，绝不含注入片段
+  const style = await page.locator('.mood-item .mcolor').first().getAttribute('style');
+  expect(style).toContain('#c8a97e');
+  expect(style).not.toContain('position');
+  expect(style).not.toContain('fixed');
+  expect(style).not.toContain('9999');
+});
+
 test('P0 持久化：新建项目后刷新页面，数据仍在（IndexedDB 落盘）', async ({ page }) => {
   await openFreshApp(page);
   await createProject(page, 'E2E 持久化校验');

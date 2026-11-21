@@ -547,6 +547,15 @@ const V28 = vm.runInContext(`(()=>{
 })()`, ctx);
 check('v10.4 ㉘ refs 迁移幂等（不重复补）', V28.n === 1 && V28.same, JSON.stringify(V28));
 
+/* ===== P2 安全加固：颜色值白名单校验（safeColor 纯函数） ===== */
+vm.runInContext(fn('safeColor'), ctx);
+check('P2 safeColor 合法 hex（3/6 位）原样保留', vm.runInContext('safeColor("#fff")+"|"+safeColor("#c8a97e")', ctx) === '#fff|#c8a97e');
+check('P2 safeColor 合法 rgb/rgba/hsl 原样保留', vm.runInContext('safeColor("rgb(12, 34, 56)")+"|"+safeColor("rgba(12,34,56,0.5)")+"|"+safeColor("hsl(120, 50%, 40%)")', ctx) === 'rgb(12, 34, 56)|rgba(12,34,56,0.5)|hsl(120, 50%, 40%)');
+vm.runInContext('globalThis.__inj=["red;position:fixed","url(javascript:alert(1))","#123\\" onload=\\"x","red} body{display:none"]', ctx);
+check('P2 safeColor CSS 注入被回退为默认色', vm.runInContext('__inj.map(safeColor).join("|")', ctx) === '#c8a97e|#c8a97e|#c8a97e|#c8a97e');
+check('P2 safeColor 空值/数字/超范围 rgb 回退', vm.runInContext('safeColor(null)+"|"+safeColor("")+"|"+safeColor(123)+"|"+safeColor("rgb(999,0,0)")+"|"+safeColor("hsl(400,50%,40%)")', ctx) === '#c8a97e|#c8a97e|#c8a97e|#c8a97e|#c8a97e');
+check('P2 safeColor 边界值 255/360/100 保留', vm.runInContext('safeColor("rgb(255,0,255)")+"|"+safeColor("hsl(360,100%,100%)")', ctx) === 'rgb(255,0,255)|hsl(360,100%,100%)');
+
 /* ===== P0 持久化加固：串行写入 / 退避重试 / 隐藏冲刷（saveP 改造） ===== */
 for (const n of ['persistRetryDelay', 'writeProjects', 'flushPersist', 'saveP', 'bindPersistFlush']) vm.runInContext(fn(n), ctx);
 // 公共 mock：可控成功/失败的 idb、收集提示的 toast、Promise
