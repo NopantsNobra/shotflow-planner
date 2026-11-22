@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master, 'refactor/**', 'release/**']
+    branches: [main, master, 'refactor/**', 'release/**', 'perf/**']
   pull_request:
 
 jobs:
@@ -38,6 +38,18 @@ jobs:
           node-version: '20'
       - name: 运行 99 项逻辑测试
         run: node tests/logic.test.mjs
+
+  # 规模压测：数据层/模板层性能基准 + O(N²) 回归门禁（零依赖）
+  perf:
+    name: 规模压测与性能门禁
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 运行规模压测（2000 分镜渲染须 < 50ms）
+        run: node tests/perf.mjs
 
   # 部署副本一致性：防止源文件已改但 shotflow-app/ 未同步就合入
   sync-check:

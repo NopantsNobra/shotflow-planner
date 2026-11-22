@@ -23,12 +23,13 @@ npm run verify:build    # 交付物与源码一致
 npm run verify:version  # 版本号一致（package.json 为真源）
 npm run test:logic      # 逻辑测试（99 项）
 npm run test:e2e        # E2E（需先 npx playwright install chromium）
+npm run test:perf       # 规模压测 + 性能门禁（2000 分镜渲染须 < 50ms）
 npm run lint            # ESLint，须 0 error
 npm run format:check    # Prettier
 npm run sync:check      # 部署副本一致
 ```
 
-CI 会自动跑以上全部检查，4 个 job 全绿才可合入。
+CI 会自动跑以上全部检查，5 个 job 全绿才可合入。
 
 ## 提交规范
 

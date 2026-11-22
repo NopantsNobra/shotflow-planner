@@ -13,6 +13,7 @@
     "test": "npm run test:logic && npm run test:e2e",
     "test:logic": "node tests/logic.test.mjs",
     "test:e2e": "playwright test",
+    "test:perf": "node tests/perf.mjs",
     "sync": "node scripts/sync-app.mjs",
     "sync:check": "node scripts/sync-app.mjs --check"
   },

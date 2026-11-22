@@ -101,7 +101,7 @@
 >
 > **部署副本同步**：构建后运行 `node scripts/sync-app.mjs` 同步到 `shotflow-app/` 再部署；`--check` 校验两端一致（CI 自动执行）。
 >
-> **测试与规范**：`npm install` 后，`npm run test:logic` 跑逻辑测试，`npm run test:e2e` 跑浏览器 E2E（首次需 `npx playwright install chromium`），`npm test` 两者都跑；`npm run lint`、`npm run format:check` 检查代码规范。CI 有 4 个 job（构建一致性/逻辑/E2E/副本同步）。
+> **测试与规范**：`npm install` 后，`npm run test:logic` 跑逻辑测试，`npm run test:e2e` 跑浏览器 E2E（首次需 `npx playwright install chromium`），`npm test` 两者都跑；`npm run test:perf` 跑规模压测（含性能门禁）；`npm run lint`、`npm run format:check` 检查代码规范。CI 有 5 个 job（构建一致性/逻辑/规模压测/E2E/副本同步）。
 
 ---
 
