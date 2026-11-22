@@ -35,6 +35,7 @@ project = {
 
 ## 关键实现
 - **工程加固（P0/P2，2026-11-21）**：① `saveP` 改为串行写链（`persistChain`）+ 固定快照 + 5 次指数退避重试（200→3200ms 封顶 10s）+ `bindPersistFlush()` 在 `visibilitychange→hidden`/`pagehide` 冲刷未落盘数据，消除关页丢数据窗口；② 新增 `safeColor(v)` 纯函数（hex/rgb/rgba/hsl 白名单，其余回退 `#c8a97e`），情绪板色块、执行手册、提案导出三处颜色渲染及 `addMood('color')` 写入路径统一经它，关闭 CSS 注入面；③ 全部 `img src` 拼接统一 `esc()`；④ 测试扩至 99 项（P0 6 项 + P2 5 项），Playwright E2E 3 用例 + GitHub Actions CI（logic/sync-check/e2e 三 job）+ `scripts/sync-app.mjs` 一键同步部署副本
+- **规模性能（压测验证）**：`shotListHtml` 按拍摄日批量预计算 `dayItems` 冲突标记（原先逐条调用是 O(N²)，2000 分镜 ~1125ms → ~7ms）；`tests/perf.mjs` 覆盖看板/分镜/排程/导入/序列化四场景，含 2000 分镜 < 50ms 回归门禁。2000 项目 JSON ~4MB、序列化 ~10ms、反序列化 ~15ms、看板模板 ~4ms，均线性无拐点。
 - 拖拽排序：Pointer Events + setPointerCapture，.drag-handle 触发；persistOrder 落 ord 并继承邻组日期
 - 日落算法：NOAA 近似（eqtime/decl/HA），+ 时区偏移转本地时间；goldenStart=日落-75min
 - 拍摄日模式：schedule 节点 + shots 按时间合并；currentId = 今天未完成中最后不超过当前时间的

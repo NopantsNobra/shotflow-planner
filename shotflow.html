@@ -1915,6 +1915,12 @@ function shotListHtml(p,days){
     if(!g||g.date!==d){ g={date:d,items:[]}; shotGroups.push(g); }
     g.items.push(s);
   });
+  /* 性能：冲突标记若逐条调用 dayItems() 会是 O(N²)（每天全量重排一次）。
+     这里按分组日期一次性计算，构建 shotId→conflict 查表，把复杂度降为 O(天数 + N)。 */
+  const conflictMap={};
+  shotGroups.forEach(function(g){
+    dayItems(p,g.date).forEach(function(it){ if(it._conflict) conflictMap[it.id]=true; });
+  });
   return (sorted.length? '<div id="shotList">'+shotGroups.map(function(g){
         const gi=days.indexOf(g.date);
         const mins=g.items.reduce(function(n,x){ return n+(+x.duration||0); },0);
@@ -1922,7 +1928,7 @@ function shotListHtml(p,days){
           +'（'+g.items.length+' 条 · 合计 '+mins+' 分钟）';
         return '<div class="day-group"><div class="day-head">'+esc(ghead)+'</div>'+g.items.map(function(s){
         const scene=p.scenes.find(x=>x.id===s.sceneId);
-        const clash=dayItems(p,s.date).some(x=>x.id===s.id&&x._conflict);
+        const clash=!!conflictMap[s.id];
         const refs=s.refIds||[];
         const refHtml=refs.length? refs.map((r,ri)=>{
             const img=imgCache[r];
