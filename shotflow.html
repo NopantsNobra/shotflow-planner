@@ -229,25 +229,6 @@ svg{display:inline-block;vertical-align:middle}
 .ref-thumb.ghost{border-style:dashed}
 .noref-add{border:1px dashed var(--line2);border-radius:8px;padding:14px 16px;font-size:12px;color:var(--ink2);background:transparent;flex-shrink:0;transition:border-color .15s,color .15s}
 .noref-add:hover{border-color:var(--accent);color:var(--accent-ink)}
-/* v10.5 PoseWear 面板（挂在分镜页；不新增第 8 个页签） */
-#pwPanel .pw-head{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;margin-bottom:8px}
-#pwPanel .pw-tabs{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0}
-#pwPanel .pw-tabs .ptab{padding:7px 12px 9px}
-#pwPanel .pw-chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
-#pwPanel .pw-chips .chip{min-height:28px;padding:3px 10px;font-size:11.5px}
-#pwPanel .pw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:9px;max-height:430px;overflow-y:auto;margin:10px 0}
-.pw-card{border:1px solid var(--line);border-radius:10px;padding:7px;background:var(--surface);cursor:pointer;min-width:0;transition:border-color .15s,box-shadow .15s}
-.pw-card:hover{border-color:var(--line2)}
-.pw-card.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
-.pw-card img{width:100%;height:86px;object-fit:cover;border-radius:6px;display:block;background:var(--surface-2)}
-.pw-card .pw-miss{width:100%;height:86px;border:1px dashed var(--line2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10.5px;color:var(--ink3);text-align:center;background:var(--surface-2)}
-.pw-card .pw-zh{font-size:12px;font-weight:600;margin-top:5px;line-height:1.4;word-break:break-word}
-.pw-card .pw-en{font-size:10px;color:var(--ink3);line-height:1.35;margin-top:2px;word-break:break-word;max-height:28px;overflow:hidden}
-.pw-card .pw-angles{display:flex;gap:3px;flex-wrap:wrap;margin-top:5px}
-.pw-card .pw-angles button{font-size:10px;padding:2px 6px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2);color:var(--ink2)}
-.pw-card .pw-angles button.on{background:var(--accent);border-color:var(--accent);color:#fff}
-#pwPanel .pw-combo textarea{min-height:72px;font-size:12.5px;margin:6px 0}
-#pwPanel .pw-combo .pw-msg{font-size:11.5px;color:var(--green);min-height:16px}
 
 /* 参考图大图查看 */
 .rv-title{font-size:14px;font-weight:600;margin-bottom:14px}
@@ -357,16 +338,6 @@ svg{display:inline-block;vertical-align:middle}
 .doc .shot-ref{width:112px;height:112px;max-width:none;object-fit:cover;border-radius:6px;margin:2px 3px 2px 0;vertical-align:middle;border:1px solid #ded6ca}
 .doc .shot-ref-miss{width:112px;height:112px;max-width:none;border-radius:6px;margin:2px 3px 2px 0;vertical-align:middle;border:1px dashed #cfc5b3;background:#f3efe6;color:#9c9389;font-size:11px;line-height:1.3;display:inline-flex;align-items:center;justify-content:center;text-align:center;padding:4px;box-sizing:border-box}
 @media screen and (max-width:768px){.doc .shot-ref,.doc .shot-ref-miss{width:84px;height:84px}}  /* 仅屏幕窄屏降档；打印始终 112px */
-.doc th.prompt-col{width:112px}
-.doc .prompt-cell{min-width:105px;max-width:120px;font-size:10.5px;line-height:1.4;white-space:normal;word-break:break-word;vertical-align:top}
-.doc .prompt-cell .muted{font-size:10.5px;line-height:1.4}
-@media screen and (max-width:768px){.doc th.prompt-col{width:88px}.doc .prompt-cell{min-width:80px;max-width:92px}}
-/* 执行手册是内部物料：纸面略宽，给「动作与穿搭」更多横向空间，降低长提示词造成的行高/分页浪费 */
-.doc-modal.manual .modal{max-width:1020px}
-.doc-modal.manual .doc{max-width:920px}
-.doc-modal.manual .doc th.prompt-col{width:180px}
-.doc-modal.manual .doc .prompt-cell{min-width:160px;max-width:210px}
-@media screen and (max-width:768px){.doc-modal.manual .doc th.prompt-col{width:88px}.doc-modal.manual .doc .prompt-cell{min-width:80px;max-width:92px}}
 
 .backup-tip{background:#fdf8ec;border:1px solid #eadfc4;color:#7c6222;padding:10px 16px;border-radius:10px;font-size:12.5px;margin-bottom:16px;display:none;align-items:center;gap:8px}
 .backup-tip.show{display:flex}
@@ -412,6 +383,37 @@ svg{display:inline-block;vertical-align:middle}
 /* 固定高度输入框统一抵消全局 padding：10px 上下 + 1px 边框会把 34px 的内容区压到 12px，导致文字被垂直裁切 */
 .new-scene input,.shot .inline-edit input,.inline-edit input,.shot-edit input,.tag-filter input,.tag-editor input{padding:0 10px;line-height:normal}
 .shot .inline-edit select,.inline-edit select,.shot-edit select{padding:0 22px 0 10px;line-height:normal}
+
+/* v10.5 PoseWear 面板（挂在分镜页；不新增第 8 个页签） */
+#pwPanel .pw-head{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;margin-bottom:8px}
+#pwPanel .pw-tabs{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0}
+#pwPanel .pw-tabs .ptab{padding:7px 12px 9px}
+#pwPanel .pw-chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+#pwPanel .pw-chips .chip{min-height:28px;padding:3px 10px;font-size:11.5px}
+#pwPanel .pw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:9px;max-height:430px;overflow-y:auto;margin:10px 0}
+.pw-card{border:1px solid var(--line);border-radius:10px;padding:7px;background:var(--surface);cursor:pointer;min-width:0;transition:border-color .15s,box-shadow .15s}
+.pw-card:hover{border-color:var(--line2)}
+.pw-card.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.pw-card img{width:100%;height:86px;object-fit:cover;border-radius:6px;display:block;background:var(--surface-2)}
+.pw-card .pw-miss{width:100%;height:86px;border:1px dashed var(--line2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10.5px;color:var(--ink3);text-align:center;background:var(--surface-2)}
+.pw-card .pw-zh{font-size:12px;font-weight:600;margin-top:5px;line-height:1.4;word-break:break-word}
+.pw-card .pw-en{font-size:10px;color:var(--ink3);line-height:1.35;margin-top:2px;word-break:break-word;max-height:28px;overflow:hidden}
+.pw-card .pw-angles{display:flex;gap:3px;flex-wrap:wrap;margin-top:5px}
+.pw-card .pw-angles button{font-size:10px;padding:2px 6px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2);color:var(--ink2)}
+.pw-card .pw-angles button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+#pwPanel .pw-combo textarea{min-height:72px;font-size:12.5px;margin:6px 0}
+#pwPanel .pw-combo .pw-msg{font-size:11.5px;color:var(--green);min-height:16px}
+
+.doc th.prompt-col{width:112px}
+.doc .prompt-cell{min-width:105px;max-width:120px;font-size:10.5px;line-height:1.4;white-space:normal;word-break:break-word;vertical-align:top}
+.doc .prompt-cell .muted{font-size:10.5px;line-height:1.4}
+@media screen and (max-width:768px){.doc th.prompt-col{width:88px}.doc .prompt-cell{min-width:80px;max-width:92px}}
+/* 执行手册是内部物料：纸面略宽，给「动作与穿搭」更多横向空间，降低长提示词造成的行高/分页浪费 */
+.doc-modal.manual .modal{max-width:1020px}
+.doc-modal.manual .doc{max-width:920px}
+.doc-modal.manual .doc th.prompt-col{width:180px}
+.doc-modal.manual .doc .prompt-cell{min-width:160px;max-width:210px}
+@media screen and (max-width:768px){.doc-modal.manual .doc th.prompt-col{width:88px}.doc-modal.manual .doc .prompt-cell{min-width:80px;max-width:92px}}
 </style>
 </head>
 <body>
@@ -477,6 +479,44 @@ const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMo
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const jstr=s=>esc(JSON.stringify(String(s==null?'':s)));   // 安全注入内联事件参数
+/* P2 安全加固：颜色值白名单校验。仅允许 hex / rgb() / hsl() 字面量，其余回退默认色。
+   esc() 只做 HTML 属性转义，无法阻挡 CSS 上下文注入（如 `red;position:fixed`），故需此函数。
+   纯函数、无外部依赖，可被逻辑测试直接抽取。 */
+function safeColor(v){
+  const s=String(v==null?'':v).trim();
+  if(/^#[0-9a-fA-F]{3}$/.test(s)||/^#[0-9a-fA-F]{6}$/.test(s)) return s;
+  const c255='(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)';       // 0-255
+  const c360='(?:360|3[0-5]\\d|2\\d\\d|1?\\d?\\d)';   // 0-360（色相，含 360 边界）
+  const c100='(?:100|\\d?\\d)';                        // 0-100（百分比）
+  const alpha='(?:0|1|0?\\.\\d+)';                     // 0-1
+  const rgb='rgb\\(\\s*'+c255+'\\s*,\\s*'+c255+'\\s*,\\s*'+c255+'\\s*\\)';
+  const rgba='rgba\\(\\s*'+c255+'\\s*,\\s*'+c255+'\\s*,\\s*'+c255+'\\s*,\\s*'+alpha+'\\s*\\)';
+  const hsl='hsl\\(\\s*'+c360+'\\s*,\\s*'+c100+'%\\s*,\\s*'+c100+'%\\s*\\)';
+  if(new RegExp('^'+rgb+'$').test(s)) return s;
+  if(new RegExp('^'+rgba+'$').test(s)) return s;
+  if(new RegExp('^'+hsl+'$').test(s)) return s;
+  return '#c8a97e';
+}
+
+/* ===== v10.5 PoseWear：全量分类词表（管理员决定 B：含成人向类目，无 18+ 开关、无默认隐藏） =====
+   a:1 只作来源标记，不参与任何过滤；a:1 类目与其他类目一视同仁展示。 */
+const PW_POSE_LINES=['全身·性感','全身·标准','上半身','双人互动'];
+const PW_POSE_CATS=['可爱','坐姿','站姿','跪立','躺卧','侧坐·鸭子坐','蹲姿','前倾','后仰','扭身','性感·大胆','成人向'];
+const PW_COSTUME_CATS=['春季','夏季','秋季','冬季','内衣','派对礼服','泳装','性感'];
+const PW_HAIR_CATS=['正脸','生活照','短发','中长发','半长发','长发'];
+const PW_ANGLES=[
+  {view:'front',zh:'正面',en:'front view',ja:'正面'},
+  {view:'high',zh:'俯拍',en:'high angle, from above',ja:'上から'},
+  {view:'low',zh:'仰拍',en:'low angle, from below',ja:'下から'},
+  {view:'side',zh:'侧面',en:'side view',ja:'横'},
+  {view:'diag',zh:'斜侧',en:'three-quarter view',ja:'斜め'}
+];
+const PW_META_KEY={pose:'catalog:pose',costume:'catalog:costume',portrait:'catalog:portrait'};
+const PW_SYNC_KEY='sync';
+const PW_CREDIT='姿势 / 服装来源：@giaaibusi（AI Pose Gallery / AI Costume Gallery）· 人像来源：@agi_aibusi（AI Portrait Gallery, CC0）｜开源：github.com/atuizz/posewear';
+const PW_POSE_ORIGIN='https://ai-pose-gallery.pages.dev/';
+const PW_COSTUME_ORIGIN='https://ai-costume-gallery.pages.dev/';
+const PW_PORTRAIT_ORIGIN='https://ai-portrait-gallery.pages.dev/';
 
 /* ===== 素材标签：常量与会话配置 ===== */
 const AI_TAGGING_ENABLED=false;                 // 编译期总开关，本期恒关闭
@@ -508,26 +548,6 @@ const TAG_SUGGESTIONS=[
 /* v10：分镜「机位」「光线」固定选项（不进 tagVocab，避免污染素材标签词表） */
 const POSITION_OPTS=['平视','俯拍','仰拍','过肩','低机位','鸟瞰','侧背','正面'];
 const LIGHT_OPTS=['顺光','侧光','侧逆光','逆光','顶光','窗光','黄金时刻','剪影','蓝调'];
-
-/* ===== v10.5 PoseWear：全量分类词表（管理员决定 B：含成人向类目，无 18+ 开关、无默认隐藏） =====
-   a:1 只作来源标记，不参与任何过滤；a:1 类目与其他类目一视同仁展示。 */
-const PW_POSE_LINES=['全身·性感','全身·标准','上半身','双人互动'];
-const PW_POSE_CATS=['可爱','坐姿','站姿','跪立','躺卧','侧坐·鸭子坐','蹲姿','前倾','后仰','扭身','性感·大胆','成人向'];
-const PW_COSTUME_CATS=['春季','夏季','秋季','冬季','内衣','派对礼服','泳装','性感'];
-const PW_HAIR_CATS=['正脸','生活照','短发','中长发','半长发','长发'];
-const PW_ANGLES=[
-  {view:'front',zh:'正面',en:'front view',ja:'正面'},
-  {view:'high',zh:'俯拍',en:'high angle, from above',ja:'上から'},
-  {view:'low',zh:'仰拍',en:'low angle, from below',ja:'下から'},
-  {view:'side',zh:'侧面',en:'side view',ja:'横'},
-  {view:'diag',zh:'斜侧',en:'three-quarter view',ja:'斜め'}
-];
-const PW_META_KEY={pose:'catalog:pose',costume:'catalog:costume',portrait:'catalog:portrait'};
-const PW_SYNC_KEY='sync';
-const PW_CREDIT='姿势 / 服装来源：@giaaibusi（AI Pose Gallery / AI Costume Gallery）· 人像来源：@agi_aibusi（AI Portrait Gallery, CC0）｜开源：github.com/atuizz/posewear';
-const PW_POSE_ORIGIN='https://ai-pose-gallery.pages.dev/';
-const PW_COSTUME_ORIGIN='https://ai-costume-gallery.pages.dev/';
-const PW_PORTRAIT_ORIGIN='https://ai-portrait-gallery.pages.dev/';
 
 /* ===== 提案出版系统：画廊扉页封面 + 统一文档排版 ===== */
 const CV_DIAMOND = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 960 1500' fill='none'><path d='M-2000,-3500 L2000,500 M-2000,-3460 L2000,540 M-2000,-3420 L2000,580 M-2000,-3380 L2000,620 M-2000,-3340 L2000,660 M-2000,-3300 L2000,700 M-2000,-3260 L2000,740 M-2000,-3220 L2000,780 M-2000,-3180 L2000,820 M-2000,-3140 L2000,860 M-2000,-3100 L2000,900 M-2000,-3060 L2000,940 M-2000,-3020 L2000,980 M-2000,-2980 L2000,1020 M-2000,-2940 L2000,1060 M-2000,-2900 L2000,1100 M-2000,-2860 L2000,1140 M-2000,-2820 L2000,1180 M-2000,-2780 L2000,1220 M-2000,-2740 L2000,1260 M-2000,-2700 L2000,1300 M-2000,-2660 L2000,1340 M-2000,-2620 L2000,1380 M-2000,-2580 L2000,1420 M-2000,-2540 L2000,1460 M-2000,-2500 L2000,1500 M-2000,-2460 L2000,1540 M-2000,-2420 L2000,1580 M-2000,-2380 L2000,1620 M-2000,-2340 L2000,1660 M-2000,-2300 L2000,1700 M-2000,-2260 L2000,1740 M-2000,-2220 L2000,1780 M-2000,-2180 L2000,1820 M-2000,-2140 L2000,1860 M-2000,-2100 L2000,1900 M-2000,-2060 L2000,1940 M-2000,-2020 L2000,1980 M-2000,-1980 L2000,2020 M-2000,-1940 L2000,2060 M-2000,-1900 L2000,2100 M-2000,-1860 L2000,2140 M-2000,-1820 L2000,2180 M-2000,-1780 L2000,2220 M-2000,-1740 L2000,2260 M-2000,-1700 L2000,2300 M-2000,-1660 L2000,2340 M-2000,-1620 L2000,2380 M-2000,-1580 L2000,2420 M-2000,-1540 L2000,2460 M-2000,-1500 L2000,2500 M-2000,-1460 L2000,2540 M-2000,-1420 L2000,2580 M-2000,-1380 L2000,2620 M-2000,-1340 L2000,2660 M-2000,-1300 L2000,2700 M-2000,-1260 L2000,2740 M-2000,-1220 L2000,2780 M-2000,-1180 L2000,2820 M-2000,-1140 L2000,2860 M-2000,-1100 L2000,2900 M-2000,-1060 L2000,2940 M-2000,1900 L2000,-2100 M-2000,1940 L2000,-2060 M-2000,1980 L2000,-2020 M-2000,2020 L2000,-1980 M-2000,2060 L2000,-1940 M-2000,2100 L2000,-1900 M-2000,2140 L2000,-1860 M-2000,2180 L2000,-1820 M-2000,2220 L2000,-1780 M-2000,2260 L2000,-1740 M-2000,2300 L2000,-1700 M-2000,2340 L2000,-1660 M-2000,2380 L2000,-1620 M-2000,2420 L2000,-1580 M-2000,2460 L2000,-1540 M-2000,2500 L2000,-1500 M-2000,2540 L2000,-1460 M-2000,2580 L2000,-1420 M-2000,2620 L2000,-1380 M-2000,2660 L2000,-1340 M-2000,2700 L2000,-1300 M-2000,2740 L2000,-1260 M-2000,2780 L2000,-1220 M-2000,2820 L2000,-1180 M-2000,2860 L2000,-1140 M-2000,2900 L2000,-1100 M-2000,2940 L2000,-1060 M-2000,2980 L2000,-1020 M-2000,3020 L2000,-980 M-2000,3060 L2000,-940 M-2000,3100 L2000,-900 M-2000,3140 L2000,-860 M-2000,3180 L2000,-820 M-2000,3220 L2000,-780 M-2000,3260 L2000,-740 M-2000,3300 L2000,-700 M-2000,3340 L2000,-660 M-2000,3380 L2000,-620 M-2000,3420 L2000,-580 M-2000,3460 L2000,-540 M-2000,3500 L2000,-500 M-2000,3540 L2000,-460 M-2000,3580 L2000,-420 M-2000,3620 L2000,-380 M-2000,3660 L2000,-340 M-2000,3700 L2000,-300 M-2000,3740 L2000,-260 M-2000,3780 L2000,-220 M-2000,3820 L2000,-180 M-2000,3860 L2000,-140 M-2000,3900 L2000,-100 M-2000,3940 L2000,-60 M-2000,3980 L2000,-20 M-2000,4020 L2000,20 M-2000,4060 L2000,60 M-2000,4100 L2000,100 M-2000,4140 L2000,140 M-2000,4180 L2000,180 M-2000,4220 L2000,220 M-2000,4260 L2000,260 M-2000,4300 L2000,300 M-2000,4340 L2000,340 M-2000,4380 L2000,380 M-2000,4420 L2000,420 M-2000,4460 L2000,460 M-2000,4500 L2000,500 M-2000,4540 L2000,540' stroke='#8A8076' stroke-width='0.6' stroke-opacity='0.1' stroke-linecap='butt'/><path d='M-2000,-3500 L2000,500 M-2000,-3340 L2000,660 M-2000,-3180 L2000,820 M-2000,-3020 L2000,980 M-2000,-2860 L2000,1140 M-2000,-2700 L2000,1300 M-2000,-2540 L2000,1460 M-2000,-2380 L2000,1620 M-2000,-2220 L2000,1780 M-2000,-2060 L2000,1940 M-2000,-1900 L2000,2100 M-2000,-1740 L2000,2260 M-2000,-1580 L2000,2420 M-2000,-1420 L2000,2580 M-2000,-1260 L2000,2740 M-2000,-1100 L2000,2900 M-2000,1900 L2000,-2100 M-2000,2060 L2000,-1940 M-2000,2220 L2000,-1780 M-2000,2380 L2000,-1620 M-2000,2540 L2000,-1460 M-2000,2700 L2000,-1300 M-2000,2860 L2000,-1140 M-2000,3020 L2000,-980 M-2000,3180 L2000,-820 M-2000,3340 L2000,-660 M-2000,3500 L2000,-500 M-2000,3660 L2000,-340 M-2000,3820 L2000,-180 M-2000,3980 L2000,-20 M-2000,4140 L2000,140 M-2000,4300 L2000,300 M-2000,4460 L2000,460' stroke='#8A8076' stroke-width='0.9' stroke-opacity='0.16' stroke-linecap='butt'/></svg>`;
@@ -1305,9 +1325,7 @@ function migrate(p){
     if(s.ord==null) s.ord=0;
     if(s.position==null) s.position='';                   // v10：机位
     if(s.light==null) s.light='';                         // v10：光线
-    /* v10.5 PoseWear：12 个快照字段 + PW 打印图 key。
-       与 pwMigrateShot 逻辑逐字一致；本函数被 tests 单独抽取进 vm，必须自包含。
-       用 == null 而非 !s[k]：已有空串/值不覆盖，重复调用字节一致。 */
+    /* v10.5 PoseWear：12 个快照字段 + PW 打印图 key（与 pwMigrateShot 逐字一致） */
     ['poseId','poseAngle','poseZh','poseEn','outfitId','outfitZh','outfitEn',
      'hairId','hairZh','hairEn','promptZh','promptEn'].forEach(function(k){ if(s[k]==null) s[k]=''; });
     if(!Array.isArray(s.pwPrintKeys)) s.pwPrintKeys=[];
@@ -1317,15 +1335,55 @@ function migrate(p){
   migrateTags(p);
   return p;
 }
-/* 内存缓存 + 异步持久化：UI 层仍同步读 loadP()，写通过 saveP() 合并后落 IndexedDB */
+/* 内存缓存 + 异步持久化：UI 层仍同步读 loadP()，写通过 saveP() 合并后落 IndexedDB。
+   P0 加固：串行化写入（避免并发事务竞态）+ 失败指数退避重试 + 页面隐藏强制 flush，
+   消除「200ms 防抖窗口内关页/刷新导致末次写入丢失」与「落盘失败仅提示无重试」两个风险。 */
 let projectsCache=null, persistTimer=null;
+let persistChain=Promise.resolve();      // 串行化所有落盘，保证写入顺序与最终一致性
+let pendingPersist=false, persistFailed=false;
+const PERSIST_MAX_RETRY=5;
 function loadP(){ if(!projectsCache) projectsCache=[]; return projectsCache; }
+/* 退避延迟：200/400/800/1600/3200ms，上限 10s；独立纯函数便于逻辑测试直接抽取 */
+function persistRetryDelay(attempt){ return Math.min(200*Math.pow(2,attempt),10000); }
+/* 单次落盘（含退避重试）。snapshot 为固定快照：重试期间的新写入排在 persistChain 链尾，
+   最终以最新 projectsCache 为准，不会出现旧快照覆盖新数据。 */
+function writeProjects(snapshot,attempt){
+  attempt=attempt||0;
+  return idb.putProjects(snapshot).then(()=>{
+    pendingPersist=false;
+    if(persistFailed){ persistFailed=false; toast('数据已保存成功'); }
+    return true;
+  }).catch(()=>{
+    persistFailed=true; pendingPersist=true;
+    if(attempt<PERSIST_MAX_RETRY){
+      toast('保存遇到问题，正在重试（'+(attempt+1)+'/'+PERSIST_MAX_RETRY+'）…');
+      return new Promise(res=>setTimeout(res,persistRetryDelay(attempt)))
+        .then(()=>writeProjects(snapshot,attempt+1));
+    }
+    toast('保存失败，请立即导出备份！');
+    return false;
+  });
+}
+/* 立即冲刷：取消待执行的防抖定时器，把当前 projectsCache 追加到串行写链尾 */
+function flushPersist(){
+  clearTimeout(persistTimer); persistTimer=null;
+  if(!projectsCache) return persistChain;
+  const snapshot=projectsCache;
+  persistChain=persistChain.then(()=>writeProjects(snapshot));
+  return persistChain;
+}
 function saveP(a){
   projectsCache=a;
   clearTimeout(persistTimer);
-  persistTimer=setTimeout(()=>{
-    idb.putProjects(projectsCache).catch(()=>toast('保存失败，请立即导出备份'));
-  },200);
+  persistTimer=setTimeout(()=>{ flushPersist(); },200);
+}
+/* 页面隐藏/关闭兜底：visibilitychange→hidden 最可靠（页面仍存活，IDB 事务有宽限期完成）；
+   pagehide 再兜一层。仅在有未落盘数据时触发，避免无谓写入。 */
+function bindPersistFlush(){
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='hidden'&&(persistTimer||pendingPersist)) flushPersist();
+  });
+  window.addEventListener('pagehide',()=>{ if(persistTimer||pendingPersist) flushPersist(); });
 }
 async function initData(){
   await idb.open();
@@ -1827,7 +1885,7 @@ function renderMoodGrid(p){
     html=filtered.map(m=>{
       let body='';
       if(m.type==='image') body='<img src="'+esc(imgCache[m.content]||'')+'">';
-      else if(m.type==='color') body='<div class="mcolor" style="background:'+esc(m.content)+'"></div>';
+      else if(m.type==='color') body='<div class="mcolor" style="background:'+esc(safeColor(m.content))+'"></div>';
       else body='<div class="mtext">'+esc(m.content)+'</div>';
       const tags=tagsForDisplay(m);
       const chips=tags.length?tags.map(t=>'<button class="tagchip" title="编辑标签" onclick="openTagEditor('+jstr(m.id)+')">#'+esc(t)+'</button>').join(''):'<span class="muted">无标签</span>';
@@ -1901,7 +1959,7 @@ function addMood(type){
   const p=cur();
   if(p&&p.demo){ toast('示例项目只读，请点「复制为我的项目」后再修改'); return; }
   const tags=parseTagsInput(gv('m_tag'));
-  let content=type==='text'?gv('m_text').trim():gv('m_color').value;
+  let content=type==='text'?gv('m_text').trim():safeColor(gv('m_color').value);
   if(type==='text'&&!content){toast('先写点灵感内容');return;}
   updateCur(p=>{
     p.mood.push({id:uid(),type,content,tag:tags[0]||'',tags,fav:false});
@@ -2084,6 +2142,8 @@ async function renderShots(p){
   attachDrag();
   restoreFocus(focusSnap);
 }
+/* 分镜搜索：防抖 + 只重绘 #shotListWrap，表单与搜索框不动，焦点不丢 */
+let shotFilterTimer=null;
 /* ===== v10.5 PoseWear 面板 / 同步 / 缩略图（只做局部重绘，禁止 renderShots 全量重绘） ===== */
 const pwItems={pose:[],costume:[],portrait:[]};
 async function pwLoadMeta(){
@@ -2345,8 +2405,6 @@ function pwClearAll(){
   });
 }
 
-/* 分镜搜索：防抖 + 只重绘 #shotListWrap，表单与搜索框不动，焦点不丢 */
-let shotFilterTimer=null;
 function setShotFilter(v){
   view.shotFilter=v;
   clearTimeout(shotFilterTimer);
@@ -2382,6 +2440,12 @@ function shotListHtml(p,days){
     if(!g||g.date!==d){ g={date:d,items:[]}; shotGroups.push(g); }
     g.items.push(s);
   });
+  /* 性能：冲突标记若逐条调用 dayItems() 会是 O(N²)（每天全量重排一次）。
+     这里按分组日期一次性计算，构建 shotId→conflict 查表，把复杂度降为 O(天数 + N)。 */
+  const conflictMap={};
+  shotGroups.forEach(function(g){
+    dayItems(p,g.date).forEach(function(it){ if(it._conflict) conflictMap[it.id]=true; });
+  });
   return (sorted.length? '<div id="shotList">'+shotGroups.map(function(g){
         const gi=days.indexOf(g.date);
         const mins=g.items.reduce(function(n,x){ return n+(+x.duration||0); },0);
@@ -2389,7 +2453,7 @@ function shotListHtml(p,days){
           +'（'+g.items.length+' 条 · 合计 '+mins+' 分钟）';
         return '<div class="day-group"><div class="day-head">'+esc(ghead)+'</div>'+g.items.map(function(s){
         const scene=p.scenes.find(x=>x.id===s.sceneId);
-        const clash=dayItems(p,s.date).some(x=>x.id===s.id&&x._conflict);
+        const clash=!!conflictMap[s.id];
         const refs=s.refIds||[];
         const refHtml=refs.length? refs.map((r,ri)=>{
             const img=imgCache[r];
@@ -2595,7 +2659,7 @@ function addShot(){
   if(!d||d==='__new'){ toast('请先选择或新建拍摄日'); return; }
   const dur=parseInt(gv('s_dur'),10)||SHOT_DEFAULT_MIN;
   const sc=gv('s_scene'), pos=gv('s_pos')||'', light=gv('s_light')||'', note=gv('s_note').trim();
-  /* v10.5：PoseWear 快照字段来自草稿（pwApplyToDraft 写入），不新增第二条写分镜通路 */
+  /* v10.5：PoseWear 快照字段来自草稿，不新增第二条写分镜通路 */
   const pd=view.shotDraft||{};
   const pwKeys=['poseId','poseAngle','poseZh','poseEn','outfitId','outfitZh','outfitEn',
     'hairId','hairZh','hairEn','promptZh','promptEn'];
@@ -3572,6 +3636,7 @@ async function openDoc(kind){
     });});
     for(const k of keys){ if(!imgCache[k]){ try{ const rec=await idb.getPwImg(k); if(rec&&rec.data) imgCache[k]=rec.data; }catch(e){} } }
   }
+
   /* 提案才提供「导出 HTML 文件」（原独立按钮已移入此处），通告单 / 手册走打印 */
   const exBtn=document.getElementById('docExportBtn');
   if(exBtn) exBtn.style.display=(kind==='proposal')?'':'none';
@@ -3595,8 +3660,8 @@ async function openDoc(kind){
     +'<dt>目标受众</dt><dd>'+esc(c.audience||'—')+'</dd><dt>成片用途</dt><dd>'+esc(c.usage||'—')+'</dd>'
     +'<dt>创意阐述</dt><dd>'+esc(c.note||'—')+'</dd></dl>'
     +'<h2>二、情绪板</h2>'
-    +(moodColors.length?'<p>'+moodColors.map(m=>'<span class="swatch" style="background:'+esc(m.content)+'"></span>').join('')+'</p>':'')
-    +(moodImgs.length?'<p>'+moodImgs.map(m=>'<img src="'+(imgCache[m.content]||'')+'">').join('')+'</p>':'')
+    +(moodColors.length?'<p>'+moodColors.map(m=>'<span class="swatch" style="background:'+esc(safeColor(m.content))+'"></span>').join('')+'</p>':'')
+    +(moodImgs.length?'<p>'+moodImgs.map(m=>'<img src="'+esc(imgCache[m.content]||'')+'">').join('')+'</p>':'')
     +(moodTexts.length?'<ul>'+moodTexts.map(m=>'<li>'+esc(m.content)+(kind==='manual'?tagsForDisplay(m).map(t=>' <b>#'+esc(t)+'</b>').join(''):'')+'</li>').join('')+'</ul>':'');
   if(kind==='proposal'){
     h+='<h2>三、拍摄安排</h2><dl class="kv"><dt>拍摄日期</dt><dd>'+esc(p.shootDate||'待定')+'</dd>'
@@ -3682,8 +3747,8 @@ async function writeProposalFile(p){
     +'<dt>成片用途</dt><dd>'+esc(c.usage||'—')+'</dd>'
     +'<dt>创意阐述</dt><dd>'+esc(c.note||'—')+'</dd></dl>'
     +'<h2>情绪参考</h2>'
-    +(moodImgs.length?'<div class="imgs">'+moodImgs.map(m=>'<img src="'+(imgCache[m.content]||'')+'">').join('')+'</div>':'')
-    +(moodColors.length?'<div>'+moodColors.map(m=>'<span class="sw" style="background:'+esc(m.content)+'"></span>').join('')+'</div>':'')
+    +(moodImgs.length?'<div class="imgs">'+moodImgs.map(m=>'<img src="'+esc(imgCache[m.content]||'')+'">').join('')+'</div>':'')
+    +(moodColors.length?'<div>'+moodColors.map(m=>'<span class="sw" style="background:'+esc(safeColor(m.content))+'"></span>').join('')+'</div>':'')
     +(moodTexts.length?'<ul>'+moodTexts.map(m=>'<li>'+esc(m.content)+'</li>').join('')+'</ul>':'')
     +'<h2>拍摄安排</h2><dl class="kv">'
     +'<dt>拍摄日期</dt><dd>'+esc(p.shootDate||'待定')+'</dd>'
@@ -4089,6 +4154,7 @@ document.addEventListener('keydown',e=>{
 (async()=>{
   document.head.insertAdjacentHTML('beforeend','<style id="cvPublicStyle">'+PUBLIC_STYLE+'</style>');
   window.addEventListener('resize',fitCovers);
+  bindPersistFlush();   // P0：页面隐藏/关闭时冲刷未落盘数据
   await initData(); seed(); await ensureV9Demo();
   await pwLoadMeta();                 // v10.5：PW 词表缓存（失败降级为空，UI 仍显示分类面板）
   renderBoard();

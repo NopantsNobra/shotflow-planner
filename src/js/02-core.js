@@ -1,0 +1,796 @@
+/* ================= 状态 ================= */
+function freshView(patch){
+  const d={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',
+    moodFilter:[],moodFilterMode:'any',shotDraft:{},poseCat:null,editingShotId:null,editingShotEditId:null,replaceIdx:-1,
+    allowDemoWrite:false,editingNodeId:null,editingStuffId:null,editingStuffKey:null,
+    editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null,lastShift:null,newDay:false,moodRefPicker:false,
+    pwKind:'pose',pwCat:'',pwKw:'',pwLang:'zh',pwSel:{pose:null,poseView:'',outfit:null,hair:null},pwPrint:false,pwStatus:'未导入'};
+  return Object.assign(d,patch||{});
+}
+let view=freshView();
+const cur=()=>loadP().find(p=>p.id===view.pid);
+function updateCur(fn){
+  const a=loadP(), p=a.find(x=>x.id===view.pid);
+  if(!p) return;
+  /* v9 唯一写守卫：示例项目只读，所有写路径统一经此处 */
+  if(p.demo&&!view.allowDemoWrite){ toast('示例项目只读，请点「复制为我的项目」后再修改'); return; }
+  fn(p); p.updatedAt=Date.now(); saveP(a);
+}
+
+/* ===== 素材标签纯函数层：只依赖内置对象，可被逻辑测试直接抽取 ===== */
+function tagKey(s){
+  return String(s==null?'':s).normalize('NFKC').trim().toLocaleLowerCase('en-US').replace(/\s+/g,' ');
+}
+function dedupeTags(list){
+  if(!Array.isArray(list)) return [];
+  const seen=new Set(), out=[];
+  list.forEach(v=>{
+    const t=String(v==null?'':v).trim(), k=tagKey(t);
+    if(!k||seen.has(k)) return;
+    seen.add(k); out.push(t);
+  });
+  return out;
+}
+function parseTagsInput(str){
+  return dedupeTags(String(str==null?'':str).split(/[,，;；]+/));
+}
+function mergeVocab(vocab,list){
+  return dedupeTags([...(Array.isArray(vocab)?vocab:[]),...(Array.isArray(list)?list:[])]);
+}
+function migrateTags(p){
+  if(!p||typeof p!=='object') return p;
+  p.mood=Array.isArray(p.mood)?p.mood:[];
+  p.tagVocab=dedupeTags(p.tagVocab);
+  p.mood.forEach(m=>{
+    if(!m||typeof m!=='object') return;
+    m.tags=dedupeTags(Array.isArray(m.tags)?m.tags:(m.tag?[m.tag]:[]));
+  });
+  p.tagVocab=mergeVocab(p.tagVocab,p.mood.flatMap(m=>(m&&m.tags)||[]));
+  return p;
+}
+function tagsForDisplay(m){
+  if(!m||typeof m!=='object') return [];
+  return Array.isArray(m.tags)&&m.tags.length?m.tags:(m.tag?[m.tag]:[]);
+}
+function matchByTags(item,filter,mode){
+  const keys=dedupeTags(Array.isArray(filter)?filter.map(tagKey):[]);
+  if(!keys.length) return true;
+  const tags=tagsForDisplay(item).map(tagKey);
+  return mode==='all'?keys.every(k=>tags.includes(k)):keys.some(k=>tags.includes(k));
+}
+function renameTag(p,from,to){
+  if(!p||typeof p!=='object') return p;
+  const next=String(to==null?'':to).trim(), fk=tagKey(from);
+  if(!fk||!tagKey(next)) return p;
+  p.mood=Array.isArray(p.mood)?p.mood:[];
+  p.mood.forEach(m=>{
+    if(!m||typeof m!=='object') return;
+    m.tags=dedupeTags(tagsForDisplay(m).map(t=>tagKey(t)===fk?next:t));
+    m.tag=m.tags[0]||'';
+  });
+  const vocab=Array.isArray(p.tagVocab)?p.tagVocab:[];
+  p.tagVocab=mergeVocab(vocab.map(t=>tagKey(t)===fk?next:t),[next]);
+  return p;
+}
+function removeTag(p,tag){
+  if(!p||typeof p!=='object') return p;
+  const k=tagKey(tag); if(!k) return p;
+  p.mood=Array.isArray(p.mood)?p.mood:[];
+  p.mood.forEach(m=>{
+    if(!m||typeof m!=='object') return;
+    m.tags=dedupeTags(tagsForDisplay(m).filter(t=>tagKey(t)!==k));
+    if(tagKey(m.tag)===k) m.tag='';
+  });
+  const vocab=Array.isArray(p.tagVocab)?p.tagVocab:[];
+  p.tagVocab=dedupeTags(vocab.filter(t=>tagKey(t)!==k));
+  return p;
+}
+
+/* ===== 姿势图库纯函数层：只做 catalog 映射、diff 与游标计算，不碰 DOM/idb ===== */
+function shiseiItemKey(e){
+  if(e&&e.key) return String(e.key);
+  return 'shisei:'+String((e&&e.pid)||'')+':'+String((e&&e.view)||'');
+}
+function parseCatalog(raw){
+  const list=Array.isArray(raw)?raw:(Array.isArray(raw&&raw.items)?raw.items:[]);
+  const views=['front','diag','side','above','below'], out=[];
+  (list||[]).forEach(e=>{
+    if(!e||!e.id) return;
+    views.forEach(v=>{
+      const file=(e.views&&e.views[v])||(e.maps&&e.maps[v]);
+      if(!file) return;
+      out.push({pid:String(e.id),cat:String(e.class_cn||e.class_en||'未分类'),view:v,
+        zh:String(e.name_cn||e.name_en||e.id),en:String(e.name_en||e.name_cn||''),ja:String(e.name_jp||''),
+        url:'images/line/w300/'+String(file).replace(/^\/+/,'')});
+    });
+  });
+  return out;
+}
+function shiseiEntrySame(a,b){
+  return String((a&&a.cat)||'')===String((b&&b.cat)||'')
+    &&String((a&&a.zh)||'')===String((b&&b.zh)||'')
+    &&String((a&&a.en)||'')===String((b&&b.en)||'')
+    &&String((a&&a.ja)||'')===String((b&&b.ja)||'')
+    &&String((a&&a.url)||'')===String((b&&b.url)||'');
+}
+function diffCatalog(localEntries,remoteEntries){
+  const local=Array.isArray(localEntries)?localEntries:[], remote=Array.isArray(remoteEntries)?remoteEntries:[];
+  const lm=new Map(local.map(e=>[shiseiItemKey(e),e])), rm=new Map(remote.map(e=>[shiseiItemKey(e),e]));
+  const toAdd=[],toUpdate=[];
+  remote.forEach(e=>{ const k=shiseiItemKey(e), old=lm.get(k);
+    if(!old) toAdd.push(e);
+    else if(!shiseiEntrySame(old,e)) toUpdate.push(e);
+  });
+  const toRemove=[];
+  local.forEach(e=>{ const k=shiseiItemKey(e); if(!rm.has(k)) toRemove.push(k); });
+  return {toAdd,toUpdate,toRemove};
+}
+function nextPendingBatch(meta,batch){
+  const size=Math.max(1,Math.trunc(+batch||0)||1);
+  const pending=(meta&&Array.isArray(meta.pending))?meta.pending:[];
+  const cursor=Math.max(0,Math.trunc((meta&&meta.cursor)||0));
+  const items=pending.slice(cursor,cursor+size).map(x=>typeof x==='string'?{key:x}:x);
+  const next=cursor+items.length;
+  return {items,cursor:next,done:next>=pending.length};
+}
+function mergeShiseiMeta(meta,patch){
+  const base=(meta&&typeof meta==='object')?meta:{};
+  return Object.assign({},base,(patch&&typeof patch==='object')?patch:{});
+}
+
+/* ===== v10.5 PoseWear 纯函数层 =====
+   硬约束：函数体内不出现 document / window / localStorage / idb / fetch / parseInt / isNaN / Boolean(...)。
+   只用 String / Number / Array / Object / JSON / Math / RegExp / Set / Map / Date 与纯计算。 */
+function pwItemKey(kind,id,angle){
+  const k=String(kind==null?'':kind).replace(/[^a-z0-9]/gi,'').toLowerCase()||'item';
+  const i=String(id==null?'':id).trim();
+  if(!i) return '';
+  return 'posewear:'+k+':'+i+(angle?':'+String(angle):'');
+}
+function pwCatalogVersion(text){
+  const s=String(text==null?'':text); let h=5381;
+  for(let i=0;i<s.length;i++) h=(((h<<5)+h)+s.charCodeAt(i))>>>0;
+  return s.length+'-'+h.toString(36);
+}
+/* 上游模板尾句必须剥离，否则会污染出图提示词 */
+/* 设计 §4：只取 len + st 组成「发型短语」，保证不出现「面部参考」尾句，
+   也不能复用上游整句 zh/en（否则组合时会重复「一位亚洲年轻女性 / young Asian woman」前缀）。 */
+function pwHairPhrase(p,lang){
+  if(!p||typeof p!=='object') return '';
+  const zhTail='。作为人物面部参考，保持五官和脸型一致。', enTail=', consistent facial features, face reference';
+  const len=String(p.len==null?'':p.len), st=String(p.st==null?'':p.st);
+  const lenEn=String(p.lenEn==null?'':p.lenEn), stEn=String(p.stEn==null?'':p.stEn);
+  const zh=(len+(st?'（'+st+'）':'')).split(zhTail)[0];
+  const en=(lenEn+(stEn?(lenEn?', ':'')+stEn:'')).split(enTail)[0];
+  return lang==='en'?en:zh;
+}
+const PW_POSE_CAT_TR={'立ち':'站姿','座り':'坐姿','膝立ち':'跪立','横座り・女の子座り':'侧坐·鸭子坐',
+  'しゃがみ':'蹲姿','前かがみ':'前倾','のけぞり・反り':'后仰','ひねり':'扭身','寝そべり':'躺卧','かわいい系':'可爱'};
+const PW_COSTUME_CAT_TR={'春':'春季','夏':'夏季','秋':'秋季','冬':'冬季','ランジェリー':'内衣',
+  'パーティ':'派对礼服','水着':'泳装','セクシー':'性感'};
+const PW_POSE_TR={
+  'S字立ち・腰を横に突き出す':{zh:'S形站姿·胯部侧顶',en:'S-curve standing pose, hip pushed out to the side'},
+  '後ろ寄り掛け・片膝立ち':{zh:'后仰坐·单膝立起',en:'leaning back sitting pose, one knee raised'},
+  '立ち・肩越しに振り返る':{zh:'站姿·越肩回眸',en:'standing pose, looking back over the shoulder'}
+};
+function pwParsePoseCatalog(raw){
+  const list=Array.isArray(raw)?raw:(Array.isArray(raw&&raw.items)?raw.items:[]);
+  const groups=[], byId={};
+  list.forEach(function(e){
+    if(!e||!e.id) return;
+    const id=String(e.id), parts=id.split('_'), tail=parts[parts.length-1];
+    const angleRaw=String(e.angle==null?'':e.angle);
+    const av=PW_ANGLES.filter(function(a){return a.view===tail||a.ja===tail||a.zh===tail||a.view===angleRaw||a.ja===angleRaw;})[0];
+    /* 非白名单角度：若同组已存在则整条丢弃，不新建伪分组 */
+    if(!av&&parts.length>1&&byId[parts.slice(0,-1).join('_')]) return;
+    const gid=(av&&parts.length>1)?parts.slice(0,-1).join('_'):id;
+    if(!byId[gid]){
+      const ja=String(e.ja||e['ポーズ名']||gid);
+      const tr=PW_POSE_TR[ja]||{};
+      const sys=String(e.line||e['系統']||'');
+      const jaCat=String(e.cat||e['分類']||'');
+      const g={id:gid,no:String(e.no||e['ポーズ番号']||gid.replace(/^.*_P/,'P')),
+        line:sys,cat:PW_POSE_CAT_TR[jaCat]||jaCat,zh:String(e.zh||tr.zh||ja),en:String(e.en||tr.en||''),
+        ja:ja,angles:[],a:(e.a===1||/性感|セクシー|二人|2人/.test(sys))?1:0,
+        data:String(e.data||e.thumbData||''),srcFull:String(e.src||'')};
+      byId[gid]=g; groups.push(g);
+    }
+    const g=byId[gid];
+    if(av&&!g.angles.filter(function(a){return a.view===av.view;}).length){
+      g.angles.push({view:av.view,zh:av.zh,en:av.en,
+        t:String(e.t||e.thumb||e['サムネ']||('p/t/'+id+'.webp')),
+        src:String(e.src||(PW_POSE_ORIGIN+'thumbs/'+id+'.jpg'))});
+    }
+  });
+  return groups;
+}
+function pwParseCostumeCatalog(raw){
+  const list=Array.isArray(raw)?raw:(Array.isArray(raw&&raw.items)?raw.items:[]);
+  return list.filter(function(e){return e&&e.id;}).map(function(e){
+    const id=String(e.id), kw=String(e.kw||e['キーワード']||'');
+    const jaCat=String(e.cat||e['カテゴリ']||'');
+    const o={id:id,cat:PW_COSTUME_CAT_TR[jaCat]||jaCat,catEn:String(e.catEn||''),kw:kw,
+      zh:String(e.zh||''),en:String(e.en||''),ti:String(e.ti||e.title||''),
+      t:String(e.t||e.thumb||('c/m/'+id+'.webp')),
+      src:String(e.src||(PW_COSTUME_ORIGIN+'thumbs/'+id+'.webp')),
+      data:String(e.data||e.thumbData||'')};
+    /* 管理员决定 B：a:1 只作来源标记，全量内置；此处绝不过滤 */
+    if(e.a===1||/ランジェリー|セクシー|水着/.test(jaCat)) o.a=1;
+    if(!o.zh) o.zh=kw?(kw+'。'):'';
+    if(!o.en) o.en=kw;
+    if(!o.ti) o.ti=kw;
+    return o;
+  });
+}
+function pwParsePortraitCatalog(raw){
+  const list=Array.isArray(raw)?raw:(Array.isArray(raw&&raw.items)?raw.items:[]);
+  return list.filter(function(e){return e&&e.id;}).map(function(e){
+    const o={id:String(e.id),no:String(e.no||''),sec:String(e.sec||''),len:String(e.len||''),st:String(e.st||e.style||''),
+      lenEn:String(e.lenEn||''),stEn:String(e.stEn||''),   // 英文短语素材，供 pwHairPhrase 组合用
+      zh:'',en:'',t:String(e.t||e.thumb||('r/m/'+String(e.id)+'.webp')),
+      src:String(e.src||(PW_PORTRAIT_ORIGIN+'img/thumb/'+String(e.id)+'.webp')),
+      data:String(e.data||e.thumbData||'')};
+    /* 卡片描述保留上游整句（仅剥离模板尾句）；组合用短语由 pwHairPhrase 单独取 len/st，二者口径不同 */
+    const zhTail='。作为人物面部参考，保持五官和脸型一致。', enTail=', consistent facial features, face reference';
+    o.zh=String(e.zh==null?'':e.zh).split(zhTail)[0]||('一位亚洲年轻女性，'+pwHairPhrase(o,'zh')+'。');
+    o.en=String(e.en==null?'':e.en).split(enTail)[0]||('young Asian woman, '+pwHairPhrase(o,'en'));
+    return o;
+  });
+}
+function pwCatalogSame(a,b){
+  if(!a||!b) return false;
+  const aa=Array.isArray(a.angles)?a.angles:[], bb=Array.isArray(b.angles)?b.angles:[];
+  return String(a.zh||'')===String(b.zh||'')&&String(a.en||'')===String(b.en||'')
+    &&String(a.cat||'')===String(b.cat||'')&&JSON.stringify(aa)===JSON.stringify(bb);
+}
+function pwDiffCatalog(local,remote){
+  const idx=function(arr){const m={};(Array.isArray(arr)?arr:[]).forEach(function(e){if(e&&e.id)m[String(e.id)]=e;});return m;};
+  const lm=idx(local), rm=idx(remote), toAdd=[],toUpdate=[],toRemove=[];
+  (Array.isArray(remote)?remote:[]).forEach(function(e){
+    if(!e||!e.id) return;
+    const k=String(e.id), old=lm[k];
+    if(!old) toAdd.push(e); else if(!pwCatalogSame(old,e)) toUpdate.push(e);
+  });
+  (Array.isArray(local)?local:[]).forEach(function(e){
+    if(e&&e.id&&!rm[String(e.id)]) toRemove.push(String(e.id));
+  });
+  return {toAdd:toAdd,toUpdate:toUpdate,toRemove:toRemove};
+}
+function pwNextPendingBatch(meta,batch){
+  const size=Math.max(1,Math.trunc(Number(batch)||0)||1);
+  const pending=Array.isArray(meta&&meta.pending)?meta.pending:[];
+  const cursor=Math.max(0,Math.trunc(Number(meta&&meta.cursor)||0));
+  const items=pending.slice(cursor,cursor+size).map(function(x){return typeof x==='string'?{key:x}:x;});
+  const next=cursor+items.length;
+  return {items:items,cursor:next,done:next>=pending.length};
+}
+function pwMergeMeta(meta,patch){
+  const out={}, base=(meta&&typeof meta==='object')?meta:{}, p=(patch&&typeof patch==='object')?patch:{};
+  Object.keys(base).forEach(function(k){out[k]=base[k];});
+  Object.keys(p).forEach(function(k){out[k]=p[k];});
+  return out;
+}
+function pwMigrateShot(s){
+  const o={}, src=(s&&typeof s==='object')?s:{};
+  Object.keys(src).forEach(function(k){o[k]=src[k];});
+  /* 数组内联，保持本函数被 vm 单独抽取时自包含（与 migrate 内联逻辑逐字一致） */
+  ['poseId','poseAngle','poseZh','poseEn','outfitId','outfitZh','outfitEn',
+   'hairId','hairZh','hairEn','promptZh','promptEn'].forEach(function(k){if(o[k]==null)o[k]='';});
+  if(!Array.isArray(o.pwPrintKeys)) o.pwPrintKeys=[];
+  return o;
+}
+function pwBuildPrompt(sel,lang){
+  const s=(sel&&typeof sel==='object')?sel:{};
+  const pose=s.pose||null, outfit=s.outfit||null, hair=s.hair||null;
+  if(!pose&&!outfit&&!hair) return {zh:'',en:''};
+  const angle=(pose&&pose.angle)||null;
+  const zh=[], en=[];
+  if(hair){
+    const hp=pwHairPhrase(hair,'zh')||String(hair.len||'');
+    if(hp) zh.push('一位亚洲年轻女性，'+hp);
+    const he=pwHairPhrase(hair,'en')||String(hair.lenEn||'');
+    if(he) en.push('young Asian woman, '+he);
+  }
+  if(pose){
+    const pz=String(pose.zh||''), pe=String(pose.en||'');
+    const az=angle?String(angle.zh||''):'', ae=angle?String(angle.en||''):'';
+    if(pz||az) zh.push(pz+(az?'（'+az+'）':''));
+    if(pe||ae) en.push(pe+(ae?(pe?', ':'')+ae:''));
+  }
+  if(outfit){
+    const oz=String(outfit.zh||'').replace(/。$/,''), oe=String(outfit.en||'');
+    if(oz) zh.push(oz);
+    if(oe) en.push(oe);
+  }
+  return {zh:zh.join('，')+(zh.length?'。':''),en:en.join(', ')};
+}
+function pwShotPatch(sel){
+  const s=(sel&&typeof sel==='object')?sel:{};
+  const pose=s.pose||null, outfit=s.outfit||null, hair=s.hair||null;
+  const angle=(pose&&pose.angle)||null, pr=pwBuildPrompt(s,'zh');
+  return {poseId:pose?String(pose.id||''):'',poseAngle:angle?String(angle.view||''):'',
+    poseZh:pose?String(pose.zh||''):'',poseEn:pose?String(pose.en||''):'',
+    outfitId:outfit?String(outfit.id||''):'',outfitZh:outfit?String(outfit.zh||''):'',outfitEn:outfit?String(outfit.en||''):'',
+    hairId:hair?String(hair.id||''):'',hairZh:hair?pwHairPhrase(hair,'zh'):'',hairEn:hair?pwHairPhrase(hair,'en'):'',
+    promptZh:pr.zh,promptEn:pr.en};
+}
+function pwFilterItems(items,cat,kw,allowAdult){
+  const out=[], q=String(kw==null?'':kw).trim().toLowerCase();
+  (Array.isArray(items)?items:[]).forEach(function(it){
+    if(!it) return;
+    if(it.a===1&&!allowAdult) return;                 // 仅此函数保留该开关；UI 恒传 true（决策 B 无 18+ 开关）
+    if(cat&&String(it.cat||'')!==String(cat)) return;
+    if(q){
+      const hay=[it.id,it.zh,it.en,it.ti,it.kw,it.cat].map(function(x){return String(x==null?'':x).toLowerCase();}).join(' ');
+      if(hay.indexOf(q)<0) return;
+    }
+    out.push(it);
+  });
+  return out;
+}
+
+/* ===== v9 纯函数层：可由逻辑测试直接抽取，不依赖 DOM / idb / view ===== */
+function clearInlineEditState(v){
+  if(!v||typeof v!=='object') return v;
+  v.editingNodeId=null; v.editingStuffId=null; v.editingStuffKey=null;
+  v.editingTodoId=null; v.editingNoteId=null;
+  v.editingShotEditId=null;                 // v10 分镜行内编辑指针（editingShotId 属参考图选图态，不得在此清理）
+  return v;
+}
+function migrateFav(p){
+  if(!p||typeof p!=='object') return p;
+  FAV_KINDS.forEach(k=>{                   // 与收藏视图同源，避免两份清单漂移
+    p[k]=Array.isArray(p[k])?p[k]:[];
+    p[k].forEach(it=>{ if(it&&typeof it==='object') it.fav=(it.fav===true); });
+  });
+  p.demo=(p.demo===true);
+  return p;
+}
+function isFav(it){ return !!(it&&it.fav===true); }
+function favCount(list){
+  if(!Array.isArray(list)) return 0;
+  return list.reduce((n,it)=>n+(isFav(it)?1:0),0);
+}
+function favSummary(type,it){
+  if(!it) return '';
+  if(type==='mood') return it.type==='image'?'图片':String(it.content==null?'':it.content);
+  if(type==='shots') return String(it.name==null?'':it.name);
+  if(type==='schedule') return String(it.title==null?'':it.title);
+  if(type==='scenes'||type==='items') return String(it.name==null?'':it.name);
+  if(type==='budget') return String(it.item==null?'':it.item);
+  if(type==='notes') return String(it.content==null?'':it.content);
+  if(type==='todos') return String(it.title==null?'':it.title);
+  return '';
+}
+function summary40(s){
+  const t=String(s==null?'':s).replace(/\s+/g,' ').trim();
+  return t.length>40?t.slice(0,40)+'…':t;
+}
+function collectFavorites(projects){
+  const out=[];
+  (Array.isArray(projects)?projects:[]).forEach(p=>{
+    if(!p||typeof p!=='object') return;
+    FAV_KINDS.forEach(type=>{              // 类型与文案统一取 FAV_KINDS / FAV_META，不再各存一份
+      (Array.isArray(p[type])?p[type]:[]).forEach(it=>{
+        if(!isFav(it)) return;
+        out.push({type:type,pid:String(p.id==null?'':p.id),id:String(it.id==null?'':it.id),
+          summary:summary40(favSummary(type,it)),module:FAV_META[type]||'其它',
+          date:type==='schedule'?String(it.date||''):''});
+      });
+    });
+  });
+  return out;
+}
+function backupItemCount(projects){
+  return (Array.isArray(projects)?projects:[]).reduce((n,p)=>{
+    if(!p||p.demo===true) return n;
+    return n+(p.shots||[]).length+(p.mood||[]).length+(p.items||[]).length
+      +(p.budget||[]).length+(p.todos||[]).length+(p.notes||[]).length;
+  },0);
+}
+function matchBoardScope(p,scope){
+  if(scope==='已归档') return !!(p&&(p.status==='已交付'||p.status==='已归档'));
+  if(scope==='进行中') return !!(p&&p.status!=='已交付'&&p.status!=='已归档');
+  return true;
+}
+function isActiveStatus(p){ return matchBoardScope(p,'进行中'); }
+function parseMultiImage(e){
+  return Array.from((e&&e.target&&e.target.files)||[]).filter(f=>!f.type||/^image\//.test(f.type));
+}
+function slugPreview(label,palette){
+  const clean=String(label==null?'':label).replace(/[<>&"']/g,'').slice(0,18);
+  const pal=Array.isArray(palette)&&palette.length>=2?palette:['#9a6a33','#f3e9da'];
+  const main=String(pal[0]||'#9a6a33').replace(/[^#0-9a-fA-F]/g,'').slice(0,7)||'#9a6a33';
+  const bg=String(pal[1]||'#f3e9da').replace(/[^#0-9a-fA-F]/g,'').slice(0,7)||'#f3e9da';
+  const svg='<svg xmlns="&#104;ttp://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420">'
+    +'<rect width="640" height="420" fill="'+bg+'"/>'
+    +'<circle cx="486" cy="106" r="62" fill="'+main+'" opacity="0.30"/>'
+    +'<path d="M0 330 L170 190 L320 298 L452 168 L640 318 L640 420 L0 420 Z" fill="'+main+'" opacity="0.55"/>'
+    +'<text x="34" y="72" font-size="32" font-family="sans-serif" fill="'+main+'">'+clean+'</text></svg>';
+  return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+}
+function cloneDemo(p,newId,now){
+  const c=JSON.parse(JSON.stringify(p||{}));
+  delete c.demo; delete c.v9;
+  c.v3=1; c.id=newId; c.name=(c.name||'示例')+'（副本）';
+  c.createdAt=now; c.updatedAt=now;
+  return c;
+}
+function demoSpecs(){
+  return [
+    {status:'灵感期',name:'秋日胶片 · 校园人像',theme:'秋日胶片 · 校园人像',label:'秋日胶片',
+      art:[['#b4793f','#f4e6d2']],colors:[],
+      moodTexts:['午后三点斜射的暖光，梧桐叶在发梢投下斑驳','关键词：胶片颗粒、松弛感、不摆拍'],
+      shotNames:['林荫道回眸（中景）','图书馆窗边侧脸（特写）'],
+      nodeTitles:['器材检查与底片清点','场景踩点：梧桐大道'],
+      sceneNames:['校园林荫道','图书馆窗边'],itemNames:['燕麦色针织开衫','反光板（金面）','胶片机 ×2'],
+      budgetItems:['场地协调费','胶片与冲洗'],
+      noteTexts:['客户确认以暖调胶片为主，避免高对比','学校保安处已电话确认周末可进'],
+      todoTitles:['确认拍摄当天天气','准备备用胶片'],fullRefShot:false,favType:'shots',favIndex:0},
+    {status:'策划中',name:'品牌新季 · 静物广告',theme:'品牌新季 · 静物广告',label:'品牌新季',
+      art:[['#8d6a45','#f2ece3'],['#6b7d6a','#eef1e9'],['#b08d63','#f7f0e5']],colors:[],
+      moodTexts:['极简台面，硬光勾出器物边缘','参考色温 5200K，保留材质细节'],
+      shotNames:['主视觉静物组合（特写）','倒影与水面（大特写）','包装陈列（全景）'],
+      nodeTitles:['灯光与背板搭建','客户确认主视觉','产品到场与摆台'],
+      sceneNames:['品牌摄影棚'],itemNames:['亚克力台面','雾面喷砂道具','产品样品 ×6'],
+      budgetItems:['影棚租赁','灯光器材','造型与道具'],
+      noteTexts:['客户希望画面更克制，减少装饰元素','打样图已确认，正式拍摄按此执行'],
+      todoTitles:['确认产品到货时间','出灯光布景图','预约摄影师档期'],
+      fullRefShot:true,favType:'mood',favIndex:0},
+    {status:'后期中',name:'海边日落 · 情侣写真',theme:'海边日落 · 情侣写真',label:'海边日落',days:2,
+      art:[['#c57b4c','#f9e9d7'],['#6d7f96','#e9eef3']],colors:[],
+      moodTexts:['黄金时刻最后 20 分钟，逆光勾出轮廓','自然互动，避免长时间摆姿'],
+      shotNames:['沙滩牵手背影（远景）','浪花边相拥（中景）'],
+      nodeTitles:['抵达机位','黄金时刻拍摄','素材备份'],
+      sceneNames:['西海岸沙滩','海边栈道'],itemNames:['浅色情侣装','沙滩巾'],
+      budgetItems:['场地交通','精修后期'],
+      noteTexts:['客户希望保留皮肤质感，不要过度磨皮','选片链接已发送，等待回复'],
+      todoTitles:['完成第一轮调色','导出选片预览'],
+      fullRefShot:false,favType:'notes',favIndex:0},
+    {status:'已交付',name:'老城街拍 · 城市系列',theme:'老城街拍 · 城市系列',label:'老城街拍',
+      art:[['#8b6b4a','#efe6d8'],['#5a6b60','#e8ece6']],colors:['#c8a97e'],
+      moodTexts:['砖墙、窄巷与午后斑驳光影','纪实感优先，保留生活现场声音'],
+      shotNames:['巷口自行车（中景）','窗边老人（特写）','街角早餐摊（全景）'],
+      nodeTitles:['老城集合','街拍路线确认','交付复盘'],
+      sceneNames:['南城老街','街角早餐摊','居民楼窗边'],itemNames:['轻便相机','备用电池'],
+      budgetItems:['拍摄服务费','交通与餐饮','精修交付'],
+      noteTexts:['客户已确认成片，无修改意见','交付文件已发送，等待归档确认'],
+      todoTitles:['打包交付文件','归档项目素材','发送发票'],
+      fullRefShot:false,favType:'shots',favIndex:0},
+    {status:'已归档',name:'冬日暖阳 · 家庭纪实',theme:'冬日暖阳 · 家庭纪实',label:'冬日暖阳',
+      art:[['#a97a4e','#f5ebe0'],['#7c8a76','#eef0e8']],colors:[],
+      moodTexts:['上午十点的窗光，柔和地落在餐桌一角','不指挥动作，记录自然相处'],
+      shotNames:['客厅互动（中景）','窗边阅读（特写）'],
+      nodeTitles:['上门布光','家庭互动拍摄','素材整理'],
+      sceneNames:['客户家中客厅','阳台窗边'],itemNames:['柔光伞','暖色滤片'],
+      budgetItems:['上门拍摄','后期制作'],
+      noteTexts:['客户对交付满意，已收到书面好评','项目资料已归档，仅保留备份'],
+      todoTitles:['确认归档备份','整理客户反馈'],
+      fullRefShot:false,favType:'mood',favIndex:0}
+  ];
+}
+function buildDemoProject(spec,mkId,now){
+  const s=spec||{}, stamp=Number(now)||Date.now();
+  const d0=new Date(stamp);
+  const fmtDay=dt=>dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+  const day=fmtDay(d0);
+  /* v10 多日拍摄：spec.days>1 时生成连续多天（本地日期构造，与 addDays 同语义；本函数会被 vm 单独抽取，故不引用 addDays） */
+  const dayCount=Math.max(1,Math.min(7,Math.round(+s.days||0)||1));
+  const days=[day];
+  for(let i=1;i<dayCount;i++) days.push(fmtDay(new Date(d0.getFullYear(),d0.getMonth(),d0.getDate()+i)));
+  const p={id:mkId('p'),v3:1,name:s.name||'示例策划案',client:s.label||'示例客户',
+    studio:'瞬刻摄影工作室',status:s.status||'灵感期',shootDate:day,
+    location:s.label||'本地',lat:32.06,lng:118.78,createdAt:stamp,updatedAt:stamp,
+    demo:true,v9:1,
+    concept:{theme:s.theme||'',model:'示例模特',style:'胶片感 / 自然光 / 松弛叙事',
+      audience:'25-40 岁都市人群',usage:'作品集与客户交付',
+      note:'这是一份只读示例，点「复制为我的项目」后即可自由编辑。'},
+    mood:[],shots:[],schedule:[],scenes:[],items:[],budget:[],notes:[],todos:[],tagVocab:['示例','参考'],
+    shootDates:days.slice(),dayInit:days.slice()};
+  (s.art||[]).forEach((pal,i)=>{
+    p.mood.push({id:mkId('im'+i),type:'image',content:mkId('img'+i),tag:'示例图',tags:['示例','参考']});
+  });
+  (s.moodTexts||[]).forEach((txt,i)=>{
+    p.mood.push({id:mkId('mt'+i),type:'text',content:txt,tag:'调性',tags:['示例','调性']});
+  });
+  (s.colors||[]).forEach((color,i)=>{
+    p.mood.push({id:mkId('mc'+i),type:'color',content:color,tag:'配色',tags:['示例','配色']});
+  });
+  const sceneIds=(s.sceneNames||[]).map((name,i)=>{
+    const id=mkId('sc'+i);
+    p.scenes.push({id,name,note:'示例场景：'+name,done:i===0});
+    return id;
+  });
+  const posPool=['平视','俯拍','仰拍','过肩'],lightPool=['顺光','侧光','逆光','黄金时刻'];
+  const shotNames=s.shotNames||[];
+  const perDay=Math.max(1,Math.ceil(shotNames.length/days.length));   // 多日示例：分镜均分到各天
+  shotNames.forEach((name,i)=>{
+    /* v10：分镜不再写死时间，slot 由 rescheduleDay 从 10:00 起顺序派生 */
+    p.shots.push({id:mkId('sh'+i),name:name,date:days[Math.min(days.length-1,Math.floor(i/perDay))],
+      duration:20,sceneId:sceneIds[i%Math.max(1,sceneIds.length)]||'',
+      position:posPool[i%posPool.length],light:lightPool[i%lightPool.length],
+      refIds:[],note:'示例分镜 '+name,done:false,ord:i,fav:false});
+  });
+  const imgs=p.mood.filter(m=>m.type==='image').map(m=>m.content);
+  if(s.fullRefShot&&p.shots.length&&imgs.length>=3) p.shots[0].refIds=imgs.slice(0,3);
+  /* v10：每一天都有自己的「集合」（auto:'call'）与「收工」（auto:'wrap'），时间由 planDay 接管；
+     其余环节是用户输入的位置节点，不自动改写，只在插入/编辑时把其后的节点链式顺延。业务环节只放在首日。 */
+  days.forEach(function(d){
+    p.schedule.push({id:mkId('ndc'),type:'集合',title:'集合 · 器材清点与出发',start:'09:30',end:'10:00',
+      note:'示例流程',date:d,done:true,fav:false,auto:'call'});
+  });
+  (s.nodeTitles||[]).forEach((title,i)=>{
+    const start=String(13+i).padStart(2,'0')+':00';
+    p.schedule.push({id:mkId('nd'+i),type:i===0?'拍摄':'转场',title:title,start:start,
+      end:String(13+i).padStart(2,'0')+':30',note:'示例流程',date:days[0],done:false,fav:false});
+  });
+  days.forEach(function(d){
+    p.schedule.push({id:mkId('ndw'),type:'收工',title:'收工 · 素材备份与复盘',start:'18:00',end:'18:15',
+      note:'',date:d,done:false,fav:false,auto:'wrap'});
+  });
+  (s.itemNames||[]).forEach((name,i)=>{
+    p.items.push({id:mkId('it'+i),kind:i%2?'器材':'服装道具',name,note:'示例物资',done:false});
+  });
+  (s.budgetItems||[]).forEach((item,i)=>{
+    p.budget.push({id:mkId('bg'+i),item,cat:'其他',amount:200+i*100,paid:i===0});
+  });
+  (s.noteTexts||[]).forEach((content,i)=>{
+    p.notes.push({id:mkId('nt'+i),kind:i%2?'微信':'电话',content,ts:stamp-i*864e5});
+  });
+  (s.todoTitles||[]).forEach((title,i)=>{
+    p.todos.push({id:mkId('td'+i),title,owner:'我',due:day,done:false});
+  });
+  migrate(p);
+  /* 物化 slot / 收工时间；vm 逻辑测试里只抽取本函数，没有 rescheduleDay，用 typeof 守卫跳过 */
+  if(typeof rescheduleDay==='function') days.forEach(function(d){ rescheduleDay(p,d); });
+  const target=(p[({mood:'mood',shots:'shots',schedule:'schedule',scenes:'scenes',items:'items',budget:'budget',notes:'notes',todos:'todos'})[s.favType]||'shots']||[])[s.favIndex||0];
+  if(target) target.fav=true;
+  return p;
+}
+
+/* v3 数据迁移：旧项目补齐新字段 */
+function migrate(p){
+  p.mood=p.mood||[]; p.scenes=p.scenes||[]; p.shots=p.shots||[]; p.items=p.items||[]; p.budget=p.budget||[];
+  p.schedule=p.schedule||[]; p.notes=p.notes||[]; p.todos=p.todos||[];
+  p.dayInit=Array.isArray(p.dayInit)?p.dayInit:[];        // v10：已完成默认项初始化的日期（删掉集合/收工后不复活）
+  /* v10.4.1：参考图库元数据（二进制仍在 IndexedDB images store）。
+     老项目升级：mood 里的图片全部转入参考图库；只有用户显式收藏过（fav:true）的
+     仍留在情绪板（＝真正的精选），其余移出，避免客户提案堆满历史参考图。
+     标签随条目带到 refs，图片 key 不变 → 分镜引用不丢。
+     migrate 会被 tests 单独抽取进 vm，不能依赖 uid —— 迁移条目 id 直接用 key。 */
+  p.refs=Array.isArray(p.refs)?p.refs.slice():[];
+  const refKeys=new Set(p.refs.map(function(r){return String((r&&r.key)||'');}).filter(Boolean));
+  const keptMood=[];
+  (p.mood||[]).forEach(function(m){
+    if(!m||m.type!=='image'||!m.content){ keptMood.push(m); return; }
+    const k=String(m.content);
+    if(!refKeys.has(k)){
+      refKeys.add(k);
+      p.refs.push({id:k,key:k,name:'',tags:(Array.isArray(m.tags)?m.tags.slice():(m.tag?[m.tag]:[])),createdAt:0,fav:false});
+    }
+    if(m.fav===true||p.demo===true) keptMood.push(m);   // 显式收藏 = 精选；示例项目的图本就是展示用精选，均留在情绪板
+  });
+  p.mood=keptMood;
+  /* v10 多日拍摄：shootDates 为真源，shootDate 恒等于 shootDates[0]（看板倒计时 / 通告单等消费方零改动）。
+     与 normalizeShootDates 同源逻辑，因 migrate 会被 tests 单独抽取进 vm，这里必须自包含。 */
+  p.shootDates=(Array.isArray(p.shootDates)?p.shootDates:[])
+    .filter(function(d){ return /^\d{4}-\d{2}-\d{2}$/.test(String(d==null?'':d)); });
+  if(!p.shootDates.length&&p.shootDate) p.shootDates=[p.shootDate];
+  p.shootDates=Array.from(new Set(p.shootDates)).sort();
+  p.shootDate=p.shootDates[0]||'';
+  p.concept=p.concept||{theme:'',style:'',audience:'',usage:'',note:'',model:''};
+  if(p.concept.model===undefined) p.concept.model='';
+  p.shots.forEach(s=>{
+    if(s.refId!==undefined&&!s.refIds) s.refIds=s.refId?[s.refId]:[];
+    s.refIds=s.refIds||[]; delete s.refId;
+    if(s.duration==null) s.duration=20;                   // 历史数据兜底 20（新分镜默认 10 在表单 / addShot / planDay）
+    if(s.ord==null) s.ord=0;
+    if(s.position==null) s.position='';                   // v10：机位
+    if(s.light==null) s.light='';                         // v10：光线
+    /* v10.5 PoseWear：12 个快照字段 + PW 打印图 key（与 pwMigrateShot 逐字一致） */
+    ['poseId','poseAngle','poseZh','poseEn','outfitId','outfitZh','outfitEn',
+     'hairId','hairZh','hairEn','promptZh','promptEn'].forEach(function(k){ if(s[k]==null) s[k]=''; });
+    if(!Array.isArray(s.pwPrintKeys)) s.pwPrintKeys=[];
+  });
+  p.schedule.forEach(n=>{ n.done=!!n.done; });
+  migrateFav(p);
+  migrateTags(p);
+  return p;
+}
+/* 内存缓存 + 异步持久化：UI 层仍同步读 loadP()，写通过 saveP() 合并后落 IndexedDB。
+   P0 加固：串行化写入（避免并发事务竞态）+ 失败指数退避重试 + 页面隐藏强制 flush，
+   消除「200ms 防抖窗口内关页/刷新导致末次写入丢失」与「落盘失败仅提示无重试」两个风险。 */
+let projectsCache=null, persistTimer=null;
+let persistChain=Promise.resolve();      // 串行化所有落盘，保证写入顺序与最终一致性
+let pendingPersist=false, persistFailed=false;
+const PERSIST_MAX_RETRY=5;
+function loadP(){ if(!projectsCache) projectsCache=[]; return projectsCache; }
+/* 退避延迟：200/400/800/1600/3200ms，上限 10s；独立纯函数便于逻辑测试直接抽取 */
+function persistRetryDelay(attempt){ return Math.min(200*Math.pow(2,attempt),10000); }
+/* 单次落盘（含退避重试）。snapshot 为固定快照：重试期间的新写入排在 persistChain 链尾，
+   最终以最新 projectsCache 为准，不会出现旧快照覆盖新数据。 */
+function writeProjects(snapshot,attempt){
+  attempt=attempt||0;
+  return idb.putProjects(snapshot).then(()=>{
+    pendingPersist=false;
+    if(persistFailed){ persistFailed=false; toast('数据已保存成功'); }
+    return true;
+  }).catch(()=>{
+    persistFailed=true; pendingPersist=true;
+    if(attempt<PERSIST_MAX_RETRY){
+      toast('保存遇到问题，正在重试（'+(attempt+1)+'/'+PERSIST_MAX_RETRY+'）…');
+      return new Promise(res=>setTimeout(res,persistRetryDelay(attempt)))
+        .then(()=>writeProjects(snapshot,attempt+1));
+    }
+    toast('保存失败，请立即导出备份！');
+    return false;
+  });
+}
+/* 立即冲刷：取消待执行的防抖定时器，把当前 projectsCache 追加到串行写链尾 */
+function flushPersist(){
+  clearTimeout(persistTimer); persistTimer=null;
+  if(!projectsCache) return persistChain;
+  const snapshot=projectsCache;
+  persistChain=persistChain.then(()=>writeProjects(snapshot));
+  return persistChain;
+}
+function saveP(a){
+  projectsCache=a;
+  clearTimeout(persistTimer);
+  persistTimer=setTimeout(()=>{ flushPersist(); },200);
+}
+/* 页面隐藏/关闭兜底：visibilitychange→hidden 最可靠（页面仍存活，IDB 事务有宽限期完成）；
+   pagehide 再兜一层。仅在有未落盘数据时触发，避免无谓写入。 */
+function bindPersistFlush(){
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='hidden'&&(persistTimer||pendingPersist)) flushPersist();
+  });
+  window.addEventListener('pagehide',()=>{ if(persistTimer||pendingPersist) flushPersist(); });
+}
+async function initData(){
+  await idb.open();
+  let arr=null;
+  try{ arr=await idb.getProjects(); }catch(e){}
+  let migrated=false;
+  if(Array.isArray(arr)){
+    migrated=arr.some(p=>!p.v3);
+    projectsCache=arr.map(p=>{ migrate(p); p.v3=1; return p; });
+  } else {
+    try{ arr=JSON.parse(localStorage.getItem(LS_PROJ))||[]; }catch(e){ arr=[]; }
+    projectsCache=arr.map(p=>{ migrate(p); p.v3=1; return p; });
+    migrated=true;
+  }
+  await idb.putProjects(projectsCache);
+  try{ localStorage.removeItem(LS_PROJ); }catch(e){}
+  return migrated;
+}
+
+/* ================= 太阳时间（NOAA 近似算法） ================= */
+function sunTimes(dateStr,lat,lng){
+  if(!dateStr||lat==null||lng==null||lat===''||lng==='') return null;
+  const latN=parseFloat(lat), lngN=parseFloat(lng);
+  if(isNaN(latN)||isNaN(lngN)) return null;
+  const d=new Date(dateStr+'T12:00:00');
+  const N=Math.floor((d-new Date(d.getFullYear(),0,0))/864e5);
+  const g=2*Math.PI/365*(N-1+0.5);
+  const eq=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));
+  const dec=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g);
+  const latR=latN*Math.PI/180;
+  const cosHa=Math.cos(90.833*Math.PI/180)/(Math.cos(latR)*Math.cos(dec))-Math.tan(latR)*Math.tan(dec);
+  if(cosHa>1||cosHa<-1) return null;
+  const ha=Math.acos(cosHa)*180/Math.PI;
+  const tzOff=-new Date().getTimezoneOffset();
+  const fmt=m=>{ m=((m+tzOff)%1440+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(Math.round(m%60)).padStart(2,'0'); };
+  const sunrise=720-4*(lngN+ha)-eq, sunset=720-4*(lngN-ha)-eq, noon=720-4*lngN-eq;
+  return {sunrise:fmt(sunrise),noon:fmt(noon),sunset:fmt(sunset),goldenStart:fmt(sunset-75),goldenEnd:fmt(sunset)};
+}
+
+/* ================= 预置示例 ================= */
+function seed(){
+  if(localStorage.getItem(LS_SEED)) return;
+  const t=todayStr();
+  const scene1=uid(),scene2=uid();
+  const demo=migrate({id:uid(),v3:1,name:'城市漫游者 · 人像写真',client:'示例客户',status:'待拍摄',shootDate:t,
+    location:'南京 · 老门东片区',lat:32.06,lng:118.78,createdAt:Date.now(),updatedAt:Date.now(),demo:true,
+    concept:{theme:'城市漫游者',style:'胶片感 / 暖调 / 生活流抓拍',audience:'25-35 岁都市女性',usage:'客片 20 张精修 + 作品集 + 小红书宣发',note:'突出“一个人在城市里自洽漫游”的状态。'},
+    mood:[
+      {id:uid(),type:'text',content:'午后四点侧逆光，尘埃在光束里浮动',tag:'光线',fav:true},
+      {id:uid(),type:'color',content:'#c8a97e',tag:'主色'},
+      {id:uid(),type:'color',content:'#5d6b5a',tag:'辅色'},
+      {id:uid(),type:'text',content:'关键词：松弛感、胶片颗粒、不摆拍',tag:'调性'}
+    ],
+    scenes:[
+      {id:scene1,name:'五道营胡同',note:'15:00-17:00 光线最佳，避开周末',done:true},
+      {id:scene2,name:'Metal Hands 咖啡馆',note:'已沟通拍摄许可，点单即可',done:false}
+    ],
+    dayInit:[t],shootDates:[t],
+    shots:[
+      {id:uid(),name:'巷口逆光回眸（中景）',date:t,duration:20,sceneId:scene1,position:'平视',light:'侧逆光',refIds:[],note:'等一束侧逆光',done:false,ord:0},
+      {id:uid(),name:'胡同行走背影（远景）',date:t,duration:20,sceneId:scene1,position:'侧背',light:'逆光',refIds:[],note:'',done:true,ord:1},
+      {id:uid(),name:'咖啡馆窗边侧脸（特写）',date:t,duration:30,sceneId:scene2,position:'平视',light:'窗光',refIds:[],note:'85mm 大光圈',done:false,ord:2},
+      {id:uid(),name:'天台黄昏剪影（全景）',date:t,duration:40,sceneId:'',position:'仰拍',light:'剪影',refIds:[],note:'看日落时间调整',done:false,ord:3}
+    ],
+    schedule:[
+      {id:uid(),type:'集合',title:'地铁口集合，检查器材',start:'09:30',end:'10:00',note:'带备用电池 ×2',done:true,auto:'call'},
+      {id:uid(),type:'化妆造型',title:'化妆师到场，妆造 45 分钟',start:'10:00',end:'10:45',note:'妆造在胡同口阴凉处',done:false},
+      {id:uid(),type:'转场',title:'胡同 → 咖啡馆（步行 10 分钟）',start:'12:30',end:'12:40',note:'',done:false},
+      {id:uid(),type:'收工',title:'复盘当日素材，确认交片时间',start:'18:00',end:'18:15',note:'',done:false,auto:'wrap'}
+    ],
+    items:[
+      {id:uid(),kind:'服装',name:'燕麦色廓形风衣',note:'客户自备',done:true},
+      {id:uid(),kind:'道具',name:'旧胶片机道具',note:'器材架第二层',done:false},
+      {id:uid(),kind:'器材',name:'Sony A7M4 + 35mm F1.4',note:'主机位',done:true},
+      {id:uid(),kind:'器材',name:'反光板（金面）',note:'补面光',done:false}
+    ],
+    budget:[
+      {id:uid(),item:'化妆师',cat:'人员',amount:800,paid:true},
+      {id:uid(),item:'场地低消',cat:'场地',amount:200,paid:false}
+    ],
+    notes:[
+      {id:uid(),kind:'微信',content:'客户确认服装为燕麦色风衣，不喜欢大面积红色',ts:Date.now()-864e5*2},
+      {id:uid(),kind:'电话',content:'咖啡馆确认周末可拍，建议避开 11-13 点高峰',ts:Date.now()-864e5}
+    ],
+    todos:[
+      {id:uid(),title:'给客户发提案确认报价',owner:'我',due:todayStr(),done:false},
+      {id:uid(),title:'检查 SD 卡并格式化',owner:'我',due:todayStr(),done:true},
+      {id:uid(),title:'预约精修排期（交片 10 月 30 日前）',owner:'',due:'',done:false}
+    ]});
+  rescheduleDay(demo,t);   // 预置示例同样走排程引擎：slot 从集合结束起顺序派生，收工按最晚结束 +15
+  saveP([demo]);
+  localStorage.setItem(LS_SEED,'1');
+}
+/* v9 示例注入：独立于 seed，双 guard 幂等；只追加新示例与给旧「城市漫游者」补三个字段 */
+async function ensureV9Demo(){
+  let flagged=false;
+  try{ flagged=localStorage.getItem(LS_DEMO_V9)==='1'; }catch(e){ flagged=false; }
+  const a=loadP();
+  if(flagged||a.some(p=>p&&p.demo===true&&p.v9===1)) return;
+  const now=Date.now(), images=[];
+  const old=a.find(p=>p&&!p.demo&&String(p.name||'').indexOf('城市漫游者')===0);
+  if(old){
+    old.demo=true;
+    const hasFav=FAV_KINDS.some(k=>(old[k]||[]).some(it=>isFav(it)));
+    if(!hasFav&&old.mood.length) old.mood[0].fav=true;
+    const hasImg=old.mood.some(m=>m.type==='image');
+    if(!hasImg){
+      const key=uid(), data=slugPreview('城市漫游者 · 示例',['#9a6a33','#f3e9da']);
+      old.mood.push({id:uid(),type:'image',content:key,tag:'示例图',tags:['示例'],fav:false});
+      imgCache[key]=data; images.push([key,data]);
+    }
+  }
+  demoSpecs().forEach(spec=>{
+    const p=buildDemoProject(spec,()=>uid(),now);
+    a.push(p);
+    (p.mood||[]).filter(m=>m.type==='image').forEach((m,i)=>{
+      const pal=(spec.art||[])[i]||['#9a6a33','#f3e9da'];
+      const data=slugPreview(spec.label+' '+(i+1),pal);
+      imgCache[m.content]=data; images.push([m.content,data]);
+    });
+  });
+  saveP(a);
+  try{ localStorage.setItem(LS_DEMO_V9,'1'); }catch(e){}
+  for(const [key,data] of images){
+    try{ await idb.put(key,data); }catch(e){ /* 内存图仍在，离线可见 */ }
+  }
+}
+function copyDemoToMine(pid){
+  const p=loadP().find(x=>x.id===pid&&x.demo===true); if(!p) return;
+  const copy=cloneDemo(p,uid(),Date.now());
+  view.allowDemoWrite=true;
+  try{ saveP([...loadP(),copy]); }finally{ view.allowDemoWrite=false; }
+  openProject(copy.id);
+  toast('已复制为我的项目，可自由编辑');
+}
+
+function searchHit(p,q){
+  if(!q) return true;
+  const text=[p.name,p.client,p.location,(p.concept||{}).theme,(p.concept||{}).style,
+    ...(p.shots||[]).map(s=>s.name),...(p.notes||[]).map(n=>n.content)].join(' ').toLowerCase();
+  return text.includes(q);
+}
+function favoritesButton(){
+  const n=collectFavorites(loadP()).length;
+  return '<button class="btn btn-ghost btn-sm" onclick="openFavorites()">★ 已收藏 '+n+'</button>';
+}
+function demoBadge(p){ return p&&p.demo===true?'<span class="badge demo">示例</span>':''; }
+

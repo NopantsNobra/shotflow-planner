@@ -74,21 +74,34 @@
 
 ```
 摄影策划工具/
-├── shotflow.html            # 主程序 v10.3（单文件，全内联，零依赖）
+├── shotflow.html            # 主程序（由 src/ 构建产出的单文件，全内联零依赖）
 ├── shotflow-manifest.json   # PWA 清单
-├── shotflow-sw.js           # Service Worker（离线缓存 v10-7）
+├── shotflow-sw.js           # Service Worker（离线缓存版本见文件内 CACHE 常量）
 ├── icon-192.png             # PWA 图标 192×192
 ├── icon-512.png             # PWA 图标 512×512
-├── photo-planner.html       # v1 模块表单版（早期版本，保留对照）
+├── legacy/                  # 历史版本归档（v1 模块表单版 photo-planner.html）
 ├── docs/                    # 设计文档（系统设计 / 类图 / 时序图）
 ├── overview.md              # 功能索引（开发视角）
 ├── README.md                # 本说明
 ├── 竞品调研与升级方案.md    # 竞品分析与版本升级方案（含二次分析复核）
-├── tests/logic.test.mjs     # 核心逻辑测试（node tests/logic.test.mjs）
+├── src/                     # 源码（P3 拆分）：shell.html + styles.css + js/01..05（分段）
+├── scripts/                 # build.mjs / verify-build.mjs / sync-app.mjs
+├── tests/                   # 测试：logic.test.mjs（纯函数）+ e2e/app.spec.js（Playwright）
+├── package.json             # 构建/测试脚本与依赖（Playwright / ESLint / Prettier）
+├── playwright.config.js     # E2E 配置（含零依赖静态服务器）
+├── eslint.config.js         # ESLint flat config
+├── .prettierrc              # Prettier 配置
 └── shotflow-app/            # 部署快照目录（与线上同步的副本）
 ```
 
-> 修改源文件后，需同步复制到 `shotflow-app/` 再重新部署，线上才会更新。
+> **源码与构建（P3）**：`shotflow.html` 现在是由 `src/` 多文件源码**构建产出**的单文件交付物（仍可双击即用、零运行时依赖）。
+> 修改功能时请改 `src/`（样式改 `src/styles.css`，逻辑改 `src/js/0x-*.js`，骨架改 `src/shell.html`），然后运行 `npm run build` 重新生成 `shotflow.html`。
+> `npm run verify:build` 校验交付物与源码一致（CI 自动执行）——若有人直接改了 `shotflow.html` 而没改源码，会在此处被拦截。
+> `npm run verify:version` 以 `package.json` 的版本为真源，校验 README / overview / lock 的「当前版本」标注一致（CI 自动执行）——升级版本时只需改 `package.json`（+ `npm install` 更新 lock）并按提示同步文档标注。SW 缓存版本是独立序列，由 `sync:check` 保证两端一致。
+>
+> **部署副本同步**：构建后运行 `node scripts/sync-app.mjs` 同步到 `shotflow-app/` 再部署；`--check` 校验两端一致（CI 自动执行）。
+>
+> **测试与规范**：`npm install` 后，`npm run test:logic` 跑逻辑测试，`npm run test:e2e` 跑浏览器 E2E（首次需 `npx playwright install chromium`），`npm test` 两者都跑；`npm run test:perf` 跑规模压测（含性能门禁）；`npm run lint`、`npm run format:check` 检查代码规范。CI 有 5 个 job（构建一致性/逻辑/规模压测/E2E/副本同步）。
 
 ---
 
@@ -135,11 +148,15 @@
 每个示例 7 页签均非空，配图用内联 SVG dataURL 存入本地 IndexedDB，断网也能看。示例只读（元数据 / 概念输入禁用，任意写会提示），点「复制为我的项目」得到可编辑副本；示例不计入备份提醒。示例只在首次启动注入一次，绝不覆盖你已有的项目与字段。
 
 ## 六、迭代记录
-- **v1** `photo-planner.html`：六模块表单版
+
+> 功能版本的完整演进见本节；工程化改造（P0~P3）单独记录于 [CHANGELOG.md](CHANGELOG.md)。贡献指引与提交规范见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+- **v1** `photo-planner.html`（已归档至 `legacy/`）：六模块表单版
 - **v2** `shotflow.html`：分镜中枢架构 + 多项目看板 + 拍摄日模式 + IndexedDB + PWA
 - **v3**：新增日程时间轴、备注协作、多参考图、日落/黄金时刻计算、提案文件导出、看板统计、PWA 更新提示
 - **v7**：修正 PoseAtlas 版权文案；新增 shisei 姿势图库空闲自动同步（IndexedDB 本地缓存、分类筛选、可暂停 / 清除、失败退避；导出保持轻量不包含图库）；测试扩至 44 项
-- **v10.4.2**（当前）：修正已创建分镜的参考图多选——从图库进入「添加参考图」后可连续点选最多 3 张（编辑条实时显示 N/3、再点已选可取消），不再点一张就退出；「更换这张」仍保持点一张即替换该下标并退出；SW 缓存 v10-7
+- **v10.5.0**（当前）：工程化改造发布——saveP 数据安全加固（关页冲刷 + 失败重试）、Playwright E2E（4 用例）、GitHub Actions CI（4 job）、部署副本同步脚本、P2 安全加固（颜色白名单 + img src 转义）、单文件拆分为 `src/` 多模块 + 构建脚本、ESLint/Prettier、贡献与变更文档、历史版本归档、版本号一致性校验；SW 缓存 v10-8
+- **v10.4.2**：修正已创建分镜的参考图多选——从图库进入「添加参考图」后可连续点选最多 3 张（编辑条实时显示 N/3、再点已选可取消），不再点一张就退出；「更换这张」仍保持点一张即替换该下标并退出；SW 缓存 v10-7
 - **v10.4.1**：修正老项目图片迁移——历史情绪板图片全部转入参考图库后，**未收藏的从情绪板移出**，仅 `fav:true` 的显式精选图（及只读示例图）留在情绪板；客户提案因此只渲染真正精选的图片，老项目不再残留大量无关参考图；图片 key 与分镜引用不变；SW 缓存 v10-6
 - **v10.4**：图片归档重构与手册图片放大——新增 `p.refs` 参考图库（二进制仍在 IndexedDB `images`，800px/.72 压缩不变）；分镜页上传只进参考图库、不再自动写 `p.mood`，`ingestImageFile(f,tags,silent,target)` 仅在 `target==='mood'` 时精选到情绪板（情绪板页按钮改「上传精选图」）；分镜参考图 picker 改从 `p.refs` 派生；情绪板新增「＋ 从参考图库精选」面板（已在情绪板则按钮禁用）；`cacheProjectImages` 预载 mood + refs.key + shots.refIds（防刷新后缩略图全空），`collectImages` 导出含 refs.key；老项目 `migrate` 把 mood 图片全部转入 `refs`（按 key 去重、幂等）；v10.4.1 起未收藏的从 mood 移出，避免提案残留历史图；执行手册参考图 56→112px（`max-width:none` 覆盖全局 110px 限制、`.ref-cell` 改 normal、窄屏 84px、打印保持 112）；测试扩至 88 项；SW 缓存 v10-5
 - **v10.3**：城市选择与文档输出优化——**城市坐标库扩展至 55 城**（全部省会 + 直辖市 + 港澳 + 主要二线，按大区分组下拉选择，坐标回显自动匹配 ±0.15° 容差），保留原 8 个新一线城市快捷 chips，新增**「自定义地点」**选项（手输任意经纬度，日落/黄金时刻按 NOAA 近似算法即算）；移除「发送提案文件」独立按钮，**提案导出（HTML 文件）收入文档弹窗工具栏**（仅提案预览时出现）；「Call Sheet」统一中文名为**「拍摄通告单」**（按钮 / 文档标题 / 说明同步更新，文档内保留 CALL SHEET 英文角标）；**执行手册分镜表新增「参考图」列**——按需出现，缩略图随打印 / 存为 PDF 输出，姿势图库未同步的引用给「图库未同步」占位不丢列；测试扩至 86 项；SW 缓存 v10-4

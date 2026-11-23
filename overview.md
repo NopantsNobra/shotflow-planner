@@ -1,8 +1,8 @@
 # 瞬刻摄影工作台 · Stillmark 功能索引（开发视角）
 
 ## 版本
-- 当前：v10.4.2（`shotflow.html`，单文件全内联零依赖，88 项逻辑测试通过）
-- 历史：v9（收藏 / 只读示例 / 多图 / 行内编辑）、v7（姿势图库）、v6（素材标签）、v5（提案封面）、v4（IndexedDB/导入确认/时间级联）、v1 `photo-planner.html`（表单版）、v2（分镜中枢 + 看板 + 拍摄日模式）
+- 当前：v10.5.0（`shotflow.html` 由 `src/` 构建产出的单文件、全内联零依赖；99 项逻辑测试 + 4 项 E2E 通过）
+- 历史：v9（收藏 / 只读示例 / 多图 / 行内编辑）、v7（姿势图库）、v6（素材标签）、v5（提案封面）、v4（IndexedDB/导入确认/时间级联）、v1 `legacy/photo-planner.html`（表单版，已归档）、v2（分镜中枢 + 看板 + 拍摄日模式）
 
 ## v3 + v9 + v10 数据模型
 ```
@@ -34,6 +34,8 @@ project = {
 迁移：initData() 先读 IDB；无则读旧 localStorage `wb_sf_projects` → migrate()（refId→refIds、补 duration/ord/新数组）→ 写 IDB → 清理旧 key。
 
 ## 关键实现
+- **工程加固（P0/P2，2026-11-21）**：① `saveP` 改为串行写链（`persistChain`）+ 固定快照 + 5 次指数退避重试（200→3200ms 封顶 10s）+ `bindPersistFlush()` 在 `visibilitychange→hidden`/`pagehide` 冲刷未落盘数据，消除关页丢数据窗口；② 新增 `safeColor(v)` 纯函数（hex/rgb/rgba/hsl 白名单，其余回退 `#c8a97e`），情绪板色块、执行手册、提案导出三处颜色渲染及 `addMood('color')` 写入路径统一经它，关闭 CSS 注入面；③ 全部 `img src` 拼接统一 `esc()`；④ 测试扩至 99 项（P0 6 项 + P2 5 项），Playwright E2E 3 用例 + GitHub Actions CI（logic/sync-check/e2e 三 job）+ `scripts/sync-app.mjs` 一键同步部署副本
+- **规模性能（压测验证）**：`shotListHtml` 按拍摄日批量预计算 `dayItems` 冲突标记（原先逐条调用是 O(N²)，2000 分镜 ~1125ms → ~7ms）；`tests/perf.mjs` 覆盖看板/分镜/排程/导入/序列化四场景，含 2000 分镜 < 50ms 回归门禁。2000 项目 JSON ~4MB、序列化 ~10ms、反序列化 ~15ms、看板模板 ~4ms，均线性无拐点。
 - 拖拽排序：Pointer Events + setPointerCapture，.drag-handle 触发；persistOrder 落 ord 并继承邻组日期
 - 日落算法：NOAA 近似（eqtime/decl/HA），+ 时区偏移转本地时间；goldenStart=日落-75min
 - 拍摄日模式：schedule 节点 + shots 按时间合并；currentId = 今天未完成中最后不超过当前时间的
@@ -58,16 +60,21 @@ project = {
 - 多图与灯箱（v9）：`parseMultiImage` 取文件 → `for...of await ingestImageFile` 顺序入库、单张失败跳过；新增态补 `selRefs` 到 3、替换态只改 `refIds[i]`、其余仅入参考图库（v10.4 起不再进情绪板）；一次汇总 toast + 一次 `renderShots`；灯箱 `refNav(±1)` 环形切换、`shisei:` 占位禁大图但可换可删
 - 行内编辑与收藏定位（v9）：`beginInlineEdit` 先清五个指针，只开一行；保存白名单不动 done/date/ts/fav/kind；`collectFavorites` 按项目 → 模块分组，`jumpToFav` 设 `schedDate`/`focusRef`，高亮 3 秒后按 id 复核清除；Esc 优先级 refViewer → confirmModal → 行内编辑 → 其它弹窗
 - 看板筛选（v9）：`matchBoardScope`/`isActiveStatus` 单一真源，「已归档」= 已交付 + 已归档；备份提醒 `backupItemCount` 排除 demo
-- 测试：`tests/logic.test.mjs`（node 直接运行，88 项：v10.4 refs 迁移去重/幂等 2 项；多日/跨日 10 项：addDays 跨月跨年/溢出 toDate/收工重算/migrate shootDates/升序去重/跨日落地/递归上限/超长不跨日；时间逻辑/迁移/封面字段映射/标签纯函数/AI 零网络桩/图库纯函数/v9 fav/demo/示例完整性 + v10 排程引擎 12 项：连排/避让/集合改晚/收工/重叠/幂等/ord/时长/默认项幂等/迁移/adopt/ensureDayDefaults）；`verify_export` 另验导出 HTML 完整性与文件名
+- 测试：`tests/logic.test.mjs`（node 直接运行，99 项：在上述 88 项基础上新增 P0 持久化加固 6 项（退避/串行/冲刷）+ P2 safeColor 白名单 5 项（合法值/注入回退/边界）；原有 88 项含 v10.4 refs 迁移去重/幂等 2 项、多日/跨日 10 项、时间逻辑/迁移/封面字段映射/标签纯函数/AI 零网络桩/图库纯函数/v9 fav/demo/示例完整性、v10 排程引擎 12 项）；`tests/e2e/app.spec.js` 4 项 Playwright 用例（核心路径/渲染层回归/P2 注入/持久化）；`verify_export` 另验导出 HTML 完整性与文件名
 - PWA：manifest id=shotflow-planner；SW cache v10-5；updatefound → toast 提示刷新
 - 部署原则：源码一律相对路径，不写任何平台访问码
 
 ## 文件结构
-- `shotflow.html` / `shotflow-app/shotflow.html`：源文件与部署副本（同一份内容）
-- `tests/logic.test.mjs`：88 项核心逻辑测试（node 直接运行）
+- `src/shell.html` + `src/styles.css` + `src/js/01-data.js`~`05-boot.js`：P3 拆分后的多文件源码（按连续区间切分，保持顺序）
+- `shotflow.html`：由 `src/` 经 `scripts/build.mjs` 构建产出的自包含单文件交付物（与拆分前逐字节一致，双击即用）
+- `shotflow-app/shotflow.html`：部署副本（与根目录交付物同一份内容，由 sync-app.mjs 同步）
+- `scripts/build.mjs` / `verify-build.mjs` / `sync-app.mjs`：构建 / 一致性校验 / 副本同步
+- `tests/logic.test.mjs`：99 项核心逻辑测试（node 直接运行，仍从构建产物抽取函数）
+- `tests/e2e/app.spec.js`：4 项 Playwright E2E（含 P2 注入回归）
 - `docs/`：设计文档（`system_design.md` / `class-diagram.mermaid` / `sequence-diagram.mermaid`）
 - `shotflow-manifest.json` / `shotflow-sw.js` / `icon-*.png`：PWA 资源
 
 ## 部署
-- 流程：改源文件 → cp 到 shotflow-app/ → 部署 shotflow-app/（静态站点，入口 shotflow.html）
+- 流程：改 `src/` → `npm run build` 生成 shotflow.html → `npm run sync` 同步到 shotflow-app/ → 部署 shotflow-app/（静态站点，入口 shotflow.html）
+- `npm run verify:build` 保证交付物与源码一致；`npm run sync:check` 保证副本与交付物一致（CI 均自动执行）
 - 若托管平台要求 sharecode 一类访问参数，在部署侧注入；不入库
