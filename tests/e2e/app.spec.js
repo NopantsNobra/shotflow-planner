@@ -266,3 +266,54 @@ test('设置页「关于与部署」弹窗 + 全局 footer（Esc 先关弹窗再
   await expect(foot).toBeVisible();
   expect(await page.evaluate(() => document.querySelectorAll('.app-foot').length)).toBe(1);
 });
+
+test('安全回归：恶意备份 JSON 导入被净化，不执行脚本（A1 id/status 注入面）', async ({ page }) => {
+  await openFreshApp(page);
+  const evil = {
+    app: 'stillmark', version: 4, type: 'project',
+    project: {
+      id: "x');window.__pwned=1;//", name: '恶意导入项目', client: '', studio: '',
+      status: '策划中</span><img src=x onerror=window.__pwned=1>',
+      shootDate: '', location: '', lat: '', lng: '',
+      createdAt: Date.now(), updatedAt: Date.now(),
+      concept: {}, mood: [], refs: [],
+      scenes: [{ id: "s');window.__pwned=1;//", name: '注入场景', note: '', done: false }],
+      shots: [{ id: "sh');window.__pwned=1;//", name: '注入分镜', date: '', duration: 10,
+        sceneId: "s');window.__pwned=1;//", refIds: [], position: '', light: '', note: '', done: false, ord: 0 }],
+      schedule: [], items: [], budget: [], notes: [], todos: [], tagVocab: [], shootDates: [], dayInit: []
+    },
+    images: {}
+  };
+  await page.locator('#importFile').setInputFiles({ name: 'evil.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(evil)) });
+  await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  await page.locator('#confirmOk').click();
+  // 单项目导入追加为新策划案：卡片可见、点击卡片不触发注入（旧实现此处会执行 ")
+  await expect(page.locator('.pcard', { hasText: '恶意导入项目' })).toBeVisible();
+  await page.locator('.pcard', { hasText: '恶意导入项目' }).click();
+  await expect(page.locator('#shotList .shot')).toHaveCount(1);
+  await expect(page.locator('#shotList .shot').first()).toContainText('注入分镜');
+  expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+});
+
+test('数据安全回归：seed 标志缺失不会覆盖已有项目（A3）', async ({ page }) => {
+  await openFreshApp(page);
+  await createProject(page, '不能被覆盖的项目');
+  await page.evaluate(() => localStorage.removeItem('wb_sf_seeded'));
+  await page.reload();
+  await expect(page.locator('.masthead h1')).toHaveText('瞬刻摄影工作台');
+  await expect(page.locator('.pcard', { hasText: '不能被覆盖的项目' })).toBeVisible();
+});
+
+test('稳定性回归：IndexedDB 不可用时优雅降级不白屏（A2）', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'indexedDB', {
+      configurable: true,
+      get: () => ({ open() { throw new Error('IDB blocked by test'); } })
+    });
+  });
+  await page.goto('/shotflow.html');
+  await expect(page.locator('.masthead h1')).toHaveText('瞬刻摄影工作台');
+  await expect(page.locator('#app')).toContainText('存储不可用');
+  // 降级模式下示例仍可渲染、应用可用
+  await expect(page.locator('.pcard').first()).toBeVisible();
+});

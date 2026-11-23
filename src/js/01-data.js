@@ -7,7 +7,7 @@
    注意：注释中不要复现带引号的占位字面量本身，
    否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
 const APP_VERSION='__APP_VERSION__';
-const MODULE_VERSIONS={shell:'v10.6.0',styles:'v10.6.0',data:'v10.7.0',core:'v10.5.0',app:'v10.5.1',output:'v10.6.0',boot:'v10.5.0',settings:'v10.7.0',swCache:'shotflow-v10-11',dbSchema:3,since:'v10.5.0'};
+const MODULE_VERSIONS={shell:'v10.6.0',styles:'v10.6.0',data:'v10.7.1',core:'v10.7.1',app:'v10.7.1',output:'v10.7.1',boot:'v10.7.1',settings:'v10.7.0',swCache:'shotflow-v10-11',dbSchema:3,since:'v10.5.0'};
 const FB_KEY_A = 'uJrHd8a=U+X9Uh3EUtyyUhdF';
 const FB_KEY_B = 'yRhU1RHdTUVl1XwU9dVu=mJD';
 const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded', LS_DEMO_V9='wb_sf_demo_v9';
@@ -200,8 +200,11 @@ function pickCity(v){
 }
 
 /* IndexedDB：图片 + 项目主存储 + 姿势图库（indexedDB.open('shotflow',3)，即数据结构版本 3；
-   项目主存储自该 schema 起存于 IndexedDB，不再写 localStorage） */
+   项目主存储自该 schema 起存于 IndexedDB，不再写 localStorage）。
+   A2 降级守卫：db 未就绪时（隐私模式 / 存储被禁 / open 失败）每个方法安全空转——
+   读类返回 null/[]、写类静默 resolve，绝不向调用方抛同步异常；可用性判断统一走 idb.ready()。 */
 const idb={db:null,
+  ready(){return !!idb.db;},
   open(){return new Promise((res,rej)=>{const r=indexedDB.open('shotflow',3);
     r.onupgradeneeded=e=>{const db=e.target.result;
       if(!db.objectStoreNames.contains('images')) db.createObjectStore('images');
@@ -210,25 +213,25 @@ const idb={db:null,
       if(!db.objectStoreNames.contains('shisei_images')) db.createObjectStore('shisei_images');
     };
     r.onsuccess=e=>{idb.db=e.target.result;res();};r.onerror=rej;});},
-  put(k,v){return new Promise((res,rej)=>{const t=idb.db.transaction('images','readwrite');t.objectStore('images').put(v,k);t.oncomplete=res;t.onerror=rej;});},
-  get(k){return new Promise((res,rej)=>{const r=idb.db.transaction('images').objectStore('images').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
-  del(k){return new Promise((res,rej)=>{const t=idb.db.transaction('images','readwrite');t.objectStore('images').delete(k);t.oncomplete=res;t.onerror=rej;});},
-  keys(){return new Promise((res,rej)=>{const r=idb.db.transaction('images').objectStore('images').getAllKeys();r.onsuccess=()=>res(r.result);r.onerror=rej;});},
-  getProjects(){return new Promise((res,rej)=>{const r=idb.db.transaction('projects').objectStore('projects').get('all');r.onsuccess=()=>res(r.result);r.onerror=rej;});},
-  putProjects(a){return new Promise((res,rej)=>{const t=idb.db.transaction('projects','readwrite');t.objectStore('projects').put(a,'all');t.oncomplete=res;t.onerror=()=>rej(t.error);});},
-  clearProjects(){return new Promise((res,rej)=>{const t=idb.db.transaction('projects','readwrite');t.objectStore('projects').delete('all');t.oncomplete=res;t.onerror=rej;});},
+  put(k,v){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('images','readwrite');t.objectStore('images').put(v,k);t.oncomplete=res;t.onerror=rej;});},
+  get(k){if(!idb.db) return Promise.resolve(null);return new Promise((res,rej)=>{const r=idb.db.transaction('images').objectStore('images').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
+  del(k){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('images','readwrite');t.objectStore('images').delete(k);t.oncomplete=res;t.onerror=rej;});},
+  keys(){if(!idb.db) return Promise.resolve([]);return new Promise((res,rej)=>{const r=idb.db.transaction('images').objectStore('images').getAllKeys();r.onsuccess=()=>res(r.result);r.onerror=rej;});},
+  getProjects(){if(!idb.db) return Promise.resolve(null);return new Promise((res,rej)=>{const r=idb.db.transaction('projects').objectStore('projects').get('all');r.onsuccess=()=>res(r.result);r.onerror=rej;});},
+  putProjects(a){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('projects','readwrite');t.objectStore('projects').put(a,'all');t.oncomplete=res;t.onerror=()=>rej(t.error);});},
+  clearProjects(){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('projects','readwrite');t.objectStore('projects').delete('all');t.oncomplete=res;t.onerror=rej;});},
   /* 姿势图库：meta + 缩略图 */
-  getShiseiMeta(k){return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_meta').objectStore('shisei_meta').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
-  putShiseiMeta(k,v){return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_meta','readwrite');t.objectStore('shisei_meta').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});},
-  putShiseiImg(k,v){return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_images','readwrite');t.objectStore('shisei_images').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});},
-  getShiseiImg(k){return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_images').objectStore('shisei_images').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
-  delShiseiImg(k){return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_images','readwrite');t.objectStore('shisei_images').delete(k);t.oncomplete=res;t.onerror=rej;});},
-  shiseiImgKeys(){return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_images').objectStore('shisei_images').getAllKeys();r.onsuccess=()=>res(r.result);r.onerror=rej;});},
-  shiseiIndex(){return new Promise((res,rej)=>{const out=[];const r=idb.db.transaction('shisei_images').objectStore('shisei_images').openCursor();
+  getShiseiMeta(k){if(!idb.db) return Promise.resolve(null);return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_meta').objectStore('shisei_meta').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
+  putShiseiMeta(k,v){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_meta','readwrite');t.objectStore('shisei_meta').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});},
+  putShiseiImg(k,v){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_images','readwrite');t.objectStore('shisei_images').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});},
+  getShiseiImg(k){if(!idb.db) return Promise.resolve(null);return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_images').objectStore('shisei_images').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
+  delShiseiImg(k){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_images','readwrite');t.objectStore('shisei_images').delete(k);t.oncomplete=res;t.onerror=rej;});},
+  shiseiImgKeys(){if(!idb.db) return Promise.resolve([]);return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_images').objectStore('shisei_images').getAllKeys();r.onsuccess=()=>res(r.result);r.onerror=rej;});},
+  shiseiIndex(){if(!idb.db) return Promise.resolve([]);return new Promise((res,rej)=>{const out=[];const r=idb.db.transaction('shisei_images').objectStore('shisei_images').openCursor();
     r.onsuccess=e=>{const c=e.target.result; if(!c){res(out);return;} const v=c.value||{}; out.push({key:c.key,pid:v.pid,cat:v.cat,view:v.view,zh:v.zh,en:v.en,ja:v.ja}); c.continue();};r.onerror=rej;});},
-  shiseiImgStats(){return new Promise((res,rej)=>{let count=0,bytes=0;const r=idb.db.transaction('shisei_images').objectStore('shisei_images').openCursor();
+  shiseiImgStats(){if(!idb.db) return Promise.resolve({count:0,bytes:0,avg:0});return new Promise((res,rej)=>{let count=0,bytes=0;const r=idb.db.transaction('shisei_images').objectStore('shisei_images').openCursor();
     r.onsuccess=e=>{const c=e.target.result; if(!c){res({count,bytes,avg:count?Math.round(bytes/count):0});return;} const v=c.value||{}; count++; bytes+=String(v.data||'').length; c.continue();};r.onerror=rej;});},
-  clearShisei(){return new Promise((res,rej)=>{const t=idb.db.transaction(['shisei_meta','shisei_images'],'readwrite');t.objectStore('shisei_meta').clear();t.objectStore('shisei_images').clear();t.oncomplete=res;t.onerror=()=>rej(t.error);});}
+  clearShisei(){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction(['shisei_meta','shisei_images'],'readwrite');t.objectStore('shisei_meta').clear();t.objectStore('shisei_images').clear();t.oncomplete=res;t.onerror=()=>rej(t.error);});}
 };
 const imgCache={};
 async function cacheProjectImages(p){

@@ -4,6 +4,31 @@
 
 所有日期为 2026 年。
 
+## [v10.7.1] - 2026-11-23
+
+安全与稳定性修复批次（短期路线图 P0/P1）：关闭导入文件的存储型 XSS 注入面、启动不再白屏、消除示例注入覆盖用户数据的路径。SW 缓存不变（`v10-11`）。
+
+### Security
+- **导入净化层 `sanitizeProject(p,mkId)`**（`src/js/02-core.js`，纯函数）：备份文件视为不可信输入，导入时先净化再 migrate——实体 id 全部重写为 `mkId()` 新 id（`shots.sceneId` 同步映射，图片 key 原样保留）、`status` 白名单回退「灵感期」、显示字段强转字符串并截断、数值收敛（金额 0~999999999、时长 5~1440）、日期形状 + 月/日范围校验、数组过滤非对象成员、`refIds` 收敛为字符串且不超 3 张。
+- **渲染层注入面收口**：`p.id`（项目卡 / 导出按钮 onclick）、`p.status`（阶段标签文本）、`s.id`（分镜 `data-id` / 场景 `<option value>` / 勾选与删除按钮）、`it.id/x.id`（时间轴 / 拍摄日按钮）、`sd-slot` 时间文本、待办 `due`、分镜 / 通告单 / 手册时长——全部改 `jstr()/esc()` 或数值化，与既有转义纪律对齐。
+
+### Fixed
+- **启动降级（IndexedDB 不可用不再白屏）**：`initData` 与 boot IIFE 全链 try-catch（失败渲染可见错误 + 刷新入口）；`idb.*` 全部方法加降级守卫（db 未就绪时读类返回 null/[]、写类空转，可用性统一 `idb.ready()`）；`writeProjects` 在存储不可用时不进重试风暴、只提示一次；降级时**不再删除**旧 localStorage 副本（它是当时唯一持久数据）；看板新增降级提示条；存储降级时暂停姿势图库同步（同步了也存不住）。
+- **`seed()` 全量覆盖路径**：幂等判定加入内容级 guard（内存已有项目/示例即跳过并补标志）+ 注入改追加（`saveP(existing.concat([demo]))`），修复「localStorage 标志缺失时 `saveP([demo])` 把 IDB 里用户项目整批覆盖」的数据丢失风险。
+- **时长兑底漂移**：`dayItems/cascadeShift` 的 `+duration||20` 改 `||SHOT_DEFAULT_MIN`，与 `planDay` 同源（缺 duration 的分镜冲突检测/结束时间不再差 10 分钟）。
+- **导出文件名**：新增 `safeFilename()`（只剥跨平台非法字符），替换原 `esc(p.name).replace(...)`（`&` 会变 `&amp;` 混进文件名）。
+- **看板统计口径**：「进行中 / 今日拍摄 / 逾期待办 / 总预算」排除只读示例项目，与备份计数 `backupItemCount` 同口径。
+- CI / CONTRIBUTING 用例数文案改防漂移表述（不再写死数字）。
+
+### Added
+- 逻辑测试 105 → 114 项（sanitizeProject 7 项：id 重写 / 白名单 / 垃圾过滤 / 类型收敛 / 拒绝非对象 / refIds 收敛 / 迁移兼容；safeFilename；dayItems 时长兑底）。
+- E2E 8 → 11 项：恶意备份 JSON 导入净化（id/status 双注入面）、seed 标志缺失不覆盖已有项目、IndexedDB 不可用优雅降级。
+
+### Verification
+- 逻辑测试 114 项全绿；perf 门禁（2000 分镜 < 50ms）；verify:build / verify:version(10.7.1) / sync:check / lint 0 error / format:check 全绿。
+
+---
+
 ## [v10.7.0] - 2026-11-25
 
 设置页收尾与反馈通道定稿：反馈改为 **Web3Forms 页面内提交**（取代 v10.6.0 的公开仓库 Issue 跳转与中间过渡的邮件方案）。SW 缓存 `v10-10` → `v10-11`。

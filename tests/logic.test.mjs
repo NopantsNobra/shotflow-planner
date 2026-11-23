@@ -18,6 +18,12 @@ const ctx = vm.createContext({ console, Date, Math, String, Number, Array, Objec
 /* migrateFav / collectFavorites 已复用主文件 FAV 常量（去重），vm 上下文需同步注入 */
 vm.runInContext("globalThis.FAV_KINDS=['mood','shots','schedule','scenes','items','budget','notes','todos']"
   + ";globalThis.FAV_META={mood:'情绪板',shots:'分镜',schedule:'日程',scenes:'清单',items:'清单',budget:'预算',notes:'协作',todos:'协作'};", ctx);
+/* v10.7.1：dayItems/cascadeShift 时长兑底改引 SHOT_DEFAULT_MIN（与 planDay 同源），
+   且首段用例即调用它们——排程常量必须前置注入，不能等到 v10 追加块再声明 */
+vm.runInContext('const DAY_BASE="10:00",COLLECT_START="09:30",COLLECT_MIN=30,WRAP_MIN=15,SHOT_DEFAULT_MIN=10;', ctx);
+/* sanitizeProject 依赖 STATUSES 白名单与 uid（默认 id 生成器）；测试用自增桩保证 id 可断言 */
+vm.runInContext("globalThis.STATUSES=['灵感期','策划中','待拍摄','后期中','已交付','已归档'];"
+  + "globalThis.__uidSeq=0;globalThis.uid=()=>'id'+(++globalThis.__uidSeq);", ctx);
 for (const n of ['addMin', 'toMin', 'fmtMin', 'dayItems', 'cascadeShift', 'tagKey', 'dedupeTags', 'parseTagsInput', 'mergeVocab', 'migrateTags', 'tagsForDisplay', 'matchByTags', 'renameTag', 'removeTag', 'shiseiItemKey', 'shiseiEntrySame', 'parseCatalog', 'diffCatalog', 'nextPendingBatch', 'mergeShiseiMeta', 'migrate']) vm.runInContext(fn(n), ctx);
 for (const n of ['freshView', 'clearInlineEditState', 'migrateFav', 'isFav', 'favCount', 'favSummary', 'summary40', 'collectFavorites', 'backupItemCount', 'matchBoardScope', 'isActiveStatus', 'parseMultiImage', 'slugPreview', 'cloneDemo', 'demoSpecs', 'buildDemoProject']) vm.runInContext(fn(n), ctx);
 vm.runInContext(fn('suggestTags'), ctx);
@@ -145,7 +151,7 @@ check('mergeShiseiMeta 不可变合并', metaBase.version === 'v1' && metaBase.c
 const legacy = JSON.stringify([{ id: 'p1', name: '旧案', shots: [{ id: 's1', refId: 'img1' }], mood: [], items: [], budget: [], schedule: [], notes: [], todos: [] }]);
 let captured = null;
 vm.runInContext(`globalThis.localStorage = { getItem: () => LEGACY, removeItem: k => { globalThis.REMOVED = k; LEGACY = null; } };
-globalThis.idb = { open: async()=>{}, getProjects: async()=>undefined, putProjects: async a => { globalThis.CAPTURE = a; } };
+globalThis.idb = { ready: ()=>true, open: async()=>{}, getProjects: async()=>undefined, putProjects: async a => { globalThis.CAPTURE = a; } };
 globalThis.LS_PROJ = 'wb_sf_projects';
 globalThis.LEGACY = ${JSON.stringify(legacy)};`, ctx);
 await vm.runInContext('__initData()', ctx);
@@ -247,8 +253,7 @@ check('v9 demoSpecs 五项且示例七页签非空/含图/含 fav', vdemo.count 
 check('v9 buildDemoProject 满 3 张参考图', vdemo.rows.some(r => r.refs === 3));
 
 /* ================= v10 排程引擎（追加块：1-245 行零改动） ================= */
-// 先注入常量，再抽取新纯函数；ctx 白名单无 parseInt/isNaN/Boolean，故纯函数内统一用 +x / Math.round
-vm.runInContext('const DAY_BASE="10:00",COLLECT_START="09:30",COLLECT_MIN=30,WRAP_MIN=15,SHOT_DEFAULT_MIN=10;', ctx);
+// 排程常量已前置注入（见文件顶部）；ctx 白名单无 parseInt/isNaN/Boolean，故纯函数内统一用 +x / Math.round
 for (const n of ['pinOf', 'planDay', 'dayDefaults', 'ensureDayDefaults', 'rescheduleDay', 'applyDay',
   'addDays', 'applyPlanWrite', 'normalizeShootDates', 'shootDatesOf', 'resolveShootDate']) vm.runInContext(fn(n), ctx);
 
@@ -564,9 +569,10 @@ vm.runInContext(`
   globalThis.PERSIST_MAX_RETRY=5;
   globalThis.persistChain=Promise.resolve(); globalThis.persistTimer=null;
   globalThis.pendingPersist=false; globalThis.persistFailed=false; globalThis.projectsCache=null;
+  globalThis.storageDegraded=false;
   globalThis.__toasts=[]; globalThis.toast=m=>{ globalThis.__toasts.push(String(m)); };
   globalThis.__putCalls=[]; globalThis.__putFail=0;
-  globalThis.idb={ putProjects: async snap => {
+  globalThis.idb={ ready: ()=>true, putProjects: async snap => {
     globalThis.__putCalls.push(snap);
     if(globalThis.__putFail>0){ globalThis.__putFail--; throw new Error('IDB_FAIL'); }
     return true;
@@ -615,7 +621,7 @@ check('P0 页面隐藏与关闭均绑定 flush', vm.runInContext('__evts.join(",
 
 /* ================= v10.6.0 设置页：反馈通道纯函数（追加块：上方 615 行零改动） ================= */
 // 注入 01-data.js 常量（vm 上下文按需同步），再抽取设置页纯函数
-vm.runInContext("globalThis.APP_VERSION='10.7.0';"
+vm.runInContext("globalThis.APP_VERSION='10.7.1';"
   + "globalThis.MODULE_VERSIONS={swCache:'shotflow-v10-11',dbSchema:3};", ctx);
 /* FB_KEY_* 混淆常量直接从 src 抽取（测试文件零明文 access key） */
 for (const c of ['FB_KEY_A', 'FB_KEY_B']) {
@@ -673,8 +679,62 @@ check('v10.6.0 ⑤ buildFeedbackEnv 五段字段齐全',
 // ⑥ buildFeedbackEnv：空参数回退 APP_VERSION / MODULE_VERSIONS 常量与安全默认值
 const VENVd = vm.runInContext('buildFeedbackEnv()', ctx);
 check('v10.6.0 ⑥ buildFeedbackEnv 缺省回退常量与默认值',
-  VENVd.includes('版本：v10.7.0') && VENVd.includes('SW 缓存 shotflow-v10-11')
+  VENVd.includes('版本：v10.7.1') && VENVd.includes('SW 缓存 shotflow-v10-11')
   && VENVd.includes('数据结构 3') && VENVd.includes('在线') && VENVd.includes('项目数：0'), JSON.stringify(VENVd));
+
+/* ================= v10.7.1 导入净化 + 一致性修复（追加块） ================= */
+for (const n of ['sanitizeProject', 'safeFilename']) vm.runInContext(fn(n), ctx);
+
+// ① sanitizeProject：恶意 id 全部重写，不留下引号/尖括号等可拼进内联 handler 的字符
+const EVIL = {
+  id: "x');window.__pwned=1;//", name: '恶意项目', client: '', studio: '',
+  status: '策划中</span><img src=x onerror=1>', shootDate: '2026-13-99', location: '', lat: '', lng: '',
+  createdAt: 'bad', updatedAt: 0,
+  concept: { theme: 123, note: null },
+  mood: [{ id: "m');alert(1);//", type: 'image', content: 'imgkey1', tag: '', tags: ['a'], fav: true }, null, 'junk'],
+  refs: [{ id: "r');alert(1);//", key: 'imgkey1', name: '', tags: [], createdAt: 0, fav: false }],
+  scenes: [{ id: "s');alert(1);//", name: '场景', note: '', done: false }],
+  shots: [{ id: "sh');alert(1);//", name: '分镜', date: '', duration: 'abc', sceneId: "s');alert(1);//",
+    refIds: ['imgkey1', 42], position: '', light: '', note: '', done: false, ord: 0 }],
+  schedule: [{ id: "n');alert(1);//", type: '集合', title: '集合', start: '9x:99', end: '10:00', note: '', date: '2026-11-16', done: false, auto: 'call' }],
+  items: [], budget: [{ id: "b',x=1,//", item: '场地', cat: '场地', amount: 'Infinity', paid: false }],
+  notes: [{ id: 'nt1', kind: '电话', content: 'hi', ts: 'x', fav: false }],
+  todos: [{ id: 'td1', title: '待办', owner: '', due: '2026/11/16', done: false }],
+  tagVocab: ['t1', 5, null], shootDates: ['2026-11-16', 'bad'], dayInit: ['2026-11-16']
+};
+vm.runInContext('globalThis.EVIL=' + JSON.stringify(EVIL), ctx);
+const CLEAN = vm.runInContext('sanitizeProject(EVIL)', ctx);
+const allIds = [CLEAN.id, CLEAN.mood[0].id, CLEAN.refs[0].id, CLEAN.scenes[0].id, CLEAN.shots[0].id,
+  CLEAN.schedule[0].id, CLEAN.budget[0].id, CLEAN.notes[0].id, CLEAN.todos[0].id, CLEAN.shots[0].sceneId];
+check('v10.7.1 ① sanitizeProject 实体 id 全部重写且无注入字符',
+  allIds.every(x => /^id\d+$/.test(x)) && CLEAN.shots[0].sceneId === CLEAN.scenes[0].id, allIds.join(','));
+check('v10.7.1 ② sanitizeProject status 白名单回退', CLEAN.status === '灵感期', CLEAN.status);
+check('v10.7.1 ③ sanitizeProject 数组过滤垃圾成员', CLEAN.mood.length === 1 && CLEAN.mood[0].content === 'imgkey1');
+check('v10.7.1 ④ sanitizeProject 类型收敛（时长/时间/日期/金额/标签）',
+  CLEAN.shots[0].duration === null && CLEAN.schedule[0].start === '' && CLEAN.shootDate === ''
+  && CLEAN.budget[0].amount === 999999999 && CLEAN.todos[0].due === ''
+  && CLEAN.tagVocab[0] === 't1' && CLEAN.shootDates.join(',') === '2026-11-16', JSON.stringify({ d: CLEAN.shots[0].duration, s: CLEAN.schedule[0].start, a: CLEAN.budget[0].amount }));
+check('v10.7.1 ⑤ sanitizeProject 拒绝非对象输入',
+  vm.runInContext('sanitizeProject(null) === null && sanitizeProject("x") === null && sanitizeProject([]) === null', ctx));
+check('v10.7.1 ⑥ sanitizeProject refIds 收敛为字符串且不超 3 张',
+  CLEAN.shots[0].refIds.join(',') === 'imgkey1,42' && CLEAN.shots[0].refIds.length <= 3);
+check('v10.7.1 ⑦ 净化后迁移仍可走通（duration 兑底 20 / 字段齐全）', (() => {
+  const p = vm.runInContext('sanitizeProject(EVIL)', ctx);
+  vm.runInContext('globalThis.__mig=' + JSON.stringify(p), ctx);
+  const m = vm.runInContext('migrate(__mig)', ctx);
+  return m.shots[0].duration === 20 && Array.isArray(m.refs) && Array.isArray(m.tagVocab);
+})());
+
+// ⑧ safeFilename：只剥非法字符，不套 esc（& 不再变 &amp;）；空名回退
+check('v10.7.1 ⑧ safeFilename 非法字符清洗且保留 &',
+  vm.runInContext("safeFilename('提案/终稿:v2?')", ctx) === '提案终稿v2'
+  && vm.runInContext("safeFilename('A&B')", ctx) === 'A&B'
+  && vm.runInContext("safeFilename('  ')", ctx) === '未命名');
+
+// ⑨ dayItems 时长兑底与 planDay 同源（缺 duration → 10 分钟，不再是 20）
+const FALLBACK = vm.runInContext(`dayItems({shots:[{id:'x',date:'2026-11-16',slot:'10:00'}],schedule:[]},'2026-11-16')`, ctx);
+check('v10.7.1 ⑨ dayItems 时长兑底=SHOT_DEFAULT_MIN(10)',
+  FALLBACK[0]._end - FALLBACK[0]._start === 10, String(FALLBACK[0]._end - FALLBACK[0]._start));
 
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

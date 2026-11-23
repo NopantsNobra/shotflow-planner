@@ -36,7 +36,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: 运行 99 项逻辑测试
+      - name: 运行逻辑测试（全部用例，数量以 RESULT 行为准）
         run: node tests/logic.test.mjs
 
   # 规模压测：数据层/模板层性能基准 + O(N²) 回归门禁（零依赖）

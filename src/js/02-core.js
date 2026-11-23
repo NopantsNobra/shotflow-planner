@@ -357,6 +357,71 @@ function buildDemoProject(spec,mkId,now){
 }
 
 /* v3 数据迁移：旧项目补齐新字段 */
+/* ===== 导入净化（纯函数层）：不可信 JSON → 安全结构（A1/C1） ===== */
+/* 备份文件是不可信输入。sanitizeProject 在数据进入内存前收敛它：
+   ① 实体 id 全部重写为 mkId()（默认 uid）生成的新 id，内部引用（shots.sceneId）同步映射——
+      从根上消灭「恶意 id 拼进 DOM / 内联 handler」的注入面（渲染层 jstr/esc 是第二道防线）；
+   ② status 收敛到 STATUSES 白名单；③ 显示字段强转字符串并截断（防类型混乱崩溃）；
+   ④ 数组过滤非对象成员、数值字段收敛为安全数字；⑤ 图片 key（mood.content / refs.key / refIds）
+      保持原样（要对上 IndexedDB 二进制），仅强转字符串。
+   会被 tests 抽取进 vm：只用 Object/Array/String/Number/Math/RegExp，禁 parseInt/isNaN/Boolean/Map。 */
+function sanitizeProject(raw,mkId){
+  const gen=(typeof mkId==='function')?mkId:uid;
+  if(!raw||typeof raw!=='object'||Array.isArray(raw)) return null;
+  const s=v=>String(v==null?'':v);
+  const cut=(v,n)=>s(v).slice(0,n);
+  const date=v=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s(v));
+    return (m&&+m[2]>=1&&+m[2]<=12&&+m[3]>=1&&+m[3]<=31)?m[0]:'';};   // 形状 + 月/日范围双重校验
+  const time=v=>/^\d{1,2}:\d{2}$/.test(s(v))?s(v):'';
+  const bool=v=>v===true;
+  const objs=arr=>(Array.isArray(arr)?arr:[]).filter(x=>x&&typeof x==='object');
+  const strs=arr=>(Array.isArray(arr)?arr:[]).map(x=>cut(x,120)).filter(Boolean);
+  const dates=arr=>(Array.isArray(arr)?arr:[]).map(s).filter(date);
+  const amount=v=>Math.min(999999999,Math.max(0,+v||0));
+  const ids=Object.create(null);
+  const nid=old=>{const k=s(old);if(!ids[k])ids[k]=gen();return ids[k];};
+  const p={id:gen(),v3:1};
+  p.name=cut(raw.name,120)||'未命名拍摄项目';
+  p.client=cut(raw.client,120); p.studio=cut(raw.studio,120);
+  p.status=STATUSES.indexOf(raw.status)>=0?raw.status:'灵感期';
+  p.location=cut(raw.location,120);
+  p.lat=cut(raw.lat,32); p.lng=cut(raw.lng,32);
+  p.shootDate=date(raw.shootDate);
+  p.shootDates=dates(raw.shootDates); p.dayInit=dates(raw.dayInit);
+  p.createdAt=(+raw.createdAt>0)?+raw.createdAt:Date.now();
+  p.updatedAt=(+raw.updatedAt>0)?+raw.updatedAt:Date.now();
+  p.demo=(raw.demo===true);
+  const c=(raw.concept&&typeof raw.concept==='object')?raw.concept:{};
+  p.concept={theme:cut(c.theme,200),model:cut(c.model,200),style:cut(c.style,200),
+    audience:cut(c.audience,200),usage:cut(c.usage,200),note:cut(c.note,4000)};
+  p.tagVocab=strs(raw.tagVocab);
+  p.mood=objs(raw.mood).map(x=>({id:nid(x.id),
+    type:['text','color','image'].indexOf(x.type)>=0?x.type:'text',
+    content:cut(x.content,x.type==='image'?200:(x.type==='color'?64:4000)),
+    tag:cut(x.tag,120),tags:strs(x.tags),autoTags:strs(x.autoTags),fav:bool(x.fav)}));
+  p.refs=objs(raw.refs).map(x=>({id:nid(x.id),key:cut(x.key,200),name:cut(x.name,120),
+    tags:strs(x.tags),createdAt:(+x.createdAt>0)?+x.createdAt:0,fav:bool(x.fav)}));
+  p.scenes=objs(raw.scenes).map(x=>({id:nid(x.id),name:cut(x.name,120),note:cut(x.note,1000),
+    done:bool(x.done),fav:bool(x.fav)}));
+  p.shots=objs(raw.shots).map(x=>({id:nid(x.id),name:cut(x.name,200),date:date(x.date),
+    duration:(+x.duration>0)?Math.max(5,Math.min(1440,Math.round(+x.duration))):null,
+    sceneId:ids[s(x.sceneId)]||'',
+    refIds:(Array.isArray(x.refIds)?x.refIds:[]).map(y=>cut(y,200)).filter(Boolean).slice(0,3),
+    position:cut(x.position,20),light:cut(x.light,20),note:cut(x.note,1000),
+    done:bool(x.done),ord:(+x.ord>0)?Math.round(+x.ord):0,fav:bool(x.fav)}));
+  p.schedule=objs(raw.schedule).map(x=>({id:nid(x.id),type:cut(x.type,20),title:cut(x.title,200),
+    start:time(x.start),end:time(x.end),note:cut(x.note,1000),date:date(x.date),
+    done:bool(x.done),fav:bool(x.fav),auto:(x.auto==='call'||x.auto==='wrap')?x.auto:null}));
+  p.items=objs(raw.items).map(x=>({id:nid(x.id),kind:x.kind==='器材'?'器材':'服装道具',
+    name:cut(x.name,120),note:cut(x.note,500),done:bool(x.done),fav:bool(x.fav)}));
+  p.budget=objs(raw.budget).map(x=>({id:nid(x.id),item:cut(x.item,120),cat:cut(x.cat,20),
+    amount:amount(x.amount),paid:bool(x.paid),fav:bool(x.fav)}));
+  p.notes=objs(raw.notes).map(x=>({id:nid(x.id),kind:cut(x.kind,20),content:cut(x.content,4000),
+    ts:(+x.ts>0)?+x.ts:0,fav:bool(x.fav)}));
+  p.todos=objs(raw.todos).map(x=>({id:nid(x.id),title:cut(x.title,200),owner:cut(x.owner,60),
+    due:date(x.due),done:bool(x.done),fav:bool(x.fav)}));
+  return p;
+}
 function migrate(p){
   p.mood=p.mood||[]; p.scenes=p.scenes||[]; p.shots=p.shots||[]; p.items=p.items||[]; p.budget=p.budget||[];
   p.schedule=p.schedule||[]; p.notes=p.notes||[]; p.todos=p.todos||[];
@@ -407,6 +472,7 @@ function migrate(p){
 let projectsCache=null, persistTimer=null;
 let persistChain=Promise.resolve();      // 串行化所有落盘，保证写入顺序与最终一致性
 let pendingPersist=false, persistFailed=false;
+let storageDegraded=false;               // A2：IndexedDB 不可用（open 失败 / 写入无门）时置真，看板显示降级提示
 const PERSIST_MAX_RETRY=5;
 function loadP(){ if(!projectsCache) projectsCache=[]; return projectsCache; }
 /* 退避延迟：200/400/800/1600/3200ms，上限 10s；独立纯函数便于逻辑测试直接抽取 */
@@ -415,6 +481,11 @@ function persistRetryDelay(attempt){ return Math.min(200*Math.pow(2,attempt),100
    最终以最新 projectsCache 为准，不会出现旧快照覆盖新数据。 */
 function writeProjects(snapshot,attempt){
   attempt=attempt||0;
+  if(!idb.ready()){                        // A2 存储不可用：不进入重试风暴，只提示一次（看板有常驻降级提示）
+    persistFailed=true; pendingPersist=true;
+    if(!storageDegraded){ storageDegraded=true; toast('存储不可用，本次修改不会持久保存，请及时导出备份',6000); }
+    return Promise.resolve(false);
+  }
   return idb.putProjects(snapshot).then(()=>{
     pendingPersist=false;
     if(persistFailed){ persistFailed=false; toast('数据已保存成功'); }
@@ -452,20 +523,24 @@ function bindPersistFlush(){
   window.addEventListener('pagehide',()=>{ if(persistTimer||pendingPersist) flushPersist(); });
 }
 async function initData(){
-  await idb.open();
+  try{ await idb.open(); }catch(e){ storageDegraded=true; }   // A2：open 失败降级为会话内存模式，不阻断启动
   let arr=null;
-  try{ arr=await idb.getProjects(); }catch(e){}
+  if(idb.ready()){
+    try{ arr=await idb.getProjects(); }catch(e){}
+  }
   let migrated=false;
   if(Array.isArray(arr)){
     migrated=arr.some(p=>!p.v3);
     projectsCache=arr.map(p=>{ migrate(p); p.v3=1; return p; });
   } else {
     try{ arr=JSON.parse(localStorage.getItem(LS_PROJ))||[]; }catch(e){ arr=[]; }
-    projectsCache=arr.map(p=>{ migrate(p); p.v3=1; return p; });
+    projectsCache=(Array.isArray(arr)?arr:[]).map(p=>{ migrate(p); p.v3=1; return p; });
     migrated=true;
   }
-  await idb.putProjects(projectsCache);
-  try{ localStorage.removeItem(LS_PROJ); }catch(e){}
+  /* A2：仅在 IDB 可写时才清理旧 localStorage——否则它是当前唯一持久副本，删了就真丢了 */
+  if(idb.ready()){
+    try{ await idb.putProjects(projectsCache); localStorage.removeItem(LS_PROJ); }catch(e){}
+  }
   return migrated;
 }
 
@@ -491,7 +566,13 @@ function sunTimes(dateStr,lat,lng){
 
 /* ================= 预置示例 ================= */
 function seed(){
-  if(localStorage.getItem(LS_SEED)) return;
+  let seeded=false;
+  try{ seeded=localStorage.getItem(LS_SEED)==='1'; }catch(e){ seeded=false; }
+  if(seeded) return;
+  /* A3 内容级幂等：localStorage 标志可能缺失/被清（部分清理、多标签页竞态），但内存里已有
+     项目或示例时绝不注入、更不得整体替换——老实现 saveP([demo]) 会把 IDB 里的用户项目整批覆盖。 */
+  const existing=loadP();
+  if(existing.length){ try{ localStorage.setItem(LS_SEED,'1'); }catch(e){} return; }
   const t=todayStr();
   const scene1=uid(),scene2=uid();
   const demo=migrate({id:uid(),v3:1,name:'城市漫游者 · 人像写真',client:'示例客户',status:'待拍摄',shootDate:t,
@@ -540,8 +621,8 @@ function seed(){
       {id:uid(),title:'预约精修排期（交片 10 月 30 日前）',owner:'',due:'',done:false}
     ]});
   rescheduleDay(demo,t);   // 预置示例同样走排程引擎：slot 从集合结束起顺序派生，收工按最晚结束 +15
-  saveP([demo]);
-  localStorage.setItem(LS_SEED,'1');
+  saveP(existing.concat([demo]));          // A3：追加而非整体替换（existing 恒为空，双保险）
+  try{ localStorage.setItem(LS_SEED,'1'); }catch(e){}
 }
 /* v9 示例注入：独立于 seed，双 guard 幂等；只追加新示例与给旧「城市漫游者」补三个字段 */
 async function ensureV9Demo(){

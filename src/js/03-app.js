@@ -25,9 +25,9 @@ function projectCardHtml(p,i,t){
   const openT=p.todos.filter(x=>!x.done).length;
   const overdue=p.todos.filter(x=>!x.done&&x.due&&x.due<t).length;
   const cd=shootCountdown(p,t);
-  return '<article class="pcard st-'+i+'" onclick="openProject(\''+p.id+'\')">'
+  return '<article class="pcard st-'+i+'" onclick="openProject('+jstr(p.id)+')">'
     +'<div class="pname">'+demoBadge(p)+esc(p.name)+'</div>'
-    +'<div class="pmeta">'+esc(p.client||'个人项目')+' · '+(p.shootDate?'拍摄 '+p.shootDate+cd.text:'未定拍摄日')+'</div>'
+    +'<div class="pmeta">'+esc(p.client||'个人项目')+' · '+(p.shootDate?'拍摄 '+esc(p.shootDate)+cd.text:'未定拍摄日')+'</div>'
     +'<div class="pmeta">分镜 '+done+' / '+total+(openT?' · 待办 '+openT:'')+'</div>'
     +'<div class="pbar"><i style="width:'+pct+'%"></i></div>'
     +'<div class="pfoot"><span class="pct">'+pct+'% 完成</span>'+(overdue?'<span class="tag red">逾期 '+overdue+'</span>':'')+'</div>'
@@ -52,12 +52,15 @@ function renderBoard(){
     +'<button class="btn btn-danger btn-sm" onclick="clearAll()">清空</button>'
     +'<button class="btn btn-primary" onclick="newProject()">新建策划案</button>'
     +'<input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)"></div></header>'
-    +'<div class="backup-tip" id="backupTip"><span>数据较多，建议在「⚙ 设置」中定期导出备份留档。</span></div>';
+    +'<div class="backup-tip" id="backupTip"><span>数据较多，建议在「⚙ 设置」中定期导出备份留档。</span></div>'
+    +(storageDegraded?'<div class="backup-tip show"><span>⚠ 存储不可用（IndexedDB 未能打开）：本次会话的数据不会被保存，请及时「导出备份」，并检查浏览器隐私模式 / 存储设置。</span></div>':'');
   const t=todayStr();
-  const active=all.filter(isActiveStatus).length;
-  const todayShoots=all.filter(p=>p.shootDate===t&&isActiveStatus(p)).length;
-  const overdueTodos=all.reduce((s,p)=>s+p.todos.filter(x=>!x.done&&x.due&&x.due<t).length,0);
-  const totalBudget=all.reduce((s,p)=>s+p.budget.reduce((x,b)=>x+(+b.amount||0),0),0);
+  /* B5 统计口径：只读示例项目不计入顶部指标（与备份计数 backupItemCount 同口径，避免虚高） */
+  const mine=all.filter(p=>!p.demo);
+  const active=mine.filter(isActiveStatus).length;
+  const todayShoots=mine.filter(p=>p.shootDate===t&&isActiveStatus(p)).length;
+  const overdueTodos=mine.reduce((s,p)=>s+p.todos.filter(x=>!x.done&&x.due&&x.due<t).length,0);
+  const totalBudget=mine.reduce((s,p)=>s+p.budget.reduce((x,b)=>x+(+b.amount||0),0),0);
   h+='<div class="metrics">'
     +statPill('M3 7h13v10H3z M16 10h3l2 2v3h-5',active,'进行中项目')
     +statPill('M12 6v6l4 2 M12 3a9 9 0 1 0 .01 0',todayShoots,'今日拍摄')
@@ -187,12 +190,12 @@ function renderProject(){
   let h='<div class="phead">'
     +'<button class="crumb" onclick="view.mode=\'board\';renderBoard()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 18l-6-6 6-6"/></svg>返回看板</button>'
     +'<div class="phead-row"><div><h1>'+demoBadge(p)+esc(p.name)+'</h1>'
-    +'<div class="pchips"><span class="tag '+STATUS_TAG[STATUSES.indexOf(p.status)]+'">'+p.status+'</span>'+cd
+    +'<div class="pchips"><span class="tag '+STATUS_TAG[STATUSES.indexOf(p.status)]+'">'+esc(p.status)+'</span>'+cd
     +(openTodos?'<button class="tag purple" style="border:none;cursor:pointer;font-family:inherit" onclick="view.tab=\'notes\';renderProject()">待办 '+openTodos+'</button>':'')
     +(p.shootDate?'<span class="muted" style="font-size:12px">拍摄日 '+esc(p.shootDate)+'</span>':'')
     +'</div></div>'
     +'<div class="pactions">'
-    +'<button class="btn btn-ghost btn-sm" onclick="exportProject(\''+p.id+'\')">导出此案</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="exportProject('+jstr(p.id)+')">导出此案</button>'
     +(p.demo?'<button class="btn btn-primary" onclick="copyDemoToMine('+jstr(p.id)+')">复制为我的项目</button>'
             :'<button class="btn btn-primary" onclick="openShootDay()">进入拍摄日模式</button>')
     +favoritesButton()
@@ -580,7 +583,7 @@ async function renderShots(p){
     +'<select id="s_dur" style="max-width:105px" onchange="saveShotDraft(\'duration\',this.value)">'+[10,15,20,30,45,60,90].map(d=>'<option value="'+d+'" '+((+D.duration||10)===d?'selected':'')+'>'+d+' 分钟</option>').join('')+'</select>'
     +'<select id="s_scene" style="max-width:150px" onchange="pickShotScene(this.value)">'
       +'<option value="">'+(p.scenes.length?'— 场景 —':'还没有场景，点「＋ 新建场景」添加')+'</option>'
-      +p.scenes.map(s=>'<option value="'+s.id+'" '+(D.scene===s.id?'selected':'')+'>'+esc(s.name)+'</option>').join('')
+      +p.scenes.map(s=>'<option value="'+esc(s.id)+'" '+(D.scene===s.id?'selected':'')+'>'+esc(s.name)+'</option>').join('')
       +'<option value="__new" '+(D.scene==='__new'?'selected':'')+'>＋ 新建场景…</option></select>'
     +'<select id="s_pos" style="max-width:108px" onchange="saveShotDraft(\'position\',this.value)"><option value="">— 机位 —</option>'+POSITION_OPTS.map(o=>'<option value="'+o+'" '+(D.position===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
     +'<select id="s_light" style="max-width:108px" onchange="saveShotDraft(\'light\',this.value)"><option value="">— 光线 —</option>'+LIGHT_OPTS.map(o=>'<option value="'+o+'" '+(D.light===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
@@ -673,14 +676,14 @@ function shotListHtml(p,days){
           ? shotEditPanel(s,p)
           :'<div class="grow" style="min-width:150px"><div class="'+(s.done?'done-text':'')+'" style="font-weight:600">'+esc(s.name)+(clash?' <span class="tag red">时间重叠</span>':'')+'</div>'
             +'<div class="muted" style="font-size:12px;margin-top:2px">'+esc(meta)+'</div></div>';
-        return '<div class="shot '+(s.done?'done':'')+(editingThis?' editing':'')+'" data-id="'+s.id+'" data-fid="'+esc(s.id)+'">'
+        return '<div class="shot '+(s.done?'done':'')+(editingThis?' editing':'')+'" data-id="'+esc(s.id)+'" data-fid="'+esc(s.id)+'">'
           +'<span class="drag-handle" title="拖拽排序"><svg width="12" height="18" viewBox="0 0 12 18" fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></svg></span>'
-          +'<button class="chk '+(s.done?'on':'')+'" onclick="toggleShot(\''+s.id+'\')">'+(s.done?'✓':'')+'</button>'
+          +'<button class="chk '+(s.done?'on':'')+'" onclick="toggleShot('+jstr(s.id)+')">'+(s.done?'✓':'')+'</button>'
           +'<div class="refs">'+refHtml+'</div>'
           +body
           +'<button class="rowbtn'+(isFav(s)?' on':'')+'" title="收藏/取消收藏" onclick="toggleFav(\'shots\','+jstr(s.id)+')">'+(isFav(s)?'★':'☆')+'</button>'
           +editBtn('Shot',s.id)
-          +'<button class="iconbtn" title="删除分镜" onclick="delShot(\''+s.id+'\')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
+          +'<button class="iconbtn" title="删除分镜" onclick="delShot('+jstr(s.id)+')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
         }).join('')+'</div>'; }).join('')+'</div>' : '<p class="muted">'+(kw?'没有匹配的分镜。':'还没有分镜。添加第一条，把素材挂上来。')+'</p>');
 }
 function setShiseiCat(cat){ view.poseCat=(view.poseCat===cat)?null:String(cat||null); renderShots(cur()); }
@@ -1397,7 +1400,7 @@ function applyDay(p,date,anchorId){ ensureDayDefaults(p,date); return reschedule
 function dayItems(p,date){
   const out=[];
   (p.shots||[]).filter(s=>s.date===date).forEach(s=>{
-    const st=toMin(s.slot), dur=Math.max(5,+s.duration||20);
+    const st=toMin(s.slot), dur=Math.max(5,+s.duration||SHOT_DEFAULT_MIN);
     out.push({...s,_t:'shot',_start:st,_end:st+dur,_time:s.slot||''});
   });
   (p.schedule||[]).filter(n=>(n.date||date)===date&&n.start).forEach(n=>{
@@ -1418,7 +1421,7 @@ function cascadeShift(p,date,id,delta){
   const base=items[idx]._start;
   const plan=[]; let cursor=-1;
   items.forEach(it=>{
-    const dur=it._t==='shot'?Math.max(5,+it.duration||20):Math.max(30,it._end-it._start);
+    const dur=it._t==='shot'?Math.max(5,+it.duration||SHOT_DEFAULT_MIN):Math.max(30,it._end-it._start);
     if(it._start<base){ if(it._end>cursor) cursor=it._end; return; }
     let ns=it._start+delta;
     if(cursor>=0&&ns<cursor) ns=cursor;
@@ -1456,10 +1459,10 @@ function timelineHtml(p,date){
       return '<div class="tl-item shot-row'+(sdEditing?' editing':'')+'"><div class="tl-time">'+esc(time)+'</div><div class="tl-dot" style="background:var(--accent)"></div>'
         +(sdEditing
           ? shotEditPanel(it,p)
-          : '<div class="tl-body"><div class="tl-title"><span class="tag">分镜</span> '+esc(it.name)+' <span class="muted" style="font-weight:400">· 约 '+it.duration+' 分钟</span>'+cflag+'</div>'
+          : '<div class="tl-body"><div class="tl-title"><span class="tag">分镜</span> '+esc(it.name)+' <span class="muted" style="font-weight:400">· 约 '+(+it.duration||0)+' 分钟</span>'+cflag+'</div>'
             +'<div class="tl-note">'+extra+'</div></div>')
-        +'<button class="chk '+(it.done?'on':'')+'" onclick="toggleShot(\''+it.id+'\')">'+(it.done?'✓':'')+'</button>'
-        +(sdEditing?'':'<button class="rowbtn" title="编辑本分镜" onclick="beginInlineEdit(\'Shot\',\''+it.id+'\')">✎编辑</button>')
+        +'<button class="chk '+(it.done?'on':'')+'" onclick="toggleShot('+jstr(it.id)+')">'+(it.done?'✓':'')+'</button>'
+        +(sdEditing?'':'<button class="rowbtn" title="编辑本分镜" onclick="beginInlineEdit(\'Shot\','+jstr(it.id)+')">✎编辑</button>')
         +'</div>';
     }
     const editing=view.editingNodeId===it.id;
@@ -1639,7 +1642,7 @@ function renderNotes(p){
             +'<button class="btn btn-ghost btn-sm" onclick="cancelInlineEdit()">取消</button></div></div>'
           :'<span class="grow '+(x.done?'done-text':'')+'">'+esc(x.title)+'</span>'
             +(x.owner?'<span class="tag gray">'+esc(x.owner)+'</span>':'')
-            +(x.due?'<span class="tag '+(od?'red':'gray')+'">'+(od?'逾期 ':'')+x.due+'</span>':'');
+            +(x.due?'<span class="tag '+(od?'red':'gray')+'">'+(od?'逾期 ':'')+esc(x.due)+'</span>':'');
         return '<div class="row" style="padding:8px 0;border-bottom:1px dashed var(--line)" data-fid="'+esc(x.id)+'">'
           +'<button class="chk '+(x.done?'on':'')+'" onclick="toggleTodo('+jstr(x.id)+')">'+(x.done?'✓':'')+'</button>'
           +body
@@ -1733,7 +1736,7 @@ async function renderShootDay(){
     items.forEach(x=>{
       const time=x._t==='shot'&&x._time?x._time+' – '+fmtMin(x._end):(x._time||'未排时');
       if(time!==lastT){ lastT=time;
-        h+='<div class="sd-slot">◷ '+time+(x.id===currentId?' <span class="now">当前</span>':'')+'</div>'; }
+        h+='<div class="sd-slot">◷ '+esc(time)+(x.id===currentId?' <span class="now">当前</span>':'')+'</div>'; }
       const overdue=isToday&&!x.done&&(x._time||'00:00')<nowT&&x.id!==currentId&&x._time;
       const cflag=x._conflict?' <span class="tag red" style="border:1px solid #a32d2d">重叠</span>':'';
       if(x._t==='shot'){
@@ -1742,15 +1745,15 @@ async function renderShootDay(){
         h+='<div class="sd-shot '+(x.done?'done':'')+' '+(x.id===currentId?'now':'')+'">'
           +(refs.length?refs.map(r=>imgCache[r]?'<img src="'+esc(imgCache[r])+'">':'<div style="width:68px;height:68px;border-radius:9px;border:1px solid #2c2822;background:#12100c;color:#a99e8c;font-size:10px;display:flex;align-items:center;justify-content:center;text-align:center;padding:4px">图库原图已更新</div>').join(''):'')
           +'<div style="flex:1;min-width:120px"><div class="sd-name"><span class="sd-tag">分镜</span>'+esc(x.name)+cflag+'</div>'
-          +'<div class="sd-meta">'+(scene?esc(scene.name)+' · ':'')+'约 '+x.duration+' 分钟'+(x.note?' · '+esc(x.note):'')+'</div>'
+          +'<div class="sd-meta">'+(scene?esc(scene.name)+' · ':'')+'约 '+(+x.duration||0)+' 分钟'+(x.note?' · '+esc(x.note):'')+'</div>'
           +((overdue||x._conflict)?'<button class="sd-btn" style="margin-top:8px" onclick="sdPostpone()" title="当天所有环节与分镜整体后移 1 小时，收工随之重排">⚠ 已'+(overdue?'超时':'重叠')+' · 整日顺延 1 小时</button>':'')
           +'</div>'
-          +'<button class="sd-chk '+(x.done?'on':'')+'" onclick="sdToggle(\''+x.id+'\')">✓</button></div>';
+          +'<button class="sd-chk '+(x.done?'on':'')+'" onclick="sdToggle('+jstr(x.id)+')">✓</button></div>';
       } else {
         h+='<div class="sd-shot node '+(x.done?'done':'')+' '+(x.id===currentId?'now':'')+'">'
           +'<div style="flex:1;min-width:120px"><div class="sd-name" style="font-size:16px">'+esc(x.title)+cflag+'</div>'
-          +'<div class="sd-meta">'+esc(x.type)+(x.end?' · 至 '+x.end:'')+(x.note?' · '+esc(x.note):'')+'</div></div>'
-          +'<button class="sd-chk sm '+(x.done?'on':'')+'" onclick="sdToggleNode(\''+x.id+'\')">✓</button></div>';
+          +'<div class="sd-meta">'+esc(x.type)+(x.end?' · 至 '+esc(x.end):'')+(x.note?' · '+esc(x.note):'')+'</div></div>'
+          +'<button class="sd-chk sm '+(x.done?'on':'')+'" onclick="sdToggleNode('+jstr(x.id)+')">✓</button></div>';
       }
     });
   }

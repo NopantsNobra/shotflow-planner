@@ -12,7 +12,7 @@ function callSheetHtml(p){
     const sc=p.scenes.find(s=>s.id===x.sceneId);
     const time=x._t==='shot'?(x._time||'—'):((x.start||'—')+(x.end?' – '+x.end:''));
     const name=x._t==='shot'?x.name:(x.type+' · '+x.title);
-    return '<tr><td style="white-space:nowrap">'+esc(time)+'</td><td>'+esc(name)+'</td><td>'+esc(sc?sc.name:(x._t==='shot'?'—':''))+'</td><td>'+(x._t==='shot'?(x.duration+' 分钟'):'—')+'</td>'
+    return '<tr><td style="white-space:nowrap">'+esc(time)+'</td><td>'+esc(name)+'</td><td>'+esc(sc?sc.name:(x._t==='shot'?'—':''))+'</td><td>'+(x._t==='shot'?((+x.duration||0)+' 分钟'):'—')+'</td>'
       +(anyPos?'<td>'+esc(x._t==='shot'?(x.position||'—'):'—')+'</td>':'')
       +(anyLight?'<td>'+esc(x._t==='shot'?(x.light||'—'):'—')+'</td>':'')
       +'</tr>';
@@ -87,7 +87,7 @@ async function openDoc(kind){
       +li([...p.shots].sort((a,b)=>shotSortKey(a)<shotSortKey(b)?-1:1),
         s=>{const sc=p.scenes.find(x=>x.id===s.sceneId);return '<tr><td class="nw">'+esc(s.date||'')+' '+esc(s.slot||'')+'</td><td>'+esc(s.name)+'</td>'
           +(anyRefs?'<td class="ref-cell">'+refCell(s)+'</td>':'')
-          +'<td>'+esc(sc?sc.name:'—')+'</td><td class="nw">'+s.duration+' 分钟</td>'
+          +'<td>'+esc(sc?sc.name:'—')+'</td><td class="nw">'+(+s.duration||0)+' 分钟</td>'
           +(anyPos?'<td>'+esc(s.position||'—')+'</td>':'')
           +(anyLight?'<td>'+esc(s.light||'—')+'</td>':'')
           +'<td>'+esc(s.note||'—')+'</td></tr>';},6+(anyRefs?1:0)+(anyPos?1:0)+(anyLight?1:0))
@@ -151,11 +151,13 @@ async function writeProposalFile(p){
     +'<script>'+fitCovers.toString()+'\nwindow.addEventListener("resize",fitCovers);fitCovers();<\/script></body></html>';
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([html],{type:'text/html'}));
-  a.download='摄影提案_'+esc(p.name).replace(/[\\/:*?"<>|]/g,'')+'.html'; a.click();
+  a.download='摄影提案_'+safeFilename(p.name)+'.html'; a.click();
   toast('提案文件已生成，微信可直接发送给客户');
 }
 
 /* ================= 备份 / 恢复 / 清空 ================= */
+/* 导出文件名清洗（A5）：只剥跨平台非法字符，不再套 esc()（esc 会把 & 变成 &amp; 混进文件名） */
+function safeFilename(s){ return String(s==null?'':s).replace(/[\\/:*?"<>|\r\n]/g,'').trim().slice(0,80)||'未命名'; }
 function downloadData(data,filename){
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));
@@ -182,7 +184,7 @@ async function exportJSON(){
 async function exportProject(pid){
   const p=loadP().find(x=>x.id===pid); if(!p) return;
   downloadData({app:'stillmark',version:4,type:'project',exportedAt:new Date().toISOString(),project:p,images:await imagesFor([p])},
-    '策划案_'+String(p.name||'未命名').replace(/[\\/:*?"<>|]/g,'')+'_'+todayStr()+'.json');
+    '策划案_'+safeFilename(p.name)+'_'+todayStr()+'.json');
   toast('单项目备份已导出');
 }
 let pendingImport=null;
@@ -207,12 +209,18 @@ function importJSON(e){
 async function applyImport(){
   const d=pendingImport; if(!d){ return; }
   try{
+    /* A1/C1：导入文件是不可信输入，先经 sanitizeProject 净化（id 全部重写 + status 白名单 +
+       类型收敛）再 migrate；非法条目直接丢弃，不进入内存 */
     let arr;
     if(d.type==='project'||d.project){
-      const p=migrate(d.project); delete p.v3; p.v3=1; p.id=uid(); p.name=(p.name||'导入的策划案')+'（导入）';
+      const p=sanitizeProject(d.project);
+      if(!p){ toast('文件数据不合法，导入失败'); return; }
+      migrate(p); p.v3=1; p.name=(p.name||'导入的策划案')+'（导入）';
       arr=[...loadP(),p];
     } else {
-      arr=d.projects.map(p=>{ migrate(p); p.v3=1; return p; });
+      arr=(Array.isArray(d.projects)?d.projects:[]).map(x=>sanitizeProject(x)).filter(Boolean)
+        .map(p=>{ migrate(p); p.v3=1; return p; });
+      if(!arr.length){ toast('文件中没有合法的策划案，导入失败'); return; }
     }
     if(d.images){ for(const k of Object.keys(d.images)){ await idb.put(k,d.images[k]); imgCache[k]=d.images[k]; } }
     saveP(arr);
@@ -292,6 +300,7 @@ function shiseiSyncEnabled(){
   try{ return localStorage.getItem('wb_sf_shisei_sync')!=='0'; }catch(e){ return true; }
 }
 function shiseiCanStart(force){
+  if(!idb.ready()) return false;                 // A2：存储降级时不同步图库（同步了也存不住，只会空转烧流量）
   if(!shiseiInitReady||!shiseiSyncEnabled()||!navigator.onLine) return false;
   if(!force&&document.visibilityState!=='visible') return false;
   if(document.querySelector('.modal-mask.show')||document.getElementById('sdOverlay').classList.contains('show')) return false;
