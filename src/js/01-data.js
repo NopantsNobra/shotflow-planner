@@ -27,26 +27,6 @@ function safeColor(v){
   return '#c8a97e';
 }
 
-/* ===== v10.5 PoseWear：全量分类词表（管理员决定 B：含成人向类目，无 18+ 开关、无默认隐藏） =====
-   a:1 只作来源标记，不参与任何过滤；a:1 类目与其他类目一视同仁展示。 */
-const PW_POSE_LINES=['全身·性感','全身·标准','上半身','双人互动'];
-const PW_POSE_CATS=['可爱','坐姿','站姿','跪立','躺卧','侧坐·鸭子坐','蹲姿','前倾','后仰','扭身','性感·大胆','成人向'];
-const PW_COSTUME_CATS=['春季','夏季','秋季','冬季','内衣','派对礼服','泳装','性感'];
-const PW_HAIR_CATS=['正脸','生活照','短发','中长发','半长发','长发'];
-const PW_ANGLES=[
-  {view:'front',zh:'正面',en:'front view',ja:'正面'},
-  {view:'high',zh:'俯拍',en:'high angle, from above',ja:'上から'},
-  {view:'low',zh:'仰拍',en:'low angle, from below',ja:'下から'},
-  {view:'side',zh:'侧面',en:'side view',ja:'横'},
-  {view:'diag',zh:'斜侧',en:'three-quarter view',ja:'斜め'}
-];
-const PW_META_KEY={pose:'catalog:pose',costume:'catalog:costume',portrait:'catalog:portrait'};
-const PW_SYNC_KEY='sync';
-const PW_CREDIT='姿势 / 服装来源：@giaaibusi（AI Pose Gallery / AI Costume Gallery）· 人像来源：@agi_aibusi（AI Portrait Gallery, CC0）｜开源：github.com/atuizz/posewear';
-const PW_POSE_ORIGIN='https://ai-pose-gallery.pages.dev/';
-const PW_COSTUME_ORIGIN='https://ai-costume-gallery.pages.dev/';
-const PW_PORTRAIT_ORIGIN='https://ai-portrait-gallery.pages.dev/';
-
 /* ===== 素材标签：常量与会话配置 ===== */
 const AI_TAGGING_ENABLED=false;                 // 编译期总开关，本期恒关闭
 const TagProviders=Object.create(null);         // 可插拔建议器注册表，默认空
@@ -210,15 +190,12 @@ function pickCity(v){
 
 /* IndexedDB：图片 + 项目主存储 + 姿势图库（v4 起项目不再存 localStorage） */
 const idb={db:null,
-  open(){return new Promise((res,rej)=>{const r=indexedDB.open('shotflow',4);
+  open(){return new Promise((res,rej)=>{const r=indexedDB.open('shotflow',3);
     r.onupgradeneeded=e=>{const db=e.target.result;
       if(!db.objectStoreNames.contains('images')) db.createObjectStore('images');
       if(!db.objectStoreNames.contains('projects')) db.createObjectStore('projects');
       if(!db.objectStoreNames.contains('shisei_meta')) db.createObjectStore('shisei_meta');
       if(!db.objectStoreNames.contains('shisei_images')) db.createObjectStore('shisei_images');
-      /* v10.5 PoseWear：独立两库，不碰 shisei_meta/shisei_images/images */
-      if(!db.objectStoreNames.contains('posewear_meta')) db.createObjectStore('posewear_meta');
-      if(!db.objectStoreNames.contains('posewear_images')) db.createObjectStore('posewear_images');
     };
     r.onsuccess=e=>{idb.db=e.target.result;res();};r.onerror=rej;});},
   put(k,v){return new Promise((res,rej)=>{const t=idb.db.transaction('images','readwrite');t.objectStore('images').put(v,k);t.oncomplete=res;t.onerror=rej;});},
@@ -239,20 +216,7 @@ const idb={db:null,
     r.onsuccess=e=>{const c=e.target.result; if(!c){res(out);return;} const v=c.value||{}; out.push({key:c.key,pid:v.pid,cat:v.cat,view:v.view,zh:v.zh,en:v.en,ja:v.ja}); c.continue();};r.onerror=rej;});},
   shiseiImgStats(){return new Promise((res,rej)=>{let count=0,bytes=0;const r=idb.db.transaction('shisei_images').objectStore('shisei_images').openCursor();
     r.onsuccess=e=>{const c=e.target.result; if(!c){res({count,bytes,avg:count?Math.round(bytes/count):0});return;} const v=c.value||{}; count++; bytes+=String(v.data||'').length; c.continue();};r.onerror=rej;});},
-  clearShisei(){return new Promise((res,rej)=>{const t=idb.db.transaction(['shisei_meta','shisei_images'],'readwrite');t.objectStore('shisei_meta').clear();t.objectStore('shisei_images').clear();t.oncomplete=res;t.onerror=()=>rej(t.error);});},
-  /* v10.5 PoseWear 独立库：所有 key 以 posewear: 开头；只存元数据 + 用户点开的 KB 级缩略图 */
-  getPwMeta(k){return new Promise((res,rej)=>{const r=idb.db.transaction('posewear_meta').objectStore('posewear_meta').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
-  putPwMeta(k,v){return new Promise((res,rej)=>{const t=idb.db.transaction('posewear_meta','readwrite');t.objectStore('posewear_meta').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});},
-  delPwMeta(k){return new Promise((res,rej)=>{const t=idb.db.transaction('posewear_meta','readwrite');t.objectStore('posewear_meta').delete(k);t.oncomplete=res;t.onerror=rej;});},
-  putPwImg(k,v){return new Promise((res,rej)=>{const t=idb.db.transaction('posewear_images','readwrite');t.objectStore('posewear_images').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});},
-  getPwImg(k){return new Promise((res,rej)=>{const r=idb.db.transaction('posewear_images').objectStore('posewear_images').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
-  delPwImg(k){return new Promise((res,rej)=>{const t=idb.db.transaction('posewear_images','readwrite');t.objectStore('posewear_images').delete(k);t.oncomplete=res;t.onerror=rej;});},
-  pwImgKeys(){return new Promise((res,rej)=>{const r=idb.db.transaction('posewear_images').objectStore('posewear_images').getAllKeys();r.onsuccess=()=>res(r.result);r.onerror=rej;});},
-  pwImgStats(){return new Promise((res,rej)=>{let count=0,bytes=0;const r=idb.db.transaction('posewear_images').objectStore('posewear_images').openCursor();
-    r.onsuccess=e=>{const c=e.target.result; if(!c){res({count,bytes,avg:count?Math.round(bytes/count):0});return;} const v=c.value||{}; count++; bytes+=String(v.data||'').length; c.continue();};r.onerror=rej;});},
-  pwIndex(kind){return new Promise((res,rej)=>{const out=[];const r=idb.db.transaction('posewear_images').objectStore('posewear_images').openCursor();
-    r.onsuccess=e=>{const c=e.target.result; if(!c){res(out);return;} const v=c.value||{}; if(!kind||v.kind===kind) out.push({key:c.key,kind:v.kind,zh:v.zh||'',en:v.en||'',cat:v.cat||''}); c.continue();};r.onerror=rej;});},
-  clearPosewear(){return new Promise((res,rej)=>{const t=idb.db.transaction(['posewear_meta','posewear_images'],'readwrite');t.objectStore('posewear_meta').clear();t.objectStore('posewear_images').clear();t.oncomplete=res;t.onerror=()=>rej(t.error);});}
+  clearShisei(){return new Promise((res,rej)=>{const t=idb.db.transaction(['shisei_meta','shisei_images'],'readwrite');t.objectStore('shisei_meta').clear();t.objectStore('shisei_images').clear();t.oncomplete=res;t.onerror=()=>rej(t.error);});}
 };
 const imgCache={};
 async function cacheProjectImages(p){

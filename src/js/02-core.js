@@ -3,8 +3,7 @@ function freshView(patch){
   const d={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',
     moodFilter:[],moodFilterMode:'any',shotDraft:{},poseCat:null,editingShotId:null,editingShotEditId:null,replaceIdx:-1,
     allowDemoWrite:false,editingNodeId:null,editingStuffId:null,editingStuffKey:null,
-    editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null,lastShift:null,newDay:false,moodRefPicker:false,
-    pwKind:'pose',pwCat:'',pwKw:'',pwLang:'zh',pwSel:{pose:null,poseView:'',outfit:null,hair:null},pwPrint:false,pwStatus:'未导入'};
+    editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null,lastShift:null,newDay:false,moodRefPicker:false};
   return Object.assign(d,patch||{});
 }
 let view=freshView();
@@ -136,197 +135,6 @@ function nextPendingBatch(meta,batch){
 function mergeShiseiMeta(meta,patch){
   const base=(meta&&typeof meta==='object')?meta:{};
   return Object.assign({},base,(patch&&typeof patch==='object')?patch:{});
-}
-
-/* ===== v10.5 PoseWear 纯函数层 =====
-   硬约束：函数体内不出现 document / window / localStorage / idb / fetch / parseInt / isNaN / Boolean(...)。
-   只用 String / Number / Array / Object / JSON / Math / RegExp / Set / Map / Date 与纯计算。 */
-function pwItemKey(kind,id,angle){
-  const k=String(kind==null?'':kind).replace(/[^a-z0-9]/gi,'').toLowerCase()||'item';
-  const i=String(id==null?'':id).trim();
-  if(!i) return '';
-  return 'posewear:'+k+':'+i+(angle?':'+String(angle):'');
-}
-function pwCatalogVersion(text){
-  const s=String(text==null?'':text); let h=5381;
-  for(let i=0;i<s.length;i++) h=(((h<<5)+h)+s.charCodeAt(i))>>>0;
-  return s.length+'-'+h.toString(36);
-}
-/* 上游模板尾句必须剥离，否则会污染出图提示词 */
-/* 设计 §4：只取 len + st 组成「发型短语」，保证不出现「面部参考」尾句，
-   也不能复用上游整句 zh/en（否则组合时会重复「一位亚洲年轻女性 / young Asian woman」前缀）。 */
-function pwHairPhrase(p,lang){
-  if(!p||typeof p!=='object') return '';
-  const zhTail='。作为人物面部参考，保持五官和脸型一致。', enTail=', consistent facial features, face reference';
-  const len=String(p.len==null?'':p.len), st=String(p.st==null?'':p.st);
-  const lenEn=String(p.lenEn==null?'':p.lenEn), stEn=String(p.stEn==null?'':p.stEn);
-  const zh=(len+(st?'（'+st+'）':'')).split(zhTail)[0];
-  const en=(lenEn+(stEn?(lenEn?', ':'')+stEn:'')).split(enTail)[0];
-  return lang==='en'?en:zh;
-}
-const PW_POSE_CAT_TR={'立ち':'站姿','座り':'坐姿','膝立ち':'跪立','横座り・女の子座り':'侧坐·鸭子坐',
-  'しゃがみ':'蹲姿','前かがみ':'前倾','のけぞり・反り':'后仰','ひねり':'扭身','寝そべり':'躺卧','かわいい系':'可爱'};
-const PW_COSTUME_CAT_TR={'春':'春季','夏':'夏季','秋':'秋季','冬':'冬季','ランジェリー':'内衣',
-  'パーティ':'派对礼服','水着':'泳装','セクシー':'性感'};
-const PW_POSE_TR={
-  'S字立ち・腰を横に突き出す':{zh:'S形站姿·胯部侧顶',en:'S-curve standing pose, hip pushed out to the side'},
-  '後ろ寄り掛け・片膝立ち':{zh:'后仰坐·单膝立起',en:'leaning back sitting pose, one knee raised'},
-  '立ち・肩越しに振り返る':{zh:'站姿·越肩回眸',en:'standing pose, looking back over the shoulder'}
-};
-function pwParsePoseCatalog(raw){
-  const list=Array.isArray(raw)?raw:(Array.isArray(raw&&raw.items)?raw.items:[]);
-  const groups=[], byId={};
-  list.forEach(function(e){
-    if(!e||!e.id) return;
-    const id=String(e.id), parts=id.split('_'), tail=parts[parts.length-1];
-    const angleRaw=String(e.angle==null?'':e.angle);
-    const av=PW_ANGLES.filter(function(a){return a.view===tail||a.ja===tail||a.zh===tail||a.view===angleRaw||a.ja===angleRaw;})[0];
-    /* 非白名单角度：若同组已存在则整条丢弃，不新建伪分组 */
-    if(!av&&parts.length>1&&byId[parts.slice(0,-1).join('_')]) return;
-    const gid=(av&&parts.length>1)?parts.slice(0,-1).join('_'):id;
-    if(!byId[gid]){
-      const ja=String(e.ja||e['ポーズ名']||gid);
-      const tr=PW_POSE_TR[ja]||{};
-      const sys=String(e.line||e['系統']||'');
-      const jaCat=String(e.cat||e['分類']||'');
-      const g={id:gid,no:String(e.no||e['ポーズ番号']||gid.replace(/^.*_P/,'P')),
-        line:sys,cat:PW_POSE_CAT_TR[jaCat]||jaCat,zh:String(e.zh||tr.zh||ja),en:String(e.en||tr.en||''),
-        ja:ja,angles:[],a:(e.a===1||/性感|セクシー|二人|2人/.test(sys))?1:0,
-        data:String(e.data||e.thumbData||''),srcFull:String(e.src||'')};
-      byId[gid]=g; groups.push(g);
-    }
-    const g=byId[gid];
-    if(av&&!g.angles.filter(function(a){return a.view===av.view;}).length){
-      g.angles.push({view:av.view,zh:av.zh,en:av.en,
-        t:String(e.t||e.thumb||e['サムネ']||('p/t/'+id+'.webp')),
-        src:String(e.src||(PW_POSE_ORIGIN+'thumbs/'+id+'.jpg'))});
-    }
-  });
-  return groups;
-}
-function pwParseCostumeCatalog(raw){
-  const list=Array.isArray(raw)?raw:(Array.isArray(raw&&raw.items)?raw.items:[]);
-  return list.filter(function(e){return e&&e.id;}).map(function(e){
-    const id=String(e.id), kw=String(e.kw||e['キーワード']||'');
-    const jaCat=String(e.cat||e['カテゴリ']||'');
-    const o={id:id,cat:PW_COSTUME_CAT_TR[jaCat]||jaCat,catEn:String(e.catEn||''),kw:kw,
-      zh:String(e.zh||''),en:String(e.en||''),ti:String(e.ti||e.title||''),
-      t:String(e.t||e.thumb||('c/m/'+id+'.webp')),
-      src:String(e.src||(PW_COSTUME_ORIGIN+'thumbs/'+id+'.webp')),
-      data:String(e.data||e.thumbData||'')};
-    /* 管理员决定 B：a:1 只作来源标记，全量内置；此处绝不过滤 */
-    if(e.a===1||/ランジェリー|セクシー|水着/.test(jaCat)) o.a=1;
-    if(!o.zh) o.zh=kw?(kw+'。'):'';
-    if(!o.en) o.en=kw;
-    if(!o.ti) o.ti=kw;
-    return o;
-  });
-}
-function pwParsePortraitCatalog(raw){
-  const list=Array.isArray(raw)?raw:(Array.isArray(raw&&raw.items)?raw.items:[]);
-  return list.filter(function(e){return e&&e.id;}).map(function(e){
-    const o={id:String(e.id),no:String(e.no||''),sec:String(e.sec||''),len:String(e.len||''),st:String(e.st||e.style||''),
-      lenEn:String(e.lenEn||''),stEn:String(e.stEn||''),   // 英文短语素材，供 pwHairPhrase 组合用
-      zh:'',en:'',t:String(e.t||e.thumb||('r/m/'+String(e.id)+'.webp')),
-      src:String(e.src||(PW_PORTRAIT_ORIGIN+'img/thumb/'+String(e.id)+'.webp')),
-      data:String(e.data||e.thumbData||'')};
-    /* 卡片描述保留上游整句（仅剥离模板尾句）；组合用短语由 pwHairPhrase 单独取 len/st，二者口径不同 */
-    const zhTail='。作为人物面部参考，保持五官和脸型一致。', enTail=', consistent facial features, face reference';
-    o.zh=String(e.zh==null?'':e.zh).split(zhTail)[0]||('一位亚洲年轻女性，'+pwHairPhrase(o,'zh')+'。');
-    o.en=String(e.en==null?'':e.en).split(enTail)[0]||('young Asian woman, '+pwHairPhrase(o,'en'));
-    return o;
-  });
-}
-function pwCatalogSame(a,b){
-  if(!a||!b) return false;
-  const aa=Array.isArray(a.angles)?a.angles:[], bb=Array.isArray(b.angles)?b.angles:[];
-  return String(a.zh||'')===String(b.zh||'')&&String(a.en||'')===String(b.en||'')
-    &&String(a.cat||'')===String(b.cat||'')&&JSON.stringify(aa)===JSON.stringify(bb);
-}
-function pwDiffCatalog(local,remote){
-  const idx=function(arr){const m={};(Array.isArray(arr)?arr:[]).forEach(function(e){if(e&&e.id)m[String(e.id)]=e;});return m;};
-  const lm=idx(local), rm=idx(remote), toAdd=[],toUpdate=[],toRemove=[];
-  (Array.isArray(remote)?remote:[]).forEach(function(e){
-    if(!e||!e.id) return;
-    const k=String(e.id), old=lm[k];
-    if(!old) toAdd.push(e); else if(!pwCatalogSame(old,e)) toUpdate.push(e);
-  });
-  (Array.isArray(local)?local:[]).forEach(function(e){
-    if(e&&e.id&&!rm[String(e.id)]) toRemove.push(String(e.id));
-  });
-  return {toAdd:toAdd,toUpdate:toUpdate,toRemove:toRemove};
-}
-function pwNextPendingBatch(meta,batch){
-  const size=Math.max(1,Math.trunc(Number(batch)||0)||1);
-  const pending=Array.isArray(meta&&meta.pending)?meta.pending:[];
-  const cursor=Math.max(0,Math.trunc(Number(meta&&meta.cursor)||0));
-  const items=pending.slice(cursor,cursor+size).map(function(x){return typeof x==='string'?{key:x}:x;});
-  const next=cursor+items.length;
-  return {items:items,cursor:next,done:next>=pending.length};
-}
-function pwMergeMeta(meta,patch){
-  const out={}, base=(meta&&typeof meta==='object')?meta:{}, p=(patch&&typeof patch==='object')?patch:{};
-  Object.keys(base).forEach(function(k){out[k]=base[k];});
-  Object.keys(p).forEach(function(k){out[k]=p[k];});
-  return out;
-}
-function pwMigrateShot(s){
-  const o={}, src=(s&&typeof s==='object')?s:{};
-  Object.keys(src).forEach(function(k){o[k]=src[k];});
-  /* 数组内联，保持本函数被 vm 单独抽取时自包含（与 migrate 内联逻辑逐字一致） */
-  ['poseId','poseAngle','poseZh','poseEn','outfitId','outfitZh','outfitEn',
-   'hairId','hairZh','hairEn','promptZh','promptEn'].forEach(function(k){if(o[k]==null)o[k]='';});
-  if(!Array.isArray(o.pwPrintKeys)) o.pwPrintKeys=[];
-  return o;
-}
-function pwBuildPrompt(sel,lang){
-  const s=(sel&&typeof sel==='object')?sel:{};
-  const pose=s.pose||null, outfit=s.outfit||null, hair=s.hair||null;
-  if(!pose&&!outfit&&!hair) return {zh:'',en:''};
-  const angle=(pose&&pose.angle)||null;
-  const zh=[], en=[];
-  if(hair){
-    const hp=pwHairPhrase(hair,'zh')||String(hair.len||'');
-    if(hp) zh.push('一位亚洲年轻女性，'+hp);
-    const he=pwHairPhrase(hair,'en')||String(hair.lenEn||'');
-    if(he) en.push('young Asian woman, '+he);
-  }
-  if(pose){
-    const pz=String(pose.zh||''), pe=String(pose.en||'');
-    const az=angle?String(angle.zh||''):'', ae=angle?String(angle.en||''):'';
-    if(pz||az) zh.push(pz+(az?'（'+az+'）':''));
-    if(pe||ae) en.push(pe+(ae?(pe?', ':'')+ae:''));
-  }
-  if(outfit){
-    const oz=String(outfit.zh||'').replace(/。$/,''), oe=String(outfit.en||'');
-    if(oz) zh.push(oz);
-    if(oe) en.push(oe);
-  }
-  return {zh:zh.join('，')+(zh.length?'。':''),en:en.join(', ')};
-}
-function pwShotPatch(sel){
-  const s=(sel&&typeof sel==='object')?sel:{};
-  const pose=s.pose||null, outfit=s.outfit||null, hair=s.hair||null;
-  const angle=(pose&&pose.angle)||null, pr=pwBuildPrompt(s,'zh');
-  return {poseId:pose?String(pose.id||''):'',poseAngle:angle?String(angle.view||''):'',
-    poseZh:pose?String(pose.zh||''):'',poseEn:pose?String(pose.en||''):'',
-    outfitId:outfit?String(outfit.id||''):'',outfitZh:outfit?String(outfit.zh||''):'',outfitEn:outfit?String(outfit.en||''):'',
-    hairId:hair?String(hair.id||''):'',hairZh:hair?pwHairPhrase(hair,'zh'):'',hairEn:hair?pwHairPhrase(hair,'en'):'',
-    promptZh:pr.zh,promptEn:pr.en};
-}
-function pwFilterItems(items,cat,kw,allowAdult){
-  const out=[], q=String(kw==null?'':kw).trim().toLowerCase();
-  (Array.isArray(items)?items:[]).forEach(function(it){
-    if(!it) return;
-    if(it.a===1&&!allowAdult) return;                 // 仅此函数保留该开关；UI 恒传 true（决策 B 无 18+ 开关）
-    if(cat&&String(it.cat||'')!==String(cat)) return;
-    if(q){
-      const hay=[it.id,it.zh,it.en,it.ti,it.kw,it.cat].map(function(x){return String(x==null?'':x).toLowerCase();}).join(' ');
-      if(hay.indexOf(q)<0) return;
-    }
-    out.push(it);
-  });
-  return out;
 }
 
 /* ===== v9 纯函数层：可由逻辑测试直接抽取，不依赖 DOM / idb / view ===== */
@@ -587,10 +395,6 @@ function migrate(p){
     if(s.ord==null) s.ord=0;
     if(s.position==null) s.position='';                   // v10：机位
     if(s.light==null) s.light='';                         // v10：光线
-    /* v10.5 PoseWear：12 个快照字段 + PW 打印图 key（与 pwMigrateShot 逐字一致） */
-    ['poseId','poseAngle','poseZh','poseEn','outfitId','outfitZh','outfitEn',
-     'hairId','hairZh','hairEn','promptZh','promptEn'].forEach(function(k){ if(s[k]==null) s[k]=''; });
-    if(!Array.isArray(s.pwPrintKeys)) s.pwPrintKeys=[];
   });
   p.schedule.forEach(n=>{ n.done=!!n.done; });
   migrateFav(p);

@@ -369,34 +369,3 @@ svg{display:inline-block;vertical-align:middle}
 /* 固定高度输入框统一抵消全局 padding：10px 上下 + 1px 边框会把 34px 的内容区压到 12px，导致文字被垂直裁切 */
 .new-scene input,.shot .inline-edit input,.inline-edit input,.shot-edit input,.tag-filter input,.tag-editor input{padding:0 10px;line-height:normal}
 .shot .inline-edit select,.inline-edit select,.shot-edit select{padding:0 22px 0 10px;line-height:normal}
-
-/* v10.5 PoseWear 面板（挂在分镜页；不新增第 8 个页签） */
-#pwPanel .pw-head{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;margin-bottom:8px}
-#pwPanel .pw-tabs{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0}
-#pwPanel .pw-tabs .ptab{padding:7px 12px 9px}
-#pwPanel .pw-chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
-#pwPanel .pw-chips .chip{min-height:28px;padding:3px 10px;font-size:11.5px}
-#pwPanel .pw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:9px;max-height:430px;overflow-y:auto;margin:10px 0}
-.pw-card{border:1px solid var(--line);border-radius:10px;padding:7px;background:var(--surface);cursor:pointer;min-width:0;transition:border-color .15s,box-shadow .15s}
-.pw-card:hover{border-color:var(--line2)}
-.pw-card.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
-.pw-card img{width:100%;height:86px;object-fit:cover;border-radius:6px;display:block;background:var(--surface-2)}
-.pw-card .pw-miss{width:100%;height:86px;border:1px dashed var(--line2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10.5px;color:var(--ink3);text-align:center;background:var(--surface-2)}
-.pw-card .pw-zh{font-size:12px;font-weight:600;margin-top:5px;line-height:1.4;word-break:break-word}
-.pw-card .pw-en{font-size:10px;color:var(--ink3);line-height:1.35;margin-top:2px;word-break:break-word;max-height:28px;overflow:hidden}
-.pw-card .pw-angles{display:flex;gap:3px;flex-wrap:wrap;margin-top:5px}
-.pw-card .pw-angles button{font-size:10px;padding:2px 6px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2);color:var(--ink2)}
-.pw-card .pw-angles button.on{background:var(--accent);border-color:var(--accent);color:#fff}
-#pwPanel .pw-combo textarea{min-height:72px;font-size:12.5px;margin:6px 0}
-#pwPanel .pw-combo .pw-msg{font-size:11.5px;color:var(--green);min-height:16px}
-
-.doc th.prompt-col{width:112px}
-.doc .prompt-cell{min-width:105px;max-width:120px;font-size:10.5px;line-height:1.4;white-space:normal;word-break:break-word;vertical-align:top}
-.doc .prompt-cell .muted{font-size:10.5px;line-height:1.4}
-@media screen and (max-width:768px){.doc th.prompt-col{width:88px}.doc .prompt-cell{min-width:80px;max-width:92px}}
-/* 执行手册是内部物料：纸面略宽，给「动作与穿搭」更多横向空间，降低长提示词造成的行高/分页浪费 */
-.doc-modal.manual .modal{max-width:1020px}
-.doc-modal.manual .doc{max-width:920px}
-.doc-modal.manual .doc th.prompt-col{width:180px}
-.doc-modal.manual .doc .prompt-cell{min-width:160px;max-width:210px}
-@media screen and (max-width:768px){.doc-modal.manual .doc th.prompt-col{width:88px}.doc-modal.manual .doc .prompt-cell{min-width:80px;max-width:92px}}

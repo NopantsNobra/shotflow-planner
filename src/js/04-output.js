@@ -37,17 +37,7 @@ function callSheetHtml(p){
 }
 async function openDoc(kind){
   const p=cur(); if(!p) return;
-  document.getElementById('docModal').classList.toggle('manual',kind==='manual');
   await ensureShiseiRefs(p);
-  /* v10.5：执行手册按 shot.pwPrintKeys 内联 PW 缩略图（独立 store；绝不写进 refIds / p.refs） */
-  if(kind==='manual'){
-    const keys=[];
-    (p.shots||[]).forEach(function(s){(s.pwPrintKeys||[]).forEach(function(k){
-      if(String(k||'').indexOf('posewear:')===0&&keys.indexOf(k)<0) keys.push(k);
-    });});
-    for(const k of keys){ if(!imgCache[k]){ try{ const rec=await idb.getPwImg(k); if(rec&&rec.data) imgCache[k]=rec.data; }catch(e){} } }
-  }
-
   /* 提案才提供「导出 HTML 文件」（原独立按钮已移入此处），通告单 / 手册走打印 */
   const exBtn=document.getElementById('docExportBtn');
   if(exBtn) exBtn.style.display=(kind==='proposal')?'':'none';
@@ -85,32 +75,22 @@ async function openDoc(kind){
     /* v10.3：执行手册分镜表按需追加「参考图」列——取每条分镜挂的参考图（我的素材 + 姿势图库，已由
        ensureShiseiRefs / cacheProjectImages 预载到 imgCache），图文对照便于现场直接执行；
        shisei 引用未同步到本机时给占位提示，不静默丢列 */
-    const shotRefs=s=>(s.refIds||[]).slice();
-    /* v10.5 决策 C：pwPrintKeys 只喂执行手册参考图列，绝不回写 refIds / p.refs */
-    const pwKeys=s=>(s.pwPrintKeys||[]).filter(k=>String(k||'').indexOf('posewear:')===0);
-    const refCell=s=>{
-      const all=shotRefs(s).concat(pwKeys(s));
-      return all.length?all.map(function(r){
-        const isPw=String(r||'').indexOf('posewear:')===0;
-        return imgCache[r]
-          ?'<img class="shot-ref" src="'+esc(imgCache[r])+'" title="'+(isPw?'PoseWear 参考':'参考图')+'">'
-          :(String(r||'').startsWith('shisei:')?'<span class="shot-ref shot-ref-miss">图库未同步</span>'
-            :(isPw?'<span class="shot-ref shot-ref-miss">PW 图未同步</span>':''));
-      }).join(''):'—';
-    };
-    const anyRefs=p.shots.some(s=>shotRefs(s).length||pwKeys(s).length);
-    /* v10.5 决策 A：中英描述只进执行手册（内部物料），客户提案保持与基线一致 */
-    const anyPrompt=p.shots.some(s=>s.promptZh||s.promptEn);
+    const shotRefs=s=>(s.refIds||[]);
+    const refCell=s=>shotRefs(s).length
+      ?shotRefs(s).map(r=>imgCache[r]
+        ?'<img class="shot-ref" src="'+esc(imgCache[r])+'" title="参考图">'
+        :(String(r||'').startsWith('shisei:')?'<span class="shot-ref shot-ref-miss">图库未同步</span>':'')).join('')
+      :'—';
+    const anyRefs=p.shots.some(s=>shotRefs(s).length);
     h+='<h2>三、分镜头清单</h2><table><tr><th>时间</th><th>分镜</th>'+(anyRefs?'<th>参考图</th>':'')+'<th>场景</th><th>时长</th>'
-      +(anyPos?'<th>机位</th>':'')+(anyLight?'<th>光线</th>':'')+(anyPrompt?'<th class="prompt-col">动作与穿搭</th>':'')+'<th>备注</th></tr>'
+      +(anyPos?'<th>机位</th>':'')+(anyLight?'<th>光线</th>':'')+'<th>备注</th></tr>'
       +li([...p.shots].sort((a,b)=>shotSortKey(a)<shotSortKey(b)?-1:1),
         s=>{const sc=p.scenes.find(x=>x.id===s.sceneId);return '<tr><td class="nw">'+esc(s.date||'')+' '+esc(s.slot||'')+'</td><td>'+esc(s.name)+'</td>'
           +(anyRefs?'<td class="ref-cell">'+refCell(s)+'</td>':'')
           +'<td>'+esc(sc?sc.name:'—')+'</td><td class="nw">'+s.duration+' 分钟</td>'
           +(anyPos?'<td>'+esc(s.position||'—')+'</td>':'')
           +(anyLight?'<td>'+esc(s.light||'—')+'</td>':'')
-          +(anyPrompt?'<td class="prompt-cell">'+esc(s.promptZh||'—')+(s.promptEn?'<div class="muted">'+esc(s.promptEn)+'</div>':'')+'</td>':'')
-          +'<td>'+esc(s.note||'—')+'</td></tr>';},6+(anyRefs?1:0)+(anyPos?1:0)+(anyLight?1:0)+(anyPrompt?1:0))
+          +'<td>'+esc(s.note||'—')+'</td></tr>';},6+(anyRefs?1:0)+(anyPos?1:0)+(anyLight?1:0))
       +(anyRefs?'<p class="muted" style="margin:6px 0 14px">分镜参考图随手册打印 / 存为 PDF 一并输出；「图库未同步」的姿势参考需回应用端同步姿势图库后重新打开。</p>':'')+'</table>'
       +'<h2>四、拍摄日流程</h2><table><tr><th>时间</th><th>环节</th><th>内容</th><th>备注</th></tr>'
       +li([...p.schedule].sort((a,b)=>(a.start||'99')<(b.start||'99')?-1:1),
@@ -133,7 +113,6 @@ async function openDoc(kind){
 }
 function closeDoc(){
   document.getElementById('docModal').classList.remove('show');
-  document.getElementById('docModal').classList.remove('manual');
   const exBtn=document.getElementById('docExportBtn'); if(exBtn) exBtn.style.display='none';
 }
 

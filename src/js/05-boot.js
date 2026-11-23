@@ -3,9 +3,7 @@
   document.head.insertAdjacentHTML('beforeend','<style id="cvPublicStyle">'+PUBLIC_STYLE+'</style>');
   window.addEventListener('resize',fitCovers);
   bindPersistFlush();   // P0：页面隐藏/关闭时冲刷未落盘数据
-  await initData(); seed(); await ensureV9Demo();
-  await pwLoadMeta();                 // v10.5：PW 词表缓存（失败降级为空，UI 仍显示分类面板）
-  renderBoard();
+  await initData(); seed(); await ensureV9Demo(); renderBoard();
   shiseiInitReady=true; startShiseiSync();
 })();
 document.addEventListener('visibilitychange',()=>{
