@@ -4,6 +4,27 @@
 
 所有日期为 2026 年。
 
+## [v10.7.0] - 2026-11-25
+
+设置页收尾与反馈通道定稿：反馈改为 **Web3Forms 页面内提交**（取代 v10.6.0 的公开仓库 Issue 跳转与中间过渡的邮件方案）。SW 缓存 `v10-10` → `v10-11`。
+
+### Changed
+- **反馈通道（Web3Forms 页面内 POST）**：点「提交反馈」后页面内 `fetch` POST 到 `https://api.web3forms.com/submit`，不跳转、不拉起邮件客户端；表单服务 access key 以 `FB_KEY_A` / `FB_KEY_B` 双层混淆常量存储，`fbDecodeKey()` 仅在提交时运行时还原（源码 / 产物 / 测试 / 文档零明文；日志与 DOM 均不落 key）。
+- **纯函数 `buildFeedbackPayload(type,title,body,envText)`**（替换原 URL 构造）：返回 `{access_key,subject,from_name,message}`；`message = 描述 + "\n\n---\n" + 环境信息`，超过 20000 字符截断并追加「…（描述过长已截断）」；key 还原失败返回 `null`，调用方只 toast 不泄露中间值。
+- **提交三态与防重**：成功「反馈已提交，感谢！」并清空标题/描述；HTTP 非 2xx 或 `success:false` → 「提交失败，请使用「复制反馈内容」」；网络异常 → 「网络异常，请使用「复制反馈内容」」；提交期间按钮 `disabled` + 文案「提交中…」，结束恢复「提交反馈」。
+- **隐私文案**：反馈内容（类型 / 标题 / 描述 + 应用版本与浏览器环境信息）通过第三方表单服务 Web3Forms 发送给维护者，不含项目数据、图片或个人信息。
+- 移除 `FB_MAIL_A/B`、`fbDecodeMail()`、`buildFeedbackUrl()` 及 `window.location.href = mailto` 链路。
+
+### Added（本轮同批 UI 增补）
+- **设置页「关于与部署」分区** + 「为自己部署」说明弹窗：部署方式（纯静态单文件 / 任意静态托管 / 无后端无数据库）、开源地址、`MIT License © 2026 Stillmark-服雲`、项目用途、三句话介绍；Esc 先关弹窗再关设置页，支持点遮罩关闭。
+- **全局页脚**：`#app` 之外新增 `<footer class="app-foot">`（Powered by Stillmark · 瞬刻摄影工作台 · MIT License · 开源地址），1px 分隔线 + 小号灰字居中，桌面贴底、390px 无横向溢出，页签重绘不销毁。
+
+### Verification
+- 逻辑测试 105 项全绿（`fbDecodeKey` 长度/UUID/确定性；`buildFeedbackPayload` 字段与截断）；E2E 8 项全绿（反馈 Web3Forms 成功 + 500 失败双路径、部署弹窗、全局页脚）；perf < 50ms；verify:build / verify:version(10.7.0) / sync:check / lint / format:check 全绿。
+- 浏览器实测：真实网络提交 1 条内部测试反馈（结果见发布记录），无页面跳转、无 mailto、按钮状态切换正常。
+
+---
+
 ## [v10.6.0] - 2026-11-24
 
 首个用户可见的功能版本：新增「设置」弹窗。SW 缓存 `v10-8` → `v10-10`（跳过 `v10-9`——该号曾被已回退的 PW 版本占用，避免版本序列混淆）。

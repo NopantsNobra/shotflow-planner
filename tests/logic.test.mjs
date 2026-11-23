@@ -615,59 +615,65 @@ check('P0 页面隐藏与关闭均绑定 flush', vm.runInContext('__evts.join(",
 
 /* ================= v10.6.0 设置页：反馈通道纯函数（追加块：上方 615 行零改动） ================= */
 // 注入 01-data.js 常量（vm 上下文按需同步），再抽取设置页纯函数
-vm.runInContext("globalThis.APP_VERSION='10.6.0';"
-  + "globalThis.MODULE_VERSIONS={swCache:'shotflow-v10-10',dbSchema:3};", ctx);
-/* FB_MAIL_* 混淆常量直接从 src 抽取（测试文件零明文邮箱/域名片段） */
-for (const c of ['FB_MAIL_A', 'FB_MAIL_B']) {
-  const m = src.match(new RegExp('const ' + c + "\\s*=\\s*'[^']*';"));
+vm.runInContext("globalThis.APP_VERSION='10.7.0';"
+  + "globalThis.MODULE_VERSIONS={swCache:'shotflow-v10-11',dbSchema:3};", ctx);
+/* FB_KEY_* 混淆常量直接从 src 抽取（测试文件零明文 access key） */
+for (const c of ['FB_KEY_A', 'FB_KEY_B']) {
+  const m = src.match(new RegExp('const ' + c + '\\s*=\\s*\'[^\']*\';'));
   if (!m) throw new Error('missing const ' + c);
   vm.runInContext(m[0], ctx);
 }
-for (const n of ['feedbackTypeLabel', 'buildFeedbackEnv', 'buildFeedbackUrl', 'fbDecodeMail']) vm.runInContext(fn(n), ctx);
+for (const n of ['feedbackTypeLabel', 'buildFeedbackEnv', 'buildFeedbackPayload', 'fbDecodeKey']) vm.runInContext(fn(n), ctx);
 
 // ① feedbackTypeLabel：三类型映射 + 未知值回退「其他」
 check('v10.6.0 ① feedbackTypeLabel 三类型映射与回退',
   vm.runInContext("feedbackTypeLabel('bug')+'|'+feedbackTypeLabel('idea')+'|'+feedbackTypeLabel('other')+'|'+feedbackTypeLabel('x')+'|'+feedbackTypeLabel(null)", ctx)
     === 'Bug|建议|其他|其他|其他');
 
-// ② fbDecodeMail：确定性还原，长度 27、含 @、无空格、两次调用一致；全程零明文断言
-const VDM = vm.runInContext(`(()=>{
-  const a=fbDecodeMail(), b=fbDecodeMail();
-  return {len:a.length,at:a.indexOf('@'),space:a.indexOf(' ')>=0,det:a===b,ok:a!==''&&a.indexOf('@')>0};
+// ② fbDecodeKey：确定性还原，长度 36、UUID 形态、两次调用一致（零明文断言）
+const VDK = vm.runInContext(`(()=>{
+  const a=fbDecodeKey(), b=fbDecodeKey();
+  return {len:a.length, uuid:/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(a), det:a===b};
 })()`, ctx);
-check('v10.6.0 ② fbDecodeMail 确定性还原（长度 27 / 含 @ / 无空格 / 零明文比对）',
-  VDM.len === 27 && VDM.at > 0 && !VDM.space && VDM.det && VDM.ok, JSON.stringify({len: VDM.len, at: VDM.at}));
+check('v10.6.0 ② fbDecodeKey 确定性还原（长度 36 / UUID 形态 / 零明文比对）',
+  VDK.len === 36 && VDK.uuid && VDK.det, JSON.stringify({ len: VDK.len, uuid: VDK.uuid }));
 
-// ②b buildFeedbackUrl：mailto 协议 + [Bug] 前缀进 subject + 描述/环境信息进 body
-const VFB = vm.runInContext(`buildFeedbackUrl('bug','页面崩溃','打开看板白屏','版本：v10.6.0')`, ctx);
-check('v10.6.0 ②b buildFeedbackUrl mailto 与 subject/body 拼接',
-  VFB.startsWith('mailto:') && VFB.includes('subject=') && VFB.includes('body=')
-  && decodeURIComponent(VFB).includes('[Bug] 页面崩溃')
-  && decodeURIComponent(VFB).includes('打开看板白屏') && decodeURIComponent(VFB).includes('---')
-  && decodeURIComponent(VFB).includes('版本：v10.6.0'), 'mailtoLen=' + VFB.length);
+// ③ buildFeedbackPayload：access_key / subject 前缀 / message 拼接 / from_name
+const VFP = vm.runInContext(`(()=>{
+  const p=buildFeedbackPayload('bug','页面崩溃','打开看板白屏','版本：v10.7.0');
+  return {keyLen:p.access_key.length,
+    keyUuid:/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(p.access_key),
+    subject:p.subject, from:p.from_name, msg:p.message};
+})()`, ctx);
+check('v10.6.0 ③ buildFeedbackPayload 字段与内容拼接',
+  VFP.keyLen === 36 && VFP.keyUuid && VFP.subject === '[Bug] 页面崩溃' && VFP.from === '瞬刻摄影工作台'
+  && VFP.msg.includes('打开看板白屏') && VFP.msg.includes('---') && VFP.msg.includes('版本：v10.7.0'),
+  JSON.stringify({ subject: VFP.subject, from: VFP.from }));
 
-// ③ buildFeedbackUrl：超长描述二分截断 + 提示语，URL 不超 7800
-const VFBlong = vm.runInContext(`buildFeedbackUrl('idea','超长反馈','${'长'.repeat(4000)}','env')`, ctx);
-check('v10.6.0 ③ buildFeedbackUrl 超长截断且 URL ≤ 7800',
-  VFBlong.length <= 7800 && decodeURIComponent(VFBlong).includes('描述过长已截断')
-  && decodeURIComponent(VFBlong).includes('复制反馈内容'), 'len=' + VFBlong.length);
+// ④ buildFeedbackPayload：message 超过 20000 字符时截断并追加提示
+const VFPlong = vm.runInContext(`(()=>{
+  const p=buildFeedbackPayload('idea','超长反馈','${'长'.repeat(21000)}','env');
+  return {len:p.message.length, tail:p.message.slice(-40)};
+})()`, ctx);
+check('v10.6.0 ④ buildFeedbackPayload 超长 message 截断',
+  VFPlong.len <= 20040 && VFPlong.tail.indexOf('描述过长已截断') >= 0, 'len=' + VFPlong.len);
 
-// ④ buildFeedbackEnv：五段字段齐全（版本/环境/平台/状态/项目数）
+// ⑤ buildFeedbackEnv：五段字段齐全（版本/环境/平台/状态/项目数）
 const VENV = vm.runInContext(
-  `buildFeedbackEnv({version:'10.6.0',swCache:'shotflow-v10-10',dbVersion:3,userAgent:'UA/1',platform:'Win32',language:'zh-CN',screenW:2560,screenH:1440,dpr:1,clipboardOk:true,online:false,projectCount:12})`,
+  `buildFeedbackEnv({version:'10.7.0',swCache:'shotflow-v10-11',dbVersion:3,userAgent:'UA/1',platform:'Win32',language:'zh-CN',screenW:2560,screenH:1440,dpr:1,clipboardOk:true,online:false,projectCount:12})`,
   ctx
 );
-check('v10.6.0 ④ buildFeedbackEnv 五段字段齐全',
-  VENV.includes('版本：v10.6.0（SW 缓存 shotflow-v10-10 / 数据结构 3）')
+check('v10.6.0 ⑤ buildFeedbackEnv 五段字段齐全',
+  VENV.includes('版本：v10.7.0（SW 缓存 shotflow-v10-11 / 数据结构 3）')
   && VENV.includes('环境：UA/1')
   && VENV.includes('平台：Win32 · 语言 zh-CN · 屏幕 2560×1440（devicePixelRatio 1）')
   && VENV.includes('IndexedDB 可用 / 剪贴板 API 可用 / 离线')
   && VENV.includes('项目数：12'), JSON.stringify(VENV));
 
-// ⑤ buildFeedbackEnv：空参数回退 APP_VERSION / MODULE_VERSIONS 常量与安全默认值
+// ⑥ buildFeedbackEnv：空参数回退 APP_VERSION / MODULE_VERSIONS 常量与安全默认值
 const VENVd = vm.runInContext('buildFeedbackEnv()', ctx);
-check('v10.6.0 ⑤ buildFeedbackEnv 缺省回退常量与默认值',
-  VENVd.includes('版本：v10.6.0') && VENVd.includes('SW 缓存 shotflow-v10-10')
+check('v10.6.0 ⑥ buildFeedbackEnv 缺省回退常量与默认值',
+  VENVd.includes('版本：v10.7.0') && VENVd.includes('SW 缓存 shotflow-v10-11')
   && VENVd.includes('数据结构 3') && VENVd.includes('在线') && VENVd.includes('项目数：0'), JSON.stringify(VENVd));
 
 console.log('RESULT pass=' + pass + ' fail=' + fail);

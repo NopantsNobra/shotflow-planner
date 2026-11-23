@@ -1,14 +1,15 @@
 /* ================= 数据层 ================= */
 /* ===== 版本与反馈：APP_VERSION 由构建注入（scripts/assemble.mjs 在 src → 产物阶段把下方的
    版本占位字面量替换为 package.json 的版本号）；MODULE_VERSIONS 记录各 src/ 模块「最后实质变更」
-   的应用版本（自 v10.5.0 源码模块化起记录，发版时按 CONTRIBUTING.md 检查单同步）；FB_MAIL_A/B
-   为反馈提交通道的混淆配置（双层编码，运行时由 06-settings.js 还原，源码/配置/产物/日志均无明文）。
+   的应用版本（自 v10.5.0 源码模块化起记录，发版时按 CONTRIBUTING.md 检查单同步）；FB_KEY_A/B
+   为反馈表单服务 access key 的混淆配置（双层编码，运行时由 06-settings.js 还原，
+   源码/配置/产物/日志均无明文）。
    注意：注释中不要复现带引号的占位字面量本身，
    否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
 const APP_VERSION='__APP_VERSION__';
-const MODULE_VERSIONS={shell:'v10.6.0',styles:'v10.6.0',data:'v10.6.0',core:'v10.5.0',app:'v10.5.1',output:'v10.6.0',boot:'v10.5.0',settings:'v10.6.0',swCache:'shotflow-v10-10',dbSchema:3,since:'v10.5.0'};
-const FB_MAIL_A = 'PAOkuJdQUwvTXAi3Pw';
-const FB_MAIL_B = '9ITdNjkPHrHg6uHDFf';
+const MODULE_VERSIONS={shell:'v10.6.0',styles:'v10.6.0',data:'v10.7.0',core:'v10.5.0',app:'v10.5.1',output:'v10.6.0',boot:'v10.5.0',settings:'v10.7.0',swCache:'shotflow-v10-11',dbSchema:3,since:'v10.5.0'};
+const FB_KEY_A = 'uJrHd8a=U+X9Uh3EUtyyUhdF';
+const FB_KEY_B = 'yRhU1RHdTUVl1XwU9dVu=mJD';
 const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded', LS_DEMO_V9='wb_sf_demo_v9';
 const FAV_KINDS=['mood','shots','schedule','scenes','items','budget','notes','todos'];
 const FAV_META={mood:'情绪板',shots:'分镜',schedule:'日程',scenes:'清单',items:'清单',budget:'预算',notes:'协作',todos:'协作'};

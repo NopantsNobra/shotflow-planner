@@ -1,7 +1,7 @@
 /* ================= 设置弹窗（v10.6.0）：版本信息 / 模块配置 / 数据备份 / 反馈 ================= */
 /* 硬约束：本文件顶层只允许 function 声明，禁止顶层 let/const——构建拼接顺序在 05-boot.js 之后，
    boot 段有立即执行的启动代码，顶层 let/const 会因 TDZ 崩溃；所需常量集中在 01-data.js
-   （APP_VERSION / MODULE_VERSIONS / FB_MAIL_A / FB_MAIL_B——反馈收件配置，双层混淆，明文只在运行时还原）。
+   （APP_VERSION / MODULE_VERSIONS / FB_KEY_A / FB_KEY_B——反馈表单 access key，双层混淆，明文只在运行时还原）。
    隔离纪律：不占用 view.mode、不触碰渲染主循环（openSettings/closeSettings 只切换弹窗 class +
    填充弹窗内容）；FB-1——反馈表单输入不挂任何全局重绘，提交时直接读 DOM。 */
 
@@ -29,11 +29,12 @@ function buildFeedbackEnv(e){
     +'\n状态：'+state
     +'\n项目数：'+pc;
 }
-/* 反馈收件配置还原（纯函数）：双层混淆解码，明文只在本函数返回值中出现，
-   调用方不得打印到 console、不得写入 DOM。失败/异常一律返回空串。 */
-function fbDecodeMail(){
+/* 反馈表单 access key 还原（纯函数）：双层混淆解码，明文只在本函数返回值中出现，
+   调用方不得打印到 console、不得写入 DOM。失败/异常一律返回空串。
+   注意：密文含 '='（CS 索引 64 的合法密文字符），base64 阶段按通用 padding 处理。 */
+function fbDecodeKey(){
   const CS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-  const s = FB_MAIL_A + FB_MAIL_B.split('').reverse().join('');
+  const s = FB_KEY_A + FB_KEY_B.split('').reverse().join('');
   let b1 = '';
   for (let i = 0; i < s.length; i++){
     const idx = CS.indexOf(s.charAt(i));
@@ -50,25 +51,16 @@ function fbDecodeMail(){
   }
   try{ return String.fromCharCode.apply(null, out); }catch(err){ return ''; }
 }
-/* 反馈提交 URL（纯函数）：mailto + '[类型] 标题' subject + 描述/环境信息 body，全部 encodeURIComponent。
-   URL 总长超过 7800 字符（客户端安全上限）时二分截断描述并追加提示；复制反馈内容为兜底通道。
-   解码失败返回空串（调用方只 toast，不泄露任何中间值）。 */
-function buildFeedbackUrl(type,title,body,envText){
-  const label=feedbackTypeLabel(type);
-  const prefix='['+label+'] '+String(title==null?'':title);
-  const note='…（描述过长已截断，请用「复制反馈内容」）';
-  const mail=fbDecodeMail();
-  if(!mail||mail.indexOf('@')<0) return '';
-  const make=u=>'mailto:'+mail+'?subject='+encodeURIComponent(prefix)+'&body='+encodeURIComponent(u);
-  const text=String(body==null?'':body);
-  const full=make(text+'\n\n---\n'+envText);
-  if(full.length<=7800) return full;
-  let lo=0,hi=text.length;
-  while(lo<hi){
-    const mid=(lo+hi+1)>>1;
-    if(make(text.slice(0,mid)+note+'\n\n---\n'+envText).length<=7800) lo=mid; else hi=mid-1;
-  }
-  return make(text.slice(0,lo)+note+'\n\n---\n'+envText);
+/* 反馈提交负载（纯函数）：Web3Forms 页面内 POST 用。access_key 由 fbDecodeKey() 运行时还原，
+   只在请求体中出现，不打印、不落 DOM。message 超过 20000 字符时截断并追加提示（保护请求体积）；
+   复制反馈内容为失败兜底通道。key 解码失败返回 null（调用方只 toast）。 */
+function buildFeedbackPayload(type,title,body,envText){
+  const key=fbDecodeKey();
+  if(!key||key.length!==36) return null;
+  const prefix='['+feedbackTypeLabel(type)+'] '+String(title==null?'':title);
+  let msg=String(body==null?'':body)+'\n\n---\n'+String(envText==null?'':envText);
+  if(msg.length>20000) msg=msg.slice(0,20000)+'…（描述过长已截断）';
+  return {access_key:key,subject:prefix,from_name:'瞬刻摄影工作台',message:msg};
 }
 
 /* ---------- 打开 / 关闭 ---------- */
@@ -194,10 +186,10 @@ function settingsFeedbackHtml(){
     +'<details class="src-panel"><summary>环境信息（自动生成，随反馈一并发送）</summary>'
     +'<div class="settings-env" id="fbEnvPreview"></div></details>'
     +'<div class="row">'
-    +'<button class="btn btn-primary btn-sm" onclick="submitFeedback()">邮件提交</button>'
+    +'<button class="btn btn-primary btn-sm" id="fbSubmitBtn" onclick="submitFeedback()">提交反馈</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="copyFeedbackText()">复制反馈内容</button>'
     +'</div>'
-    +'<p class="muted">反馈通过你设备上的邮件应用提交，仅包含你填写的文字与上列浏览器环境信息，不包含任何策划案内容、图片或数据文件；收件信息在提交时才由本应用还原。</p>'
+    +'<p class="muted">反馈内容（类型 / 标题 / 描述 + 应用版本与浏览器环境信息）通过第三方表单服务 Web3Forms 发送给维护者，不包含任何项目数据、图片或个人信息。</p>'
     +'</div></div>';
 }
 function setFeedbackType(t){
@@ -226,15 +218,34 @@ function collectFeedbackEnv(){
     online:navigator.onLine, projectCount:loadP().length
   };
 }
-/* 主通道：邮件提交（mailto 由浏览器唤起邮件应用，收件配置静默还原，无任何网络请求） */
-function submitFeedback(){
-  const title=String((document.getElementById('fbTitle')||{}).value||'').trim();
+/* 主通道：Web3Forms 页面内提交（fetch POST，不跳转、不拉起邮件客户端；失败静默降级到复制兜底） */
+async function submitFeedback(){
+  const title=String(gv('fbTitle')||'').trim();
   if(!title){ toast('请先填写反馈标题'); return; }
-  const body=String((document.getElementById('fbBody')||{}).value||'');
-  const env=buildFeedbackEnv(collectFeedbackEnv());
-  const url=buildFeedbackUrl(currentFeedbackType(),title,body,env);
-  if(!url){ toast('反馈提交暂不可用，请使用「复制反馈文本」'); return; }
-  window.location.href=url;
+  const body=String(gv('fbBody')||'');
+  const payload=buildFeedbackPayload(currentFeedbackType(),title,body,buildFeedbackEnv(collectFeedbackEnv()));
+  if(!payload){ toast('反馈提交暂不可用，请使用「复制反馈内容」'); return; }
+  const btn=document.getElementById('fbSubmitBtn');
+  if(btn){ btn.disabled=true; btn.textContent='提交中…'; }
+  try{
+    const res=await fetch('https://api.web3forms.com/submit',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    const data=await res.json().catch(function(){ return null; });
+    if(res.ok&&data&&data.success){
+      toast('反馈已提交，感谢！');
+      const t=document.getElementById('fbTitle'); if(t) t.value='';
+      const b=document.getElementById('fbBody'); if(b) b.value='';
+    } else {
+      toast('提交失败，请使用「复制反馈内容」');
+    }
+  } catch(e){
+    toast('网络异常，请使用「复制反馈内容」');
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='提交反馈'; }
+  }
 }
 /* 反馈纯文本（标题 + 类型 + 描述 + 环境信息），提交被拦截 / 剪贴板不可用时手动粘贴兜底 */
 function feedbackPlainText(){
@@ -247,7 +258,7 @@ function copyFeedbackText(){
   const title=String((document.getElementById('fbTitle')||{}).value||'').trim();
   if(!title){ toast('请先填写反馈标题'); return; }
   const text=feedbackPlainText();
-  const done=()=>toast('已复制反馈内容，可粘贴到邮件正文发给维护者');
+  const done=()=>toast('已复制反馈内容，可粘贴到任意渠道发给维护者');
   const fail=()=>toast('复制失败：请在弹窗内手动选中文本复制');
   if(navigator.clipboard&&navigator.clipboard.writeText){
     navigator.clipboard.writeText(text).then(done,()=>{ if(!legacyCopy(text)) fail(); });

@@ -127,8 +127,8 @@ test('设置弹窗：打开 / 版本信息 / Esc 与关闭按钮 / 关闭后看�
   await page.getByRole('button', { name: '⚙ 设置' }).click();
   await expect(page.locator('#settingsModal')).toHaveClass(/show/);
   // 版本信息区：应用版本（构建注入）/ SW 缓存 / IndexedDB 数据结构 / 模块版本表
-  await expect(page.locator('#settingsBody')).toContainText('v10.6.0');
-  await expect(page.locator('#settingsBody')).toContainText('shotflow-v10-10');
+  await expect(page.locator('#settingsBody')).toContainText('v10.7.0');
+  await expect(page.locator('#settingsBody')).toContainText('shotflow-v10-11');
   await expect(page.locator('#settingsBody')).toContainText('数据结构（IndexedDB）');
   await expect(page.locator('#settingsBody')).toContainText('各代码模块最后实质变更');
   await expect(page.locator('#settingsBody')).toContainText('01-data.js');
@@ -160,44 +160,58 @@ test('设置弹窗：姿势图库同步开关切换写 localStorage', async ({ p
   expect(await page.evaluate(() => localStorage.getItem('wb_sf_shisei_sync'))).toBeNull();
 });
 
-test('设置弹窗：反馈走静默邮箱 mailto（复制兜底 + 零明文）', async ({ page }) => {
+test('设置弹窗：反馈走 Web3Forms 页面内提交（成功 + 失败降级）', async ({ page }) => {
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
-  await openFreshApp(page);
-  // 剪贴板写权限：无授权时 writeText 可能挂起，导致兜底 toast 不出现
+  const posts = [];
+  await page.route('https://api.web3forms.com/submit', async (route) => {
+    posts.push({ method: route.request().method(), json: route.request().postDataJSON() });
+    if (posts.length === 1) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+    } else {
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ success: false }) });
+    }
+  });
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await openFreshApp(page);
   await page.getByRole('button', { name: '⚙ 设置' }).click();
   // 环境信息预览在折叠 details 内：先展开再断言内容（构建注入的版本号）
   await page.locator('#settingsBody summary', { hasText: '环境信息' }).click();
-  await expect(page.locator('#fbEnvPreview')).toBeVisible();
-  await expect(page.locator('#fbEnvPreview')).toContainText('版本：v10.6.0');
-  // 空标题提交被拦截
-  await page.getByRole('button', { name: '邮件提交' }).click();
+  await expect(page.locator('#fbEnvPreview')).toContainText('版本：v10.7.0');
+  // 空标题提交被拦截（不发请求）
+  await page.getByRole('button', { name: '提交反馈' }).click();
   await expect(page.locator('.toast')).toContainText('请先填写反馈标题');
+  expect(posts.length).toBe(0);
+  // 成功路径：POST 负载语义 + 成功提示 + 页面不跳转 + 表单清空
   await page.locator('#fbTitle').fill('测试反馈标题');
   await page.locator('#fbBody').fill('描述内容');
-  // 复制兜底 + 隐私文案（不再出现 GitHub / Issues 字样）
+  await page.getByRole('button', { name: '提交反馈' }).click();
+  await expect(page.locator('.toast')).toContainText('反馈已提交，感谢！');
+  expect(posts.length).toBe(1);
+  const first = posts[0];
+  expect(first.method).toBe('POST');
+  expect(first.json.access_key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  expect(first.json.subject).toBe('[Bug] 测试反馈标题');
+  expect(first.json.from_name).toBe('瞬刻摄影工作台');
+  expect(first.json.message).toContain('描述内容');
+  expect(first.json.message).toContain('---');
+  expect(first.json.message).toContain('版本：v10.7.0');
+  expect(page.url()).toContain('shotflow.html');
+  expect(await page.inputValue('#fbTitle')).toBe('');
+  // 失败路径：500 → 降级提示，不抛异常、不跳转
+  await page.locator('#fbTitle').fill('失败反馈');
+  await page.locator('#fbBody').fill('内容');
+  await page.getByRole('button', { name: '提交反馈' }).click();
+  await expect(page.locator('.toast')).toContainText('提交失败，请使用「复制反馈内容」');
+  expect(posts.length).toBe(2);
+  // 复制兜底 + 隐私文案（提到 Web3Forms，且不再出现 GitHub / 旧邮件方案字样）
   await expect(page.getByRole('button', { name: '复制反馈内容' })).toBeVisible();
   await page.getByRole('button', { name: '复制反馈内容' }).click();
   await expect(page.locator('.toast')).toContainText('已复制反馈内容');
   const fbText = await page.locator('#fbCard').innerText();
+  expect(fbText).toContain('Web3Forms');
   expect(fbText).not.toContain('GitHub');
-  expect(fbText).not.toContain('Issues');
-  // 提交 URL 语义：mailto 协议 + subject/body 参数（收件人在源码中混淆，测试零明文）
-  const url = await page.evaluate(() => buildFeedbackUrl('bug', '测试反馈标题', '描述内容', '环境信息'));
-  expect(url.startsWith('mailto:')).toBeTruthy();
-  expect(url).toContain('subject=');
-  expect(url).toContain('body=');
-  expect(decodeURIComponent(url)).toContain('[Bug] 测试反馈标题');
-  expect(decodeURIComponent(url)).toContain('描述内容');
-  // 超长描述（4000 字 CJK）→ 二分截断 + 提示语，URL 不超 7800
-  const long = await page.evaluate(() => buildFeedbackUrl('idea', '超长反馈', '长'.repeat(4000), 'env'));
-  expect(long.length).toBeLessThanOrEqual(7800);
-  expect(decodeURIComponent(long)).toContain('描述过长已截断');
-  // 最后真实点「邮件提交」：mailto 导航由浏览器/测试环境处理，断言无 pageerror（页面未被导航破坏）
-  await page.getByRole('button', { name: '邮件提交' }).click();
-  await page.waitForTimeout(300);
-  expect(page.url()).toContain('shotflow.html');
+  expect(fbText).not.toContain('邮件应用');
   expect(errors.length).toBe(0);
 });
 
