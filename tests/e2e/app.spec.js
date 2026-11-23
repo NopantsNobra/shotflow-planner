@@ -160,38 +160,43 @@ test('设置弹窗：姿势图库同步开关切换写 localStorage', async ({ p
   expect(await page.evaluate(() => localStorage.getItem('wb_sf_shisei_sync'))).toBeNull();
 });
 
-test('设置弹窗：反馈表单生成 GitHub Issue URL（[Bug] 前缀 + 环境信息 + 超长截断）', async ({ page }) => {
+test('设置弹窗：反馈走静默邮箱 mailto（复制兜底 + 零明文）', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
   await openFreshApp(page);
+  // 剪贴板写权限：无授权时 writeText 可能挂起，导致兜底 toast 不出现
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.getByRole('button', { name: '⚙ 设置' }).click();
   // 环境信息预览在折叠 details 内：先展开再断言内容（构建注入的版本号）
   await page.locator('#settingsBody summary', { hasText: '环境信息' }).click();
   await expect(page.locator('#fbEnvPreview')).toBeVisible();
   await expect(page.locator('#fbEnvPreview')).toContainText('版本：v10.6.0');
   // 空标题提交被拦截
-  await page.getByRole('button', { name: '提交到 GitHub Issues' }).click();
+  await page.getByRole('button', { name: '邮件提交' }).click();
   await expect(page.locator('.toast')).toContainText('请先填写反馈标题');
-  // 捕获 window.open（主通道为网页跳转，不发任何请求）
-  await page.evaluate(() => {
-    window.__fbUrls = [];
-    window.open = (u) => {
-      window.__fbUrls.push(String(u));
-      return null;
-    };
-  });
   await page.locator('#fbTitle').fill('测试反馈标题');
   await page.locator('#fbBody').fill('描述内容');
-  await page.getByRole('button', { name: '提交到 GitHub Issues' }).click();
-  const urls = await page.evaluate(() => window.__fbUrls);
-  expect(urls.length).toBe(1);
-  const decoded = decodeURIComponent(urls[0]);
-  expect(decoded).toContain('[Bug] 测试反馈标题');
-  expect(decoded).toContain('描述内容');
-  expect(decoded).toContain('版本：v');
-  // 超长描述（4000 字 CJK）→ URL 超限 → 二分截断 + 提示语，URL 不超 7800
-  await page.locator('#fbBody').fill('长'.repeat(4000));
-  await page.getByRole('button', { name: '提交到 GitHub Issues' }).click();
-  const urls2 = await page.evaluate(() => window.__fbUrls);
-  expect(urls2.length).toBe(2);
-  expect(urls2[1].length).toBeLessThanOrEqual(7800);
-  expect(decodeURIComponent(urls2[1])).toContain('描述过长已截断');
+  // 复制兜底 + 隐私文案（不再出现 GitHub / Issues 字样）
+  await expect(page.getByRole('button', { name: '复制反馈内容' })).toBeVisible();
+  await page.getByRole('button', { name: '复制反馈内容' }).click();
+  await expect(page.locator('.toast')).toContainText('已复制反馈内容');
+  const fbText = await page.locator('#fbCard').innerText();
+  expect(fbText).not.toContain('GitHub');
+  expect(fbText).not.toContain('Issues');
+  // 提交 URL 语义：mailto 协议 + subject/body 参数（收件人在源码中混淆，测试零明文）
+  const url = await page.evaluate(() => buildFeedbackUrl('bug', '测试反馈标题', '描述内容', '环境信息'));
+  expect(url.startsWith('mailto:')).toBeTruthy();
+  expect(url).toContain('subject=');
+  expect(url).toContain('body=');
+  expect(decodeURIComponent(url)).toContain('[Bug] 测试反馈标题');
+  expect(decodeURIComponent(url)).toContain('描述内容');
+  // 超长描述（4000 字 CJK）→ 二分截断 + 提示语，URL 不超 7800
+  const long = await page.evaluate(() => buildFeedbackUrl('idea', '超长反馈', '长'.repeat(4000), 'env'));
+  expect(long.length).toBeLessThanOrEqual(7800);
+  expect(decodeURIComponent(long)).toContain('描述过长已截断');
+  // 最后真实点「邮件提交」：mailto 导航由浏览器/测试环境处理，断言无 pageerror（页面未被导航破坏）
+  await page.getByRole('button', { name: '邮件提交' }).click();
+  await page.waitForTimeout(300);
+  expect(page.url()).toContain('shotflow.html');
+  expect(errors.length).toBe(0);
 });

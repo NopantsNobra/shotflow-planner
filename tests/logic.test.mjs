@@ -616,22 +616,35 @@ check('P0 页面隐藏与关闭均绑定 flush', vm.runInContext('__evts.join(",
 /* ================= v10.6.0 设置页：反馈通道纯函数（追加块：上方 615 行零改动） ================= */
 // 注入 01-data.js 常量（vm 上下文按需同步），再抽取设置页纯函数
 vm.runInContext("globalThis.APP_VERSION='10.6.0';"
-  + "globalThis.MODULE_VERSIONS={swCache:'shotflow-v10-10',dbSchema:3};"
-  + "globalThis.FEEDBACK_REPO='https://github.com/NopantsNobra/shotflow-planner/issues/new';", ctx);
-for (const n of ['feedbackTypeLabel', 'buildFeedbackEnv', 'buildFeedbackUrl']) vm.runInContext(fn(n), ctx);
-const fbBase = 'https://github.com/NopantsNobra/shotflow-planner/issues/new';
+  + "globalThis.MODULE_VERSIONS={swCache:'shotflow-v10-10',dbSchema:3};", ctx);
+/* FB_MAIL_* 混淆常量直接从 src 抽取（测试文件零明文邮箱/域名片段） */
+for (const c of ['FB_MAIL_A', 'FB_MAIL_B']) {
+  const m = src.match(new RegExp('const ' + c + "\\s*=\\s*'[^']*';"));
+  if (!m) throw new Error('missing const ' + c);
+  vm.runInContext(m[0], ctx);
+}
+for (const n of ['feedbackTypeLabel', 'buildFeedbackEnv', 'buildFeedbackUrl', 'fbDecodeMail']) vm.runInContext(fn(n), ctx);
 
 // ① feedbackTypeLabel：三类型映射 + 未知值回退「其他」
 check('v10.6.0 ① feedbackTypeLabel 三类型映射与回退',
   vm.runInContext("feedbackTypeLabel('bug')+'|'+feedbackTypeLabel('idea')+'|'+feedbackTypeLabel('other')+'|'+feedbackTypeLabel('x')+'|'+feedbackTypeLabel(null)", ctx)
     === 'Bug|建议|其他|其他|其他');
 
-// ② buildFeedbackUrl：[Bug] 前缀 + 标题/描述/环境信息全部进 body
+// ② fbDecodeMail：确定性还原，长度 27、含 @、无空格、两次调用一致；全程零明文断言
+const VDM = vm.runInContext(`(()=>{
+  const a=fbDecodeMail(), b=fbDecodeMail();
+  return {len:a.length,at:a.indexOf('@'),space:a.indexOf(' ')>=0,det:a===b,ok:a!==''&&a.indexOf('@')>0};
+})()`, ctx);
+check('v10.6.0 ② fbDecodeMail 确定性还原（长度 27 / 含 @ / 无空格 / 零明文比对）',
+  VDM.len === 27 && VDM.at > 0 && !VDM.space && VDM.det && VDM.ok, JSON.stringify({len: VDM.len, at: VDM.at}));
+
+// ②b buildFeedbackUrl：mailto 协议 + [Bug] 前缀进 subject + 描述/环境信息进 body
 const VFB = vm.runInContext(`buildFeedbackUrl('bug','页面崩溃','打开看板白屏','版本：v10.6.0')`, ctx);
-check('v10.6.0 ② buildFeedbackUrl 前缀与 body 拼接',
-  VFB.startsWith(fbBase + '?title=') && decodeURIComponent(VFB).includes('[Bug] 页面崩溃')
+check('v10.6.0 ②b buildFeedbackUrl mailto 与 subject/body 拼接',
+  VFB.startsWith('mailto:') && VFB.includes('subject=') && VFB.includes('body=')
+  && decodeURIComponent(VFB).includes('[Bug] 页面崩溃')
   && decodeURIComponent(VFB).includes('打开看板白屏') && decodeURIComponent(VFB).includes('---')
-  && decodeURIComponent(VFB).includes('版本：v10.6.0'), VFB.slice(0, 120));
+  && decodeURIComponent(VFB).includes('版本：v10.6.0'), 'mailtoLen=' + VFB.length);
 
 // ③ buildFeedbackUrl：超长描述二分截断 + 提示语，URL 不超 7800
 const VFBlong = vm.runInContext(`buildFeedbackUrl('idea','超长反馈','${'长'.repeat(4000)}','env')`, ctx);

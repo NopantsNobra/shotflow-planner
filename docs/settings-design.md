@@ -119,7 +119,7 @@ settingsModal
     ├─ 类型选择（Bug / 功能建议 / 其他）
     ├─ 标题 / 描述
     ├─ 环境信息预览（自动生成，只读折叠）
-    ├─ 「提交到 GitHub Issues」（跳转）+ 「复制反馈文本」（兜底）
+    ├─ 「邮件提交」（mailto，收件配置静默还原）+ 「复制反馈内容」（兜底）
     └─ 隐私说明一行
 ```
 
@@ -214,22 +214,25 @@ settingsModal
 
 ### 4.3 提交通道
 
-**主通道：GitHub Issue 网页跳转**（无 token、无 API、保持零依赖零后端）
+**主通道：静默邮箱 mailto（v10.6 管理员决定：彻底移除公开仓库 issue 通道）**
+
+- 收件地址以**双层混淆常量**（`FB_MAIL_A` / `FB_MAIL_B`，01-data.js）存于源码，运行时由 `fbDecodeMail()` 还原；源码 / 配置 / 构建产物 / 界面 / 日志 / 测试**均不出现明文**，也不写入 DOM title/tooltip/console。
+- `fbDecodeMail()` 失败或还原结果不含 `@` → 返回空串；`submitFeedback()` 只 toast「反馈提交暂不可用，请使用『复制反馈内容』」并 return，**不泄露任何解码中间值**。
 
 ```
-buildFeedbackUrl(type,title,body)  → 纯函数，可进 logic.test
-URL = 'https://github.com/NopantsNobra/shotflow-planner/issues/new'
-    + '?title=' + encodeURIComponent('[' + typeLabel + '] ' + title)
-    + '&body='  + encodeURIComponent(body + '\n\n---\n' + envText)
+fbDecodeMail()                     → 纯函数（65 字符表置换解码，vm 可抽取）
+buildFeedbackUrl(type,title,body,envText)  → 纯函数
+URL = 'mailto:' + mail
+    + '?subject=' + encodeURIComponent('[' + typeLabel + '] ' + title)
+    + '&body='    + encodeURIComponent(body + '\n\n---\n' + envText)
 ```
 
-- `typeLabel`：Bug→`Bug`、功能建议→`建议`、其他→`其他`。
-- 提交按钮 `window.open(url,'_blank','noopener')`。**不需要 GitHub ID 也能提交**——公开仓库允许任何人开 issue；管理员登录自己的账号即可管理。
-- URL 长度防御：`encodeURIComponent` 后总长超过 7800 字符时截断描述并追加 `…（描述过长已截断，请用「复制反馈文本」）`。
+- 提交按钮把 `window.location.href = url`（mailto 由浏览器唤起邮件应用），无任何网络请求。
+- URL 长度防御：`encodeURIComponent` 后总长超过 7800 字符时二分截断描述并追加 `…（描述过长已截断，请用「复制反馈文本」）`。
 
-**兜底通道：复制反馈文本**
+**兜底通道：复制反馈内容**
 
-- `copyFeedbackText()`：组装纯文本（标题+类型+描述+环境信息）→ `navigator.clipboard.writeText` → toast「已复制，可粘贴到 Issue 或发给维护者」。
+- `copyFeedbackText()`：组装纯文本（标题+类型+描述+环境信息）→ `navigator.clipboard.writeText` → toast「已复制反馈内容，可粘贴到邮件正文发给维护者」。
 - 降级链：clipboard API 不可用（file:// 或非安全上下文）→ 隐藏 textarea 选中 + `document.execCommand('copy')` → 仍失败 toast 提示手动复制（弹窗内文本可选中）。
 
 **隐私说明（弹窗内固定文案）**：反馈仅包含你填写的文字与上列浏览器环境信息，**不包含任何策划案内容、图片或数据文件**。
@@ -253,7 +256,7 @@ URL = 'https://github.com/NopantsNobra/shotflow-planner/issues/new'
 
 | ID | 任务 | 文件 | 依赖 | 优先级 |
 |---|---|---|---|---|
-| T01 | 版本注入基础设施 + 设置弹窗骨架：新增 scripts/assemble.mjs（共享组装 + `__APP_VERSION__` 注入）；build.mjs/verify-build.mjs 改调 assemble；verify-version.mjs 加 swCache 防漂移校验；01-data.js 加 `APP_VERSION`、`MODULE_VERSIONS`、`FEEDBACK_REPO` 常量；shell.html 加 #settingsModal 静态骨架（置于 confirmModal 之前，含 sticky bar）；styles.css 加 settings 弹窗所需少量样式（复用 doc-bar/card，预计 <30 行）；04-output.js Esc 链加 settingsModal | scripts/*、src/shell.html、src/styles.css、src/js/01-data.js、src/js/04-output.js | — | P0 |
+| T01 | 版本注入基础设施 + 设置弹窗骨架：新增 scripts/assemble.mjs（共享组装 + `__APP_VERSION__` 注入）；build.mjs/verify-build.mjs 改调 assemble；verify-version.mjs 加 swCache 防漂移校验；01-data.js 加 `APP_VERSION`、`MODULE_VERSIONS` 常量（v10.6 反馈通道改造后另加 `FB_MAIL_A/B` 混淆常量、移除原公开仓库反馈常量）；shell.html 加 #settingsModal 静态骨架（置于 confirmModal 之前，含 sticky bar）；styles.css 加 settings 弹窗所需少量样式（复用 doc-bar/card，预计 <30 行）；04-output.js Esc 链加 settingsModal | scripts/*、src/shell.html、src/styles.css、src/js/01-data.js、src/js/04-output.js | — | P0 |
 | T02 | 设置弹窗打开/关闭 + 版本信息区 + 配置区：新增 src/js/06-settings.js（openSettings/closeSettings/renderSettings 版本区/C1 C2 J3、renderSettingsShisei）；03-app.js renderBoard mast-actions 插「⚙ 设置」按钮 | src/js/06-settings.js（新）、src/js/03-app.js | T01 | P0 |
 | T03 | 数据与备份区 + 反馈表单：06-settings.js 补 R6/J1/J2（settingsImportFile 独立 id）与 buildFeedbackEnv/buildFeedbackUrl/copyFeedbackText/提交按钮/隐私文案；styles.css 表单样式 | src/js/06-settings.js、src/styles.css | T02 | P1 |
 | T04 | 测试补齐：logic.test.mjs 抽取 buildFeedbackUrl/buildFeedbackEnv 校验 URL 拼接/截断/环境字段；e2e/app.spec.js 增用例（打开设置→关闭→Esc；同步开关切换后 localStorage 变化；反馈 URL 参数正确）；CONTRIBUTING.md 发版检查单加「MODULE_VERSIONS 同步」 | tests/logic.test.mjs、tests/e2e/app.spec.js、CONTRIBUTING.md | T03 | P1 |
@@ -290,7 +293,7 @@ graph LR
 3. 姿势图库开关：关 → 弹窗状态「已暂停」，去情绪板素材来源验证状态一致；开 → 恢复。
 4. 弹窗内「清除图库」→ confirm 弹层正确盖在设置弹窗上；Esc 先关 confirm 再关设置。
 5. 导出备份/导入（经设置弹窗）与看板入口行为一致（含覆盖确认弹层）。
-6. 反馈表单：空标题提交被拦截；Bug 类型跳转 GitHub，预填标题/正文与环境信息；无网络环境复制按钮兜底可用。
+6. 反馈表单：空标题提交被拦截；Bug 类型走邮件提交（mailto 预填标题/正文与环境信息，收件配置静默还原）；无网络环境复制按钮兜底可用。
 7. Esc / 遮罩点击关闭设置弹窗；关闭后再打开内容重置。
 8. file:// 双击打开产物：设置弹窗可用（clipboard 降级生效），无 console 报错。
 9. PWA 安装场景：deferredPrompt 存在时设置内安装按钮可用。
@@ -304,7 +307,7 @@ graph LR
 |---|---|---|---|
 | ① | IndexedDB 版本号展示 | 代码实际 `open('shotflow',3)`，但 01-data.js L191 注释写「v4」。设置页按运行时 `idb.db.version`（=3）展示。是否顺带统一注释表述（不改 open 版本），由管理员定 | 是否修注释 |
 | ② | SW 缓存版本运行时只读常量 | SW 无 message handler，无法实时查询 CACHE。方案用 MODULE_VERSIONS 硬编码 + verify-version 防漂移校验。若希望真·运行时读取，需给 SW 加 postMessage（本期不做，可作为后续项） | 接受常量方案？ |
-| ③ | GitHub Issue 预填的 URL 长度上限 | 浏览器/服务端约 8KB；超长描述自动截断 + 复制兜底。管理员若希望更稳，后续可加「下载反馈为 .md 文件」 | 接受截断策略？ |
+| ③ | mailto 预填的 URL 长度上限 | 客户端约 8KB；超长描述自动截断 + 复制兜底。管理员若希望更稳，后续可加「下载反馈为 .md 文件」 | 接受截断策略？ |
 | ④ | 版本号是否随设置页发布 bump | 新功能按惯例应 bump 到 10.6.0，并同步 README/overview（verify-version 会强制）+ CHANGELOG + MODULE_VERSIONS（03-app 等将变 v10.6.0）。发布节奏由管理员定 | bump 与否 |
 | ⑤ | 新增 06-settings.js 文件 | 违反「五文件」现状但语义清晰；同一 `<script>` 块内函数声明提升，boot 执行顺序无影响。若管理员坚持五文件，可并入 04-output.js 尾部（约 +250 行） | 文件结构偏好 |
 | ⑥ | 标签词表无全局编辑入口 | 词表是项目级（p.tagVocab），设置页只放说明文案。若管理员想要「跨项目全局词表」，属新需求需另立项 | 是否接受 |
