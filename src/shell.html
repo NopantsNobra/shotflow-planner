@@ -16,6 +16,12 @@
 <body>
 <div class="wrap" id="app"></div>
 
+<!-- 全局页脚（v10.6.x）：刻意放在 #app 之外，不随看板/项目页重绘销毁 -->
+<footer class="app-foot">
+  <span>Powered by Stillmark · 瞬刻摄影工作台 · MIT License ·</span>
+  <a href="https://github.com/NopantsNobra/shotflow-planner" target="_blank" rel="noopener">开源地址</a>
+</footer>
+
 <!-- 拍摄日模式 -->
 <div class="sd-overlay" id="sdOverlay"><div class="sd-inner" id="sdBody"></div></div>
 
@@ -50,6 +56,36 @@
       </div>
     </div>
     <div class="settings-body" id="settingsBody"></div>
+  </div>
+</div>
+
+<!-- 部署说明弹窗（v10.6.x）：与其它 modal-mask 同 z-index，DOM 位于 settingsModal 之后 → 叠在其上；
+     点遮罩关闭用内联 onclick（仅当点在遮罩本身），不新增全局监听器 -->
+<div class="modal-mask" id="deployModal" onclick="if(event.target===this)closeDeployModal()">
+  <div class="modal doc-modal" style="max-width:620px">
+    <div class="doc-bar no-print">
+      <span class="doc-bar-title">部署说明</span>
+      <div class="row">
+        <button class="btn btn-ghost btn-sm" onclick="closeDeployModal()">关闭</button>
+      </div>
+    </div>
+    <div class="deploy-body">
+      <h2>为自己部署</h2>
+      <p class="muted">这是一个纯静态单文件应用（<code>shotflow.html</code> 由 <code>src/</code> 构建产出），可部署到任意静态托管（GitHub Pages / Cloudflare Pages / Vercel / 自有服务器），无需后端与数据库；当前版本不提供一键自动部署，请按下方地址获取源码自行部署。</p>
+      <dl class="deploy-kv">
+        <dt>开源项目地址</dt>
+        <dd><a href="https://github.com/NopantsNobra/shotflow-planner" target="_blank" rel="noopener">github.com/NopantsNobra/shotflow-planner</a></dd>
+        <dt>版权归属</dt>
+        <dd>MIT License © 2026 Stillmark-服雲</dd>
+        <dt>项目用途</dt>
+        <dd>摄影策划工作台——从概念、情绪板、分镜、日程、清单、预算到提案 / 通告单 / 执行手册的全链路策划工具，数据全部保存在本地浏览器（IndexedDB），离线可用。</dd>
+      </dl>
+      <ol class="deploy-points">
+        <li>一句话定位：给独立摄影师和内容创作者用的「拍摄策划 + 现场执行」工作台。</li>
+        <li>它把概念、情绪板、分镜、日程、清单、预算串成一条线，最后一键输出客户提案、拍摄通告单与执行手册。</li>
+        <li>单文件 PWA、零后端、零依赖，数据只存在你自己的浏览器里，装到手机桌面就能离线用。</li>
+      </ol>
+    </div>
   </div>
 </div>
 

@@ -83,7 +83,7 @@ function closeSettings(){
 /* ---------- 渲染（只写 #settingsBody，不触碰页面 DOM） ---------- */
 function renderSettings(){
   const host=document.getElementById('settingsBody'); if(!host) return;
-  host.innerHTML=settingsVersionHtml()+settingsConfigHtml()+settingsDataHtml()+settingsFeedbackHtml();
+  host.innerHTML=settingsVersionHtml()+settingsConfigHtml()+settingsDataHtml()+settingsDeployHtml()+settingsFeedbackHtml();
   const env=document.getElementById('fbEnvPreview');
   if(env) env.textContent=buildFeedbackEnv(collectFeedbackEnv());
   renderSettingsShisei();
@@ -169,7 +169,19 @@ function settingsDataHtml(){
     +'</div>';
 }
 
-/* ④ 反馈：类型 seg（默认 Bug）+ 标题（必填）/ 描述（选填）+ 环境信息只读预览 + 主/兜底两通道 + 隐私说明 */
+/* ④ 关于与部署：静态单文件说明 + 「为自己部署」入口（打开 #deployModal 只读说明窗） */
+function settingsDeployHtml(){
+  return '<div class="card" id="deployCard"><h2>关于与部署</h2>'
+    +'<p class="src-note">本应用是纯静态单文件 PWA：<code>shotflow.html</code> 由 <code>src/</code> 构建产出，'
+    +'可部署到任意静态托管（GitHub Pages / Cloudflare Pages / Vercel / 自有服务器），无需后端与数据库。</p>'
+    +'<div class="row"><button class="btn btn-primary btn-sm" onclick="openDeployModal()">为自己部署</button>'
+    +'<span class="muted" style="font-size:11.5px">MIT License © 2026 Stillmark-服雲</span></div></div>';
+}
+/* 部署说明弹窗：只切换 class；Esc / 点遮罩 / 关闭按钮三种退出方式 */
+function openDeployModal(){ document.getElementById('deployModal').classList.add('show'); }
+function closeDeployModal(){ document.getElementById('deployModal').classList.remove('show'); }
+
+/* ⑤ 反馈：类型 seg（默认 Bug）+ 标题（必填）/ 描述（选填）+ 环境信息只读预览 + 主/兜底两通道 + 隐私说明 */
 function settingsFeedbackHtml(){
   const types=['bug','idea','other'];
   return '<div class="card" id="fbCard"><h2>反馈</h2>'

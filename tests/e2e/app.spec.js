@@ -200,3 +200,50 @@ test('设置弹窗：反馈走静默邮箱 mailto（复制兜底 + 零明文）'
   expect(page.url()).toContain('shotflow.html');
   expect(errors.length).toBe(0);
 });
+
+test('设置页「关于与部署」弹窗 + 全局 footer（Esc 先关弹窗再关设置）', async ({ page }) => {
+  await openFreshApp(page);
+  await page.getByRole('button', { name: '⚙ 设置' }).click();
+  const card = page.locator('#deployCard');
+  await expect(card).toBeVisible();
+  await expect(card).toContainText('关于与部署');
+  await expect(card).toContainText('MIT License © 2026 Stillmark-服雲');
+  await page.getByRole('button', { name: '为自己部署' }).click();
+  const modal = page.locator('#deployModal');
+  await expect(modal).toHaveClass(/show/);
+  // 五项内容：部署说明 / 开源地址 / 版权 / 用途 / 三句话
+  await expect(modal).toContainText('纯静态单文件应用');
+  await expect(modal).toContainText('GitHub Pages / Cloudflare Pages / Vercel / 自有服务器');
+  await expect(modal).toContainText('MIT License © 2026 Stillmark-服雲');
+  await expect(modal).toContainText('数据全部保存在本地浏览器（IndexedDB），离线可用');
+  await expect(modal.locator('.deploy-points li')).toHaveCount(3);
+  const link = modal.locator('a[href]').first();
+  await expect(link).toHaveAttribute('href', 'https://github.com/NopantsNobra/shotflow-planner');
+  await expect(link).toHaveAttribute('target', '_blank');
+  await expect(link).toHaveAttribute('rel', 'noopener');
+  // Esc 第一次只关部署弹窗，设置页保留
+  await page.keyboard.press('Escape');
+  await expect(modal).not.toHaveClass(/show/);
+  await expect(page.locator('#settingsModal')).toHaveClass(/show/);
+  // Esc 第二次关闭设置页
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#settingsModal')).not.toHaveClass(/show/);
+  // 全局 footer：在 #app 之外、可见、含版权行与开源链接
+  const foot = page.locator('.app-foot');
+  await expect(foot).toBeVisible();
+  await expect(foot).toContainText('Powered by Stillmark');
+  await expect(foot).toContainText('瞬刻摄影工作台');
+  await expect(foot).toContainText('MIT License');
+  await expect(foot.locator('a[href="https://github.com/NopantsNobra/shotflow-planner"]')).toHaveCount(1);
+  expect(await page.evaluate(() => document.getElementById('app').nextElementSibling?.className || '')).toContain(
+    'app-foot'
+  );
+  // 390px 窄屏不溢出；项目页内重绘后 footer 仍在
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => document.body.scrollWidth <= window.innerWidth + 1)).toBeTruthy();
+  await page.locator('.pcard').first().click();
+  await expect(page.locator('#s_name')).toBeVisible();
+  await expect(foot).toBeVisible();
+  expect(await page.evaluate(() => document.querySelectorAll('.app-foot').length)).toBe(1);
+});
