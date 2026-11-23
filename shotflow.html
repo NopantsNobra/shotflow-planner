@@ -451,7 +451,7 @@ svg{display:inline-block;vertical-align:middle}
 
 <!-- 设置弹窗（置于 confirmModal 之前：所有 modal-mask 同为 z-index:300，DOM 序靠后的覆盖靠前的——
      clearShiseiGallery 会在设置弹窗之上唤起 askConfirm，confirmModal 必须盖住本弹窗） -->
-<div class="modal-mask" id="settingsModal">
+<div class="modal-mask" id="settingsModal" onclick="if(event.target===this)closeSettings()">
   <div class="modal doc-modal">
     <div class="doc-bar no-print">
       <span class="doc-bar-title">设置</span>

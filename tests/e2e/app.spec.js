@@ -143,6 +143,11 @@ test('设置弹窗：打开 / 版本信息 / Esc 与关闭按钮 / 关闭后看�
   await page.locator('#boardSearch').fill('E2E');
   await expect(page.locator('#boardSearch')).toHaveValue('E2E');
   await expect(page.locator('.masthead h1')).toHaveText('瞬刻摄影工作台');
+  // 遮罩点击关闭（设计 §7.2-7）：点左上角空白处（此处为遮罩本身，弹窗居中不会覆盖）
+  await page.getByRole('button', { name: '⚙ 设置' }).click();
+  await expect(page.locator('#settingsModal')).toHaveClass(/show/);
+  await page.locator('#settingsModal').click({ position: { x: 4, y: 4 } });
+  await expect(page.locator('#settingsModal')).not.toHaveClass(/show/);
 });
 
 test('设置弹窗：姿势图库同步开关切换写 localStorage', async ({ page }) => {
