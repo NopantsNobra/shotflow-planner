@@ -91,5 +91,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-trace-${{ matrix.browser }}
-          path: playwright-report/
+          path: test-results/
           retention-days: 7

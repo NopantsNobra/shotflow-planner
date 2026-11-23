@@ -4,6 +4,11 @@
         ② FB-1 渲染层回归：输入分镜名后触发重绘，输入内容不丢失
         ③ P0 持久化：页面隐藏时冲刷未落盘数据 */
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+
+/* 版本断言取 package.json 真源：写死版本号会在每次发版时误报
+   （v10.7.2 的 CI 首跑就因为断言里写死 v10.7.0 而失败）。 */
+const APP_VERSION = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
 
 async function openFreshApp(page) {
   await page.goto('/shotflow.html');
@@ -17,6 +22,31 @@ async function createProject(page, name) {
   await page.locator('#nameInput').fill(name);
   await page.locator('#nameInput').press('Enter');
   await expect(page.locator('#s_name')).toBeVisible(); // 进入项目后默认 shots 页签
+}
+
+/* 等防抖写入真正落到 IndexedDB，再刷新。否则刷新可能早于 saveP 落盘，
+   测到的就不是「seed 是否覆盖已有项目」，而是「数据还没写进去」。 */
+async function waitProjectPersisted(page, name) {
+  await page.waitForFunction(
+    async (target) => {
+      const arr = await new Promise((res) => {
+        const req = indexedDB.open('shotflow', 3);
+        req.onsuccess = () => {
+          const db = req.result;
+          const g = db.transaction('projects').objectStore('projects').get('all');
+          g.onsuccess = () => {
+            db.close();
+            res(g.result || []);
+          };
+          g.onerror = () => res([]);
+        };
+        req.onerror = () => res([]);
+      });
+      return Array.isArray(arr) && arr.some((p) => p && p.name === target);
+    },
+    name,
+    { timeout: 5000 }
+  );
 }
 
 test('核心路径：新建项目 → 加分镜 → 排程 → 导出提案文档', async ({ page }) => {
@@ -127,7 +157,7 @@ test('设置弹窗：打开 / 版本信息 / Esc 与关闭按钮 / 关闭后看�
   await page.getByRole('button', { name: '⚙ 设置' }).click();
   await expect(page.locator('#settingsModal')).toHaveClass(/show/);
   // 版本信息区：应用版本（构建注入）/ SW 缓存 / IndexedDB 数据结构 / 模块版本表
-  await expect(page.locator('#settingsBody')).toContainText('v10.7.0');
+  await expect(page.locator('#settingsBody .settings-ver')).toHaveText('v' + APP_VERSION);
   await expect(page.locator('#settingsBody')).toContainText('shotflow-v10-11');
   await expect(page.locator('#settingsBody')).toContainText('数据结构（IndexedDB）');
   await expect(page.locator('#settingsBody')).toContainText('各代码模块最后实质变更');
@@ -182,7 +212,7 @@ test('设置弹窗：反馈走 Web3Forms 页面内提交（成功 + 失败降级
   await page.getByRole('button', { name: '⚙ 设置' }).click();
   // 环境信息预览在折叠 details 内：先展开再断言内容（构建注入的版本号）
   await page.locator('#settingsBody summary', { hasText: '环境信息' }).click();
-  await expect(page.locator('#fbEnvPreview')).toContainText('版本：v10.7.0');
+  await expect(page.locator('#fbEnvPreview')).toContainText('版本：v' + APP_VERSION);
   // 空标题提交被拦截（不发请求）
   await page.getByRole('button', { name: '提交反馈' }).click();
   await expect(page.locator('.toast')).toContainText('请先填写反馈标题');
@@ -200,7 +230,7 @@ test('设置弹窗：反馈走 Web3Forms 页面内提交（成功 + 失败降级
   expect(first.json.from_name).toBe('瞬刻摄影工作台');
   expect(first.json.message).toContain('描述内容');
   expect(first.json.message).toContain('---');
-  expect(first.json.message).toContain('版本：v10.7.0');
+  expect(first.json.message).toContain('版本：v' + APP_VERSION);
   expect(page.url()).toContain('shotflow.html');
   expect(await page.inputValue('#fbTitle')).toBe('');
   // 失败路径：500 → 降级提示，不抛异常、不跳转
@@ -298,6 +328,7 @@ test('安全回归：恶意备份 JSON 导入被净化，不执行脚本（A1 id
 test('数据安全回归：seed 标志缺失不会覆盖已有项目（A3）', async ({ page }) => {
   await openFreshApp(page);
   await createProject(page, '不能被覆盖的项目');
+  await waitProjectPersisted(page, '不能被覆盖的项目'); // 先确保落盘，否则刷新早于写入
   await page.evaluate(() => localStorage.removeItem('wb_sf_seeded'));
   await page.reload();
   await expect(page.locator('.masthead h1')).toHaveText('瞬刻摄影工作台');
