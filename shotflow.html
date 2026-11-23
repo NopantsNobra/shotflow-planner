@@ -1147,7 +1147,9 @@ function sanitizeProject(raw,mkId){
   const dates=arr=>(Array.isArray(arr)?arr:[]).map(s).filter(date);
   const amount=v=>Math.min(999999999,Math.max(0,+v||0));
   const ids=Object.create(null);
-  const nid=old=>{const k=s(old);if(!ids[k])ids[k]=gen();return ids[k];};
+  /* 缺 id 的成员必须各自拿新 id：若把它们都映射到同一个空字符串键，
+     同一批导入的分镜/场景会共享一个 id，删除/勾选按 id 命中的就不再是单条。 */
+  const nid=old=>{const k=s(old);if(!k)return gen();if(!ids[k])ids[k]=gen();return ids[k];};
   const p={id:gen(),v3:1};
   p.name=cut(raw.name,120)||'未命名拍摄项目';
   p.client=cut(raw.client,120); p.studio=cut(raw.studio,120);
@@ -1172,6 +1174,7 @@ function sanitizeProject(raw,mkId){
   p.scenes=objs(raw.scenes).map(x=>({id:nid(x.id),name:cut(x.name,120),note:cut(x.note,1000),
     done:bool(x.done),fav:bool(x.fav)}));
   p.shots=objs(raw.shots).map(x=>({id:nid(x.id),name:cut(x.name,200),date:date(x.date),
+    slot:time(x.slot),   /* 排程结果是持久数据（导出文件里有）：丢掉会让导入后的时间轴/通告单全部落到 24:00 */
     duration:(+x.duration>0)?Math.max(5,Math.min(1440,Math.round(+x.duration))):null,
     sceneId:ids[s(x.sceneId)]||'',
     refIds:(Array.isArray(x.refIds)?x.refIds:[]).map(y=>cut(y,200)).filter(Boolean).slice(0,3),

@@ -1,7 +1,7 @@
 # 瞬刻摄影工作台 · Stillmark 功能索引（开发视角）
 
 ## 版本
-- 当前：v10.7.1（`shotflow.html` 由 `src/` 构建产出的单文件、全内联零依赖；114 项逻辑测试 + 11 项 E2E + perf 压测门禁通过）
+- 当前：v10.7.1（`shotflow.html` 由 `src/` 构建产出的单文件、全内联零依赖；116 项逻辑测试 + 11 项 E2E + perf 压测门禁通过）
 - 历史：v9（收藏 / 只读示例 / 多图 / 行内编辑）、v7（姿势图库）、v6（素材标签）、v5（提案封面）、v4（IndexedDB/导入确认/时间级联）、v1 `legacy/photo-planner.html`（表单版，已归档）、v2（分镜中枢 + 看板 + 拍摄日模式）
 
 ## v3 + v9 + v10 数据模型
@@ -71,7 +71,7 @@ project = {
 - `shotflow.html`：由 `src/` 经 `scripts/build.mjs` 构建产出的自包含单文件交付物（与拆分前逐字节一致，双击即用）
 - `shotflow-app/shotflow.html`：部署副本（与根目录交付物同一份内容，由 sync-app.mjs 同步）
 - `scripts/build.mjs` / `verify-build.mjs` / `sync-app.mjs`：构建 / 一致性校验 / 副本同步
-- `tests/logic.test.mjs`：114 项核心逻辑测试（node 直接运行，仍从构建产物抽取函数；v10.7.1 新增 sanitizeProject 7 项 + safeFilename + 时长兑底）
+- `tests/logic.test.mjs`：116 项核心逻辑测试（node 直接运行，仍从构建产物抽取函数；v10.7.1 新增 sanitizeProject 9 项 + safeFilename + 时长兑底）
 - `tests/e2e/app.spec.js`：11 项 Playwright E2E（P2 注入回归 / 设置页反馈 Web3Forms 成功与失败双路径 / 部署弹窗与全局页脚 / 恶意导入净化 / seed 不覆盖已有项目 / IDB 不可用降级）
 - `docs/`：设计文档（`system_design.md` / `class-diagram.mermaid` / `sequence-diagram.mermaid`）
 - `shotflow-manifest.json` / `shotflow-sw.js` / `icon-*.png`：PWA 资源

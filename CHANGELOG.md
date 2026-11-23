@@ -19,13 +19,14 @@
 - **导出文件名**：新增 `safeFilename()`（只剥跨平台非法字符），替换原 `esc(p.name).replace(...)`（`&` 会变 `&amp;` 混进文件名）。
 - **看板统计口径**：「进行中 / 今日拍摄 / 逾期待办 / 总预算」排除只读示例项目，与备份计数 `backupItemCount` 同口径。
 - CI / CONTRIBUTING 用例数文案改防漂移表述（不再写死数字）。
+- **导入净化补漏（复核发现）**：① 分镜 `slot` 原样保留——它是持久化的排程结果（导出文件带它），此前净化把未列入白名单的字段一律丢弃，导入后的项目时间轴与通告单时间会全部落到 24:00；② 缺 `id` 的成员改为各自生成新 id——原实现把空字符串当映射键，同一批导入里所有缺 id 的分镜/场景共享同一个 id，删除与勾选按 id 命中会一次命中多条。
 
 ### Added
-- 逻辑测试 105 → 114 项（sanitizeProject 7 项：id 重写 / 白名单 / 垃圾过滤 / 类型收敛 / 拒绝非对象 / refIds 收敛 / 迁移兼容；safeFilename；dayItems 时长兑底）。
+- 逻辑测试 105 → 116 项（sanitizeProject 9 项：id 重写 / 白名单 / 垃圾过滤 / 类型收敛 / 拒绝非对象 / refIds 收敛 / 迁移兼容 / 缺 id 各生成独立 id / slot 保留；safeFilename；dayItems 时长兑底）。
 - E2E 8 → 11 项：恶意备份 JSON 导入净化（id/status 双注入面）、seed 标志缺失不覆盖已有项目、IndexedDB 不可用优雅降级。
 
 ### Verification
-- 逻辑测试 114 项全绿；perf 门禁（2000 分镜 < 50ms）；verify:build / verify:version(10.7.1) / sync:check / lint 0 error / format:check 全绿。
+- 逻辑测试 116 项全绿；perf 门禁（2000 分镜 < 50ms）；verify:build / verify:version(10.7.1) / sync:check / lint 0 error / format:check 全绿。
 
 ---
 

@@ -736,5 +736,18 @@ const FALLBACK = vm.runInContext(`dayItems({shots:[{id:'x',date:'2026-11-16',slo
 check('v10.7.1 ⑨ dayItems 时长兑底=SHOT_DEFAULT_MIN(10)',
   FALLBACK[0]._end - FALLBACK[0]._start === 10, String(FALLBACK[0]._end - FALLBACK[0]._start));
 
+// ⑩ 缺 id 的成员各自独立：空键若被所有成员共享，删除/勾选按 id 命中就会一次命中多条
+check('v10.7.1 ⑩ sanitizeProject 缺 id 成员各自生成独立 id', (() => {
+  const p = vm.runInContext(`sanitizeProject({name:'x',mood:[{type:'text',content:'a'},{type:'text',content:'b'}],shots:[{name:'s1'},{name:'s2'}]})`, ctx);
+  const ids = p.mood.map(x => x.id).concat(p.shots.map(x => x.id));
+  return ids.every(x => /^id\d+$/.test(x)) && new Set(ids).size === ids.length;
+})());
+
+// ⑪ slot 是持久化的排程结果（导出文件带它），净化不能丢——否则导入后时间轴/通告单时间全空
+check('v10.7.1 ⑪ sanitizeProject 保留合法 slot、非法 slot 置空', (() => {
+  const p = vm.runInContext(`sanitizeProject({name:'x',shots:[{id:'a',slot:'10:00'},{id:'b',slot:'9x:99'}]})`, ctx);
+  return p.shots[0].slot === '10:00' && p.shots[1].slot === '';
+})());
+
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);
