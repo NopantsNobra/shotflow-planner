@@ -70,6 +70,8 @@ div#boardGrid（六列看板，setBoardQuery 局部刷新）
 
 ### 0.4 版本相关运行时事实
 
+> **时效说明（2026-11-23 追加）**：下表是**设计立项时（基线 v10.5.1）的现状快照**，用于说明「为什么需要版本注入」。其中的具体版本号已随迭代前进而变——**当前实际值以 `package.json`、`src/js/01-data.js` 的 `MODULE_VERSIONS` 与 `npm run verify:version` 输出为准**（当前为 v10.7.0 / SW 缓存 shotflow-v10-11）。下方 §7.2 的可执行验收清单已同步为当前值。
+
 | 项 | 现状 | 设置页读取方式 |
 |---|---|---|
 | 应用版本 | package.json `10.5.1`；产物中此前**无处展示** | `APP_VERSION` 常量（构建注入） |
@@ -257,8 +259,8 @@ buildFeedbackPayload(type,title,body,env)  → 纯函数，返回 null 或
 |---|---|---|---|---|
 | T01 | 版本注入基础设施 + 设置弹窗骨架：新增 scripts/assemble.mjs（共享组装 + `__APP_VERSION__` 注入）；build.mjs/verify-build.mjs 改调 assemble；verify-version.mjs 加 swCache 防漂移校验；01-data.js 加 `APP_VERSION`、`MODULE_VERSIONS` 常量（v10.7 反馈通道定稿为 Web3Forms：新增 `FB_KEY_A/B` 混淆常量，移除原公开仓库与邮件方案常量）；shell.html 加 #settingsModal 静态骨架（置于 confirmModal 之前，含 sticky bar）；styles.css 加 settings 弹窗所需少量样式（复用 doc-bar/card，预计 <30 行）；04-output.js Esc 链加 settingsModal | scripts/*、src/shell.html、src/styles.css、src/js/01-data.js、src/js/04-output.js | — | P0 |
 | T02 | 设置弹窗打开/关闭 + 版本信息区 + 配置区：新增 src/js/06-settings.js（openSettings/closeSettings/renderSettings 版本区/C1 C2 J3、renderSettingsShisei）；03-app.js renderBoard mast-actions 插「⚙ 设置」按钮 | src/js/06-settings.js（新）、src/js/03-app.js | T01 | P0 |
-| T03 | 数据与备份区 + 反馈表单：06-settings.js 补 R6/J1/J2（settingsImportFile 独立 id）与 buildFeedbackEnv/buildFeedbackUrl/copyFeedbackText/提交按钮/隐私文案；styles.css 表单样式 | src/js/06-settings.js、src/styles.css | T02 | P1 |
-| T04 | 测试补齐：logic.test.mjs 抽取 buildFeedbackUrl/buildFeedbackEnv 校验 URL 拼接/截断/环境字段；e2e/app.spec.js 增用例（打开设置→关闭→Esc；同步开关切换后 localStorage 变化；反馈 URL 参数正确）；CONTRIBUTING.md 发版检查单加「MODULE_VERSIONS 同步」 | tests/logic.test.mjs、tests/e2e/app.spec.js、CONTRIBUTING.md | T03 | P1 |
+| T03 | 数据与备份区 + 反馈表单：06-settings.js 补 R6/J1/J2（settingsImportFile 独立 id）与 buildFeedbackPayload（组装 Web3Forms POST 负载）/buildFeedbackEnv（环境信息）/fbDecodeKey（密钥还原）/submitFeedback（fetch POST，成功清表单/失败 toast 降级）/copyFeedbackText（clipboard 兜底）/提交按钮/隐私文案；styles.css 表单样式 | src/js/06-settings.js、src/styles.css | T02 | P1 |
+| T04 | 测试补齐：logic.test.mjs 抽取 buildFeedbackPayload/buildFeedbackEnv 校验 buildFeedbackPayload 字段与 20000 字符截断、buildFeedbackEnv 五字段与缺省回退、fbDecodeKey 还原 36 位 UUID；e2e/app.spec.js 增用例（打开设置→关闭→Esc；同步开关切换后 localStorage 变化；反馈提交成功（200）/失败（500）降级、空标题拦截、不跳转、无 pageerror）；CONTRIBUTING.md 发版检查单加「MODULE_VERSIONS 同步」 | tests/logic.test.mjs、tests/e2e/app.spec.js、CONTRIBUTING.md | T03 | P1 |
 | T05 | 全量验证 + 构建产物 + 副本同步：npm run build / verify:build / verify:version / sync / sync:check / lint / test 全绿；perf 门禁复核；浏览器手工清单（§7） | shotflow.html、shotflow-app/（产物与副本） | T04 | P0 |
 
 依赖图：
@@ -281,14 +283,14 @@ graph LR
 - `npm run verify:version`（含新增 swCache 校验）
 - `npm run sync:check`（产物变更后必须先 sync）
 - `npm run lint` / `npm run format:check`
-- `npm run test:logic`（99 项 + 新增反馈函数项）
-- `npm run test:e2e`（4 项 + 新增设置弹窗项）
+- `npm run test:logic`（105 项，含反馈函数项）
+- `npm run test:e2e`（8 项，含设置弹窗项）
 - `npm run test:perf`（2000 分镜 < 50ms 门禁不受影响——设置代码不进渲染热路径）
 
 ### 7.2 浏览器手工清单
 
 1. 看板页点「⚙ 设置」→ 弹窗打开，看板底层不重绘、搜索框焦点不丢（FB-1）。
-2. 版本区显示 v10.5.1 / shotflow-v10-8 / 数据结构 3，与 package.json、shotflow-sw.js 一致。
+2. 版本区显示 v10.7.0 / shotflow-v10-11 / 数据结构 3，与 package.json、shotflow-sw.js 一致。
 3. 姿势图库开关：关 → 弹窗状态「已暂停」，去情绪板素材来源验证状态一致；开 → 恢复。
 4. 弹窗内「清除图库」→ confirm 弹层正确盖在设置弹窗上；Esc 先关 confirm 再关设置。
 5. 导出备份/导入（经设置弹窗）与看板入口行为一致（含覆盖确认弹层）。
@@ -304,10 +306,12 @@ graph LR
 
 | # | 事项 | 说明与建议 | 需要决定 |
 |---|---|---|---|
-| ① | IndexedDB 版本号展示 | 代码实际 `open('shotflow',3)`，但 01-data.js L191 注释写「v4」。设置页按运行时 `idb.db.version`（=3）展示。是否顺带统一注释表述（不改 open 版本），由管理员定 | 是否修注释 |
-| ② | SW 缓存版本运行时只读常量 | SW 无 message handler，无法实时查询 CACHE。方案用 MODULE_VERSIONS 硬编码 + verify-version 防漂移校验。若希望真·运行时读取，需给 SW 加 postMessage（本期不做，可作为后续项） | 接受常量方案？ |
-| ③ | Web3Forms 请求体大小上限 | JSON 可达数 MB；`message` 超 20000 字符自动截断 + 复制兜底。管理员若希望更稳，后续可加「下载反馈为 .md 文件」 | 接受截断策略？ |
-| ④ | 版本号是否随设置页发布 bump | 新功能按惯例应 bump 到 10.6.0，并同步 README/overview（verify-version 会强制）+ CHANGELOG + MODULE_VERSIONS（03-app 等将变 v10.6.0）。发布节奏由管理员定 | bump 与否 |
-| ⑤ | 新增 06-settings.js 文件 | 违反「五文件」现状但语义清晰；同一 `<script>` 块内函数声明提升，boot 执行顺序无影响。若管理员坚持五文件，可并入 04-output.js 尾部（约 +250 行） | 文件结构偏好 |
-| ⑥ | 标签词表无全局编辑入口 | 词表是项目级（p.tagVocab），设置页只放说明文案。若管理员想要「跨项目全局词表」，属新需求需另立项 | 是否接受 |
-| ⑦ | 反馈是否需要登录/邮箱兜底 | 当前公开仓库允许匿名网页开 issue；「发邮件」路线因无邮箱地址已按指示排除 | 确认排除邮件 |
+| ① | IndexedDB 版本号展示 | 代码实际 `open('shotflow',3)`，但 01-data.js L191 注释写「v4」。设置页按运行时 `idb.db.version`（=3）展示。是否顺带统一注释表述（不改 open 版本），由管理员定 **（已落地，2026-11-23 核对）** | 是否修注释 |
+| ② | SW 缓存版本运行时只读常量 | SW 无 message handler，无法实时查询 CACHE。方案用 MODULE_VERSIONS 硬编码 + verify-version 防漂移校验。若希望真·运行时读取，需给 SW 加 postMessage（本期不做，可作为后续项）**（仍未开放）** | 接受常量方案？ |
+| ③ | Web3Forms 请求体大小上限 | JSON 可达数 MB；`message` 超 20000 字符自动截断 + 复制兜底。管理员若希望更稳，后续可加「下载反馈为 .md 文件」**（截断策略已落地，2026-11-23 核对；「下载反馈为 .md」增强项未实现）** | 接受截断策略？ |
+| ④ | 版本号是否随设置页发布 bump | 新功能按惯例应 bump 到 10.6.0，并同步 README/overview（verify-version 会强制）+ CHANGELOG + MODULE_VERSIONS（03-app 等将变 v10.6.0）。发布节奏由管理员定 **（已落地，2026-11-23 核对）** | bump 与否 |
+| ⑤ | 新增 06-settings.js 文件 | 违反「五文件」现状但语义清晰；同一 `<script>` 块内函数声明提升，boot 执行顺序无影响。若管理员坚持五文件，可并入 04-output.js 尾部（约 +250 行） **（已落地，2026-11-23 核对）** | 文件结构偏好 |
+| ⑥ | 标签词表无全局编辑入口 | 词表是项目级（p.tagVocab），设置页只放说明文案。若管理员想要「跨项目全局词表」，属新需求需另立项 **（仍未开放）** | 是否接受 |
+| ⑦ | 反馈是否需要登录/邮箱兜底 | 当前公开仓库允许匿名网页开 issue；「发邮件」路线因无邮箱地址已按指示排除 **（已落地，2026-11-23 核对）** | 确认排除邮件 |
+
+> 仍未开放：② SW postMessage 运行时读取、⑥ 跨项目全局词表、③ 增强项「下载反馈为 .md」。
