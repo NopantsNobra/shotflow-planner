@@ -1,0 +1,9 @@
+{
+  "_note": "PoseWear 人像演示词表（小型固化样例）。SEC/LEN 分类来自已查证的上游字典；描述按 build.py 模板复现，含「作为人物面部参考…」尾句（pwParsePortraitCatalog 会剥离，pwHairPhrase 只取 len/st）。人像原图 CC0 1.0，但原作者希望不要原样批量转载，故本文件只含文字元数据、不含任何图片。",
+  "items": [
+    { "id": "f71f980dde3", "sec": "styling", "len": "短发", "st": "收腰短发（后颈留长·空气刘海）", "lenEn": "short hair", "stEn": "layered short hair with longer nape, see-through bangs", "zh": "一位亚洲年轻女性，短发（收腰短发（后颈留长·空气刘海））。作为人物面部参考，保持五官和脸型一致。", "en": "young Asian woman, short hair, layered short hair with longer nape, see-through bangs, consistent facial features, face reference" },
+    { "id": "a31c5e7b9204", "sec": "face", "len": "中长发", "st": "中分直发", "lenEn": "medium-length hair", "stEn": "center-parted straight hair", "zh": "一位亚洲年轻女性，中长发，中分直发。作为人物面部参考，保持五官和脸型一致。", "en": "young Asian woman, medium-length hair, center-parted straight hair, consistent facial features, face reference" },
+    { "id": "c88d2f1a6407", "sec": "styling", "len": "半长发", "st": "微卷半长发", "lenEn": "lob", "stEn": "soft wavy lob", "zh": "一位亚洲年轻女性，半长发，微卷半长发。作为人物面部参考，保持五官和脸型一致。", "en": "young Asian woman, lob, soft wavy lob, consistent facial features, face reference" },
+    { "id": "d42e7a9b3158", "sec": "face", "len": "长发", "st": "黑长直", "lenEn": "long hair", "stEn": "straight long black hair", "zh": "一位亚洲年轻女性，长发，黑长直。作为人物面部参考，保持五官和脸型一致。", "en": "young Asian woman, long hair, straight long black hair, consistent facial features, face reference" }
+  ]
+}

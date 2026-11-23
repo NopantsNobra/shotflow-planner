@@ -1,0 +1,15 @@
+{
+  "_note": "PoseWear 姿势演示词表（小型固化样例）。来源分类与描述来自 https://github.com/atuizz/posewear 构建脚本中已查证的词表：tr_pose.txt / build.py 的 CAT、ANG、LINE。仅作功能演示，完整 98 组姿势请从上游导入。",
+  "items": [
+    { "id": "full_single_P001_front", "no": "P001", "ja": "後ろにもたれかけ・片膝立て", "line": "全身1人・標準系", "cat": "座り", "zh": "后仰坐·单膝立起", "en": "Leaning back seated, one knee raised", "angle": "front" },
+    { "id": "full_single_P001_high", "no": "P001", "ja": "後ろにもたれかけ・片膝立て", "line": "全身1人・標準系", "cat": "座り", "zh": "后仰坐·单膝立起", "en": "Leaning back seated, one knee raised", "angle": "上から" },
+    { "id": "full_single_P002_front", "no": "P002", "ja": "片手支持・両脚伸展", "line": "全身1人・標準系", "cat": "座り", "zh": "单手支撑·双腿前伸", "en": "One-hand support, legs extended", "angle": "front" },
+    { "id": "full_single_P003_front", "no": "P003", "ja": "両肘で上半身を支え", "line": "全身1人・標準系", "cat": "座り", "zh": "双手后撑·挺胸", "en": "Supported by both elbows, chest lifted", "angle": "front" },
+    { "id": "full_single_P004_front", "no": "P004", "ja": "抱き膝・膝を左側へ", "line": "全身1人・標準系", "cat": "座り", "zh": "抱膝坐·膝盖倒向左侧", "en": "Hugging knees, knees tilted left", "angle": "front" },
+    { "id": "full_single_P015_front", "no": "P015", "ja": "立ち・対応式手を腰に", "line": "全身1人・標準系", "cat": "立ち", "zh": "站姿·对立式手叉腰", "en": "Standing, hands on hips in contrast pose", "angle": "front" },
+    { "id": "full_single_P017_front", "no": "P017", "ja": "立ち・肩越しに振り向く", "line": "全身1人・標準系", "cat": "立ち", "zh": "站姿·越肩回眸", "en": "Standing, looking back over shoulder", "angle": "front" },
+    { "id": "full_single_P019_front", "no": "P019", "ja": "立ち・両腕を頭上へ", "line": "全身1人・標準系", "cat": "立ち", "zh": "站姿·双臂举过头顶", "en": "Standing, both arms raised overhead", "angle": "front" },
+    { "id": "full_single_P031_front", "no": "P031", "ja": "ひざ立ち・両手を太腿へ", "line": "全身1人・標準系", "cat": "膝立ち", "zh": "跪立·双手放大腿", "en": "Kneeling, hands on thighs", "angle": "front" },
+    { "id": "full_sexy_P001_front", "no": "S001", "ja": "全身1人・セクシー系", "line": "全身1人・セクシー系", "cat": "座り", "zh": "全身·性感姿势（示例）", "en": "Full-body sexy pose (sample)", "angle": "front" }
+  ]
+}
