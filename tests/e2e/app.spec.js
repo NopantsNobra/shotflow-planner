@@ -119,3 +119,79 @@ test('P0 持久化：新建项目后刷新页面，数据仍在（IndexedDB 落�
   await expect(page.locator('#shotList .shot')).toHaveCount(1);
   await expect(page.locator('#shotList .shot').first()).toContainText('持久化分镜');
 });
+
+/* ===== v10.6.0 设置弹窗 ===== */
+
+test('设置弹窗：打开 / 版本信息 / Esc 与关闭按钮 / 关闭后看板回归', async ({ page }) => {
+  await openFreshApp(page);
+  await page.getByRole('button', { name: '⚙ 设置' }).click();
+  await expect(page.locator('#settingsModal')).toHaveClass(/show/);
+  // 版本信息区：应用版本（构建注入）/ SW 缓存 / IndexedDB 数据结构 / 模块版本表
+  await expect(page.locator('#settingsBody')).toContainText('v10.6.0');
+  await expect(page.locator('#settingsBody')).toContainText('shotflow-v10-10');
+  await expect(page.locator('#settingsBody')).toContainText('数据结构（IndexedDB）');
+  await expect(page.locator('#settingsBody')).toContainText('各代码模块最后实质变更');
+  await expect(page.locator('#settingsBody')).toContainText('01-data.js');
+  // Esc 关闭（挂在现有 Esc 链：confirm/name 之后）
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#settingsModal')).not.toHaveClass(/show/);
+  // 再开 → 关闭按钮关闭；看板头部与搜索不回归
+  await page.getByRole('button', { name: '⚙ 设置' }).click();
+  await expect(page.locator('#settingsModal')).toHaveClass(/show/);
+  await page.locator('#settingsModal').getByRole('button', { name: '关闭' }).click();
+  await expect(page.locator('#settingsModal')).not.toHaveClass(/show/);
+  await page.locator('#boardSearch').fill('E2E');
+  await expect(page.locator('#boardSearch')).toHaveValue('E2E');
+  await expect(page.locator('.masthead h1')).toHaveText('瞬刻摄影工作台');
+});
+
+test('设置弹窗：姿势图库同步开关切换写 localStorage', async ({ page }) => {
+  await openFreshApp(page);
+  // 图库同步走公开 CDN，测试环境无需真实网络
+  await page.route('**/cdn.jsdelivr.net/**', (r) => r.abort());
+  await page.getByRole('button', { name: '⚙ 设置' }).click();
+  await expect(page.locator('#settingsShiseiBox')).toContainText('姿势图库同步');
+  // 暂停：写 localStorage['wb_sf_shisei_sync']='0'
+  await page.locator('#settingsShiseiBox').getByRole('button', { name: '暂停' }).click();
+  await expect(page.locator('#settingsShiseiBox').getByRole('button', { name: '恢复' })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('wb_sf_shisei_sync'))).toBe('0');
+  // 恢复：移除该键并触发立即同步
+  await page.locator('#settingsShiseiBox').getByRole('button', { name: '恢复' }).click();
+  expect(await page.evaluate(() => localStorage.getItem('wb_sf_shisei_sync'))).toBeNull();
+});
+
+test('设置弹窗：反馈表单生成 GitHub Issue URL（[Bug] 前缀 + 环境信息 + 超长截断）', async ({ page }) => {
+  await openFreshApp(page);
+  await page.getByRole('button', { name: '⚙ 设置' }).click();
+  // 环境信息预览在折叠 details 内：先展开再断言内容（构建注入的版本号）
+  await page.locator('#settingsBody summary', { hasText: '环境信息' }).click();
+  await expect(page.locator('#fbEnvPreview')).toBeVisible();
+  await expect(page.locator('#fbEnvPreview')).toContainText('版本：v10.6.0');
+  // 空标题提交被拦截
+  await page.getByRole('button', { name: '提交到 GitHub Issues' }).click();
+  await expect(page.locator('.toast')).toContainText('请先填写反馈标题');
+  // 捕获 window.open（主通道为网页跳转，不发任何请求）
+  await page.evaluate(() => {
+    window.__fbUrls = [];
+    window.open = (u) => {
+      window.__fbUrls.push(String(u));
+      return null;
+    };
+  });
+  await page.locator('#fbTitle').fill('测试反馈标题');
+  await page.locator('#fbBody').fill('描述内容');
+  await page.getByRole('button', { name: '提交到 GitHub Issues' }).click();
+  const urls = await page.evaluate(() => window.__fbUrls);
+  expect(urls.length).toBe(1);
+  const decoded = decodeURIComponent(urls[0]);
+  expect(decoded).toContain('[Bug] 测试反馈标题');
+  expect(decoded).toContain('描述内容');
+  expect(decoded).toContain('版本：v');
+  // 超长描述（4000 字 CJK）→ URL 超限 → 二分截断 + 提示语，URL 不超 7800
+  await page.locator('#fbBody').fill('长'.repeat(4000));
+  await page.getByRole('button', { name: '提交到 GitHub Issues' }).click();
+  const urls2 = await page.evaluate(() => window.__fbUrls);
+  expect(urls2.length).toBe(2);
+  expect(urls2[1].length).toBeLessThanOrEqual(7800);
+  expect(decodeURIComponent(urls2[1])).toContain('描述过长已截断');
+});

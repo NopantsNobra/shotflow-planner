@@ -29,10 +29,15 @@ const overviewM = overview.match(/当前：v([\d.]+)/);
 if (!overviewM) problems.push('overview.md 未找到「当前：vX.Y.Z」标注');
 else if (overviewM[1] !== version) problems.push(`overview.md 当前版本 v${overviewM[1]} ≠ package.json ${version}`);
 
-// 3. SW cache 格式合法（shotflow-vN），且两端一致由 sync:check 覆盖，此处仅校验格式
+// 3. SW cache 格式合法（shotflow-vN），两端一致由 sync:check 覆盖，此处校验格式与 MODULE_VERSIONS 同步
+const dataJs = read('src/js/01-data.js');
+const mvMatch = dataJs.match(/swCache:\s*'([^']+)'/);
+if (!mvMatch) problems.push('src/js/01-data.js 未找到 MODULE_VERSIONS.swCache 常量（设置页展示的 SW 缓存版本真源）');
 for (const p of ['shotflow-sw.js', 'shotflow-app/shotflow-sw.js']) {
-  const m = read(p).match(/const CACHE\s*=\s*'shotflow-v[\d-]+'/);
+  const m = read(p).match(/const CACHE\s*=\s*'([^']+)'/);
   if (!m) problems.push(`${p} 的 CACHE 常量格式非法（应为 shotflow-vN 或 shotflow-vN-N）`);
+  else if (mvMatch && m[1] !== mvMatch[1])
+    problems.push(`${p} 的 CACHE（${m[1]}）≠ MODULE_VERSIONS.swCache（${mvMatch[1]}），请同步 src/js/01-data.js`);
 }
 
 if (problems.length) {
@@ -41,4 +46,6 @@ if (problems.length) {
   console.error('[verify-version] 真源为 package.json 的 version；请同步上述位置');
   process.exit(1);
 }
-console.log(`[verify-version] ✅ 版本一致（v${version}，package.json / lock / README / overview）`);
+console.log(
+  `[verify-version] ✅ 版本一致（v${version}，package.json / lock / README / overview；swCache=${mvMatch ? mvMatch[1] : '?'} 与 SW 两端同步）`
+);

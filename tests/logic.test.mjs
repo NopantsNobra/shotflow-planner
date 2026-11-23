@@ -613,5 +613,49 @@ vm.runInContext(`globalThis.__evts=[]; globalThis.document={addEventListener:(n2
 vm.runInContext('bindPersistFlush()', ctx);
 check('P0 页面隐藏与关闭均绑定 flush', vm.runInContext('__evts.join(",")', ctx)==='visibilitychange,pagehide');
 
+/* ================= v10.6.0 设置页：反馈通道纯函数（追加块：上方 615 行零改动） ================= */
+// 注入 01-data.js 常量（vm 上下文按需同步），再抽取设置页纯函数
+vm.runInContext("globalThis.APP_VERSION='10.6.0';"
+  + "globalThis.MODULE_VERSIONS={swCache:'shotflow-v10-10',dbSchema:3};"
+  + "globalThis.FEEDBACK_REPO='https://github.com/NopantsNobra/shotflow-planner/issues/new';", ctx);
+for (const n of ['feedbackTypeLabel', 'buildFeedbackEnv', 'buildFeedbackUrl']) vm.runInContext(fn(n), ctx);
+const fbBase = 'https://github.com/NopantsNobra/shotflow-planner/issues/new';
+
+// ① feedbackTypeLabel：三类型映射 + 未知值回退「其他」
+check('v10.6.0 ① feedbackTypeLabel 三类型映射与回退',
+  vm.runInContext("feedbackTypeLabel('bug')+'|'+feedbackTypeLabel('idea')+'|'+feedbackTypeLabel('other')+'|'+feedbackTypeLabel('x')+'|'+feedbackTypeLabel(null)", ctx)
+    === 'Bug|建议|其他|其他|其他');
+
+// ② buildFeedbackUrl：[Bug] 前缀 + 标题/描述/环境信息全部进 body
+const VFB = vm.runInContext(`buildFeedbackUrl('bug','页面崩溃','打开看板白屏','版本：v10.6.0')`, ctx);
+check('v10.6.0 ② buildFeedbackUrl 前缀与 body 拼接',
+  VFB.startsWith(fbBase + '?title=') && decodeURIComponent(VFB).includes('[Bug] 页面崩溃')
+  && decodeURIComponent(VFB).includes('打开看板白屏') && decodeURIComponent(VFB).includes('---')
+  && decodeURIComponent(VFB).includes('版本：v10.6.0'), VFB.slice(0, 120));
+
+// ③ buildFeedbackUrl：超长描述二分截断 + 提示语，URL 不超 7800
+const VFBlong = vm.runInContext(`buildFeedbackUrl('idea','超长反馈','${'长'.repeat(4000)}','env')`, ctx);
+check('v10.6.0 ③ buildFeedbackUrl 超长截断且 URL ≤ 7800',
+  VFBlong.length <= 7800 && decodeURIComponent(VFBlong).includes('描述过长已截断')
+  && decodeURIComponent(VFBlong).includes('复制反馈文本'), 'len=' + VFBlong.length);
+
+// ④ buildFeedbackEnv：五段字段齐全（版本/环境/平台/状态/项目数）
+const VENV = vm.runInContext(
+  `buildFeedbackEnv({version:'10.6.0',swCache:'shotflow-v10-10',dbVersion:3,userAgent:'UA/1',platform:'Win32',language:'zh-CN',screenW:2560,screenH:1440,dpr:1,clipboardOk:true,online:false,projectCount:12})`,
+  ctx
+);
+check('v10.6.0 ④ buildFeedbackEnv 五段字段齐全',
+  VENV.includes('版本：v10.6.0（SW 缓存 shotflow-v10-10 / 数据结构 3）')
+  && VENV.includes('环境：UA/1')
+  && VENV.includes('平台：Win32 · 语言 zh-CN · 屏幕 2560×1440（devicePixelRatio 1）')
+  && VENV.includes('IndexedDB 可用 / 剪贴板 API 可用 / 离线')
+  && VENV.includes('项目数：12'), JSON.stringify(VENV));
+
+// ⑤ buildFeedbackEnv：空参数回退 APP_VERSION / MODULE_VERSIONS 常量与安全默认值
+const VENVd = vm.runInContext('buildFeedbackEnv()', ctx);
+check('v10.6.0 ⑤ buildFeedbackEnv 缺省回退常量与默认值',
+  VENVd.includes('版本：v10.6.0') && VENVd.includes('SW 缓存 shotflow-v10-10')
+  && VENVd.includes('数据结构 3') && VENVd.includes('在线') && VENVd.includes('项目数：0'), JSON.stringify(VENVd));
+
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

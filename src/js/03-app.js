@@ -47,6 +47,7 @@ function renderBoard(){
     +'<div class="mast-actions">'
     +'<button class="btn btn-ghost btn-sm" id="installBtn" style="display:none" onclick="installApp()">安装到桌面</button>'
     +favoritesButton()
+    +'<button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙ 设置</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="exportJSON()">导出备份</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'importFile\').click()">导入</button>'
     +'<button class="btn btn-danger btn-sm" onclick="clearAll()">清空</button>'

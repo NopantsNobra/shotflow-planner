@@ -535,6 +535,7 @@ document.addEventListener('keydown',e=>{
   if(shown('refViewer')){ closeRefViewer(); return; }
   if(shown('confirmModal')){ closeConfirm(); return; }
   if(shown('nameModal')){ closeNameModal(); return; }
+  if(shown('settingsModal')){ closeSettings(); return; }   // v10.6.0：设置弹窗后开先关（位于 confirm/name 之后判断）
   if(cancelInlineEdit()) return;
   if(cancelShotEdit()) return;
   closeDoc(); closeShootDay();

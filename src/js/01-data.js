@@ -1,4 +1,12 @@
 /* ================= 数据层 ================= */
+/* ===== 版本与反馈：APP_VERSION 由构建注入（scripts/assemble.mjs 在 src → 产物阶段把下方的
+   版本占位字面量替换为 package.json 的版本号）；MODULE_VERSIONS 记录各 src/ 模块「最后实质变更」
+   的应用版本（自 v10.5.0 源码模块化起记录，发版时按 CONTRIBUTING.md 检查单同步）；FEEDBACK_REPO
+   为反馈 Issue 跳转地址（零 API，仅网页预填）。注意：注释中不要复现带引号的占位字面量本身，
+   否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
+const APP_VERSION='__APP_VERSION__';
+const MODULE_VERSIONS={shell:'v10.6.0',styles:'v10.6.0',data:'v10.6.0',core:'v10.5.0',app:'v10.5.1',output:'v10.6.0',boot:'v10.5.0',settings:'v10.6.0',swCache:'shotflow-v10-10',dbSchema:3,since:'v10.5.0'};
+const FEEDBACK_REPO='https://github.com/NopantsNobra/shotflow-planner/issues/new';
 const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded', LS_DEMO_V9='wb_sf_demo_v9';
 const FAV_KINDS=['mood','shots','schedule','scenes','items','budget','notes','todos'];
 const FAV_META={mood:'情绪板',shots:'分镜',schedule:'日程',scenes:'清单',items:'清单',budget:'预算',notes:'协作',todos:'协作'};
@@ -188,7 +196,8 @@ function pickCity(v){
   toast('已切换为 '+c[0]+'，日照按当地坐标计算');
 }
 
-/* IndexedDB：图片 + 项目主存储 + 姿势图库（v4 起项目不再存 localStorage） */
+/* IndexedDB：图片 + 项目主存储 + 姿势图库（indexedDB.open('shotflow',3)，即数据结构版本 3；
+   项目主存储自该 schema 起存于 IndexedDB，不再写 localStorage） */
 const idb={db:null,
   open(){return new Promise((res,rej)=>{const r=indexedDB.open('shotflow',3);
     r.onupgradeneeded=e=>{const db=e.target.result;

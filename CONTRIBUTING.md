@@ -15,13 +15,14 @@
 2. **改源码而非交付物**：功能改动请编辑 `src/`（`src/styles.css` / `src/js/0x-*.js` / `src/shell.html`），然后运行 `npm run build` 重新生成 `shotflow.html`。直接改 `shotflow.html` 会被 `npm run verify:build` 拦截。
 3. **保持测试可抽取**：纯函数层的改动不要引入 DOM/IDB 依赖，不要超出逻辑测试 ctx 白名单（`console/Date/Math/String/Number/Array/Object/JSON/RegExp/Set/encodeURIComponent`）。
 4. **部署同步**：构建后运行 `npm run sync` 同步到 `shotflow-app/`，`npm run sync:check` 校验。
+5. **发版同步 MODULE_VERSIONS**：bump `package.json` 版本时，同步检查 `src/js/01-data.js` 的 `MODULE_VERSIONS`（本轮实质变更过的模块行改为新版本号；SW 缓存策略变更时 bump 两个 SW 文件的 `CACHE` 并同步 `swCache` 行），`npm run verify:version` 会校验 `swCache` 与 SW 两端一致。
 
 ## 提交前必做（本地全量预检）
 
 ```bash
 npm run verify:build    # 交付物与源码一致
 npm run verify:version  # 版本号一致（package.json 为真源）
-npm run test:logic      # 逻辑测试（99 项）
+npm run test:logic      # 逻辑测试（104 项）
 npm run test:e2e        # E2E（需先 npx playwright install chromium）
 npm run test:perf       # 规模压测 + 性能门禁（2000 分镜渲染须 < 50ms）
 npm run lint            # ESLint，须 0 error

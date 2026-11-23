@@ -39,6 +39,20 @@
   <div class="modal" style="max-width:640px;text-align:center" id="refViewerBody"></div>
 </div>
 
+<!-- 设置弹窗（置于 confirmModal 之前：所有 modal-mask 同为 z-index:300，DOM 序靠后的覆盖靠前的——
+     clearShiseiGallery 会在设置弹窗之上唤起 askConfirm，confirmModal 必须盖住本弹窗） -->
+<div class="modal-mask" id="settingsModal">
+  <div class="modal doc-modal">
+    <div class="doc-bar no-print">
+      <span class="doc-bar-title">设置</span>
+      <div class="row">
+        <button class="btn btn-ghost btn-sm" onclick="closeSettings()">关闭</button>
+      </div>
+    </div>
+    <div class="settings-body" id="settingsBody"></div>
+  </div>
+</div>
+
 <!-- 确认弹窗 -->
 <div class="modal-mask" id="confirmModal">
   <div class="modal confirm-box">

@@ -339,6 +339,18 @@ svg{display:inline-block;vertical-align:middle}
 .doc .shot-ref-miss{width:112px;height:112px;max-width:none;border-radius:6px;margin:2px 3px 2px 0;vertical-align:middle;border:1px dashed #cfc5b3;background:#f3efe6;color:#9c9389;font-size:11px;line-height:1.3;display:inline-flex;align-items:center;justify-content:center;text-align:center;padding:4px;box-sizing:border-box}
 @media screen and (max-width:768px){.doc .shot-ref,.doc .shot-ref-miss{width:84px;height:84px}}  /* 仅屏幕窄屏降档；打印始终 112px */
 
+/* 设置弹窗（v10.6.0）：复用 doc-bar / card / src-panel / btn 样式，仅补内容区与反馈表单细节 */
+.settings-body{padding:22px 26px 26px;max-width:700px;margin:0 auto}
+.settings-body .card{margin-bottom:16px}
+.settings-ver{font-family:var(--serif);font-size:26px;font-weight:600;letter-spacing:.02em;margin-bottom:8px}
+.settings-kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:12.5px}
+.settings-kv dt{color:var(--ink3);white-space:nowrap}
+.settings-form{display:grid;gap:10px}
+.settings-form input,.settings-form textarea{font-size:13.5px;background:var(--surface-2)}
+.settings-form textarea{min-height:110px;resize:vertical}
+.settings-env{font-size:11px;color:var(--ink2);white-space:pre-wrap;line-height:1.6;padding:8px 10px;background:var(--surface-2);border:1px dashed var(--line2);border-radius:8px}
+@media (max-width:700px){.settings-body{padding:16px 14px 20px}}
+
 .backup-tip{background:#fdf8ec;border:1px solid #eadfc4;color:#7c6222;padding:10px 16px;border-radius:10px;font-size:12.5px;margin-bottom:16px;display:none;align-items:center;gap:8px}
 .backup-tip.show{display:flex}
 
@@ -411,6 +423,20 @@ svg{display:inline-block;vertical-align:middle}
   <div class="modal" style="max-width:640px;text-align:center" id="refViewerBody"></div>
 </div>
 
+<!-- 设置弹窗（置于 confirmModal 之前：所有 modal-mask 同为 z-index:300，DOM 序靠后的覆盖靠前的——
+     clearShiseiGallery 会在设置弹窗之上唤起 askConfirm，confirmModal 必须盖住本弹窗） -->
+<div class="modal-mask" id="settingsModal">
+  <div class="modal doc-modal">
+    <div class="doc-bar no-print">
+      <span class="doc-bar-title">设置</span>
+      <div class="row">
+        <button class="btn btn-ghost btn-sm" onclick="closeSettings()">关闭</button>
+      </div>
+    </div>
+    <div class="settings-body" id="settingsBody"></div>
+  </div>
+</div>
+
 <!-- 确认弹窗 -->
 <div class="modal-mask" id="confirmModal">
   <div class="modal confirm-box">
@@ -439,6 +465,14 @@ svg{display:inline-block;vertical-align:middle}
 
 <script>
 /* ================= 数据层 ================= */
+/* ===== 版本与反馈：APP_VERSION 由构建注入（scripts/assemble.mjs 在 src → 产物阶段把下方的
+   版本占位字面量替换为 package.json 的版本号）；MODULE_VERSIONS 记录各 src/ 模块「最后实质变更」
+   的应用版本（自 v10.5.0 源码模块化起记录，发版时按 CONTRIBUTING.md 检查单同步）；FEEDBACK_REPO
+   为反馈 Issue 跳转地址（零 API，仅网页预填）。注意：注释中不要复现带引号的占位字面量本身，
+   否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
+const APP_VERSION="10.6.0";
+const MODULE_VERSIONS={shell:'v10.6.0',styles:'v10.6.0',data:'v10.6.0',core:'v10.5.0',app:'v10.5.1',output:'v10.6.0',boot:'v10.5.0',settings:'v10.6.0',swCache:'shotflow-v10-10',dbSchema:3,since:'v10.5.0'};
+const FEEDBACK_REPO='https://github.com/NopantsNobra/shotflow-planner/issues/new';
 const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded', LS_DEMO_V9='wb_sf_demo_v9';
 const FAV_KINDS=['mood','shots','schedule','scenes','items','budget','notes','todos'];
 const FAV_META={mood:'情绪板',shots:'分镜',schedule:'日程',scenes:'清单',items:'清单',budget:'预算',notes:'协作',todos:'协作'};
@@ -628,7 +662,8 @@ function pickCity(v){
   toast('已切换为 '+c[0]+'，日照按当地坐标计算');
 }
 
-/* IndexedDB：图片 + 项目主存储 + 姿势图库（v4 起项目不再存 localStorage） */
+/* IndexedDB：图片 + 项目主存储 + 姿势图库（indexedDB.open('shotflow',3)，即数据结构版本 3；
+   项目主存储自该 schema 起存于 IndexedDB，不再写 localStorage） */
 const idb={db:null,
   open(){return new Promise((res,rej)=>{const r=indexedDB.open('shotflow',3);
     r.onupgradeneeded=e=>{const db=e.target.result;
@@ -1318,6 +1353,7 @@ function renderBoard(){
     +'<div class="mast-actions">'
     +'<button class="btn btn-ghost btn-sm" id="installBtn" style="display:none" onclick="installApp()">安装到桌面</button>'
     +favoritesButton()
+    +'<button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙ 设置</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="exportJSON()">导出备份</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'importFile\').click()">导入</button>'
     +'<button class="btn btn-danger btn-sm" onclick="clearAll()">清空</button>'
@@ -3593,6 +3629,7 @@ document.addEventListener('keydown',e=>{
   if(shown('refViewer')){ closeRefViewer(); return; }
   if(shown('confirmModal')){ closeConfirm(); return; }
   if(shown('nameModal')){ closeNameModal(); return; }
+  if(shown('settingsModal')){ closeSettings(); return; }   // v10.6.0：设置弹窗后开先关（位于 confirm/name 之后判断）
   if(cancelInlineEdit()) return;
   if(cancelShotEdit()) return;
   closeDoc(); closeShootDay();
@@ -3616,6 +3653,235 @@ window.addEventListener('offline',()=>{
 window.addEventListener('online',()=>{
   if(!shiseiState.running) startShiseiSync();
 });
+/* ================= 设置弹窗（v10.6.0）：版本信息 / 模块配置 / 数据备份 / 反馈 ================= */
+/* 硬约束：本文件顶层只允许 function 声明，禁止顶层 let/const——构建拼接顺序在 05-boot.js 之后，
+   boot 段有立即执行的启动代码，顶层 let/const 会因 TDZ 崩溃；所需常量集中在 01-data.js
+   （APP_VERSION / MODULE_VERSIONS / FEEDBACK_REPO）。
+   隔离纪律：不占用 view.mode、不触碰渲染主循环（openSettings/closeSettings 只切换弹窗 class +
+   填充弹窗内容）；FB-1——反馈表单输入不挂任何全局重绘，提交时直接读 DOM。 */
+
+/* ---------- 纯函数（供逻辑测试抽取，函数体内禁 document/window/parseInt/isNaN/Boolean(...)） ---------- */
+/* 反馈类型显示名：Bug → Bug、功能建议 → 建议、其他 → 其他（未知值回退「其他」） */
+function feedbackTypeLabel(t){
+  return t==='bug'?'Bug':(t==='idea'?'建议':'其他');
+}
+/* 反馈环境信息（纯函数）：只读字段全部经参数传入，浏览器侧由 collectFeedbackEnv() 采集。
+   仅版本 / 浏览器环境 / 数据规模计数，不含任何策划案内容 */
+function buildFeedbackEnv(e){
+  const d=e||{};
+  const ver=String(d.version||APP_VERSION);
+  const sw=String(d.swCache||MODULE_VERSIONS.swCache);
+  const db=d.dbVersion==null?MODULE_VERSIONS.dbSchema:d.dbVersion;
+  const scr=(d.screenW&&d.screenH)?(d.screenW+'×'+d.screenH):'未知';
+  const dpr=d.dpr==null?1:d.dpr;
+  const state='IndexedDB '+(d.idbOk===false?'不可用':'可用')
+    +' / 剪贴板 API '+(d.clipboardOk?'可用':'不可用')
+    +' / '+(d.online===false?'离线':'在线');
+  const pc=typeof d.projectCount==='number'?d.projectCount:0;
+  return '版本：v'+ver+'（SW 缓存 '+sw+' / 数据结构 '+db+'）'
+    +'\n环境：'+String(d.userAgent||'')
+    +'\n平台：'+String(d.platform||'')+' · 语言 '+String(d.language||'')+' · 屏幕 '+scr+'（devicePixelRatio '+dpr+'）'
+    +'\n状态：'+state
+    +'\n项目数：'+pc;
+}
+/* 反馈 Issue URL（纯函数）：'[类型] 标题' 前缀 + 描述 + --- 分隔 + 环境信息，全部 encodeURIComponent。
+   URL 总长超过 7800 字符（浏览器/服务端安全上限）时二分截断描述并追加提示；复制反馈文本为兜底通道 */
+function buildFeedbackUrl(type,title,body,envText){
+  const label=feedbackTypeLabel(type);
+  const prefix='['+label+'] '+String(title==null?'':title);
+  const note='…（描述过长已截断，请用「复制反馈文本」）';
+  const make=u=>FEEDBACK_REPO+'?title='+encodeURIComponent(prefix)+'&body='+encodeURIComponent(u);
+  const text=String(body==null?'':body);
+  const full=make(text+'\n\n---\n'+envText);
+  if(full.length<=7800) return full;
+  let lo=0,hi=text.length;
+  while(lo<hi){
+    const mid=(lo+hi+1)>>1;
+    if(make(text.slice(0,mid)+note+'\n\n---\n'+envText).length<=7800) lo=mid; else hi=mid-1;
+  }
+  return make(text.slice(0,lo)+note+'\n\n---\n'+envText);
+}
+
+/* ---------- 打开 / 关闭 ---------- */
+function openSettings(){
+  renderSettings();
+  document.getElementById('settingsModal').classList.add('show');
+}
+function closeSettings(){
+  document.getElementById('settingsModal').classList.remove('show');
+}
+
+/* ---------- 渲染（只写 #settingsBody，不触碰页面 DOM） ---------- */
+function renderSettings(){
+  const host=document.getElementById('settingsBody'); if(!host) return;
+  host.innerHTML=settingsVersionHtml()+settingsConfigHtml()+settingsDataHtml()+settingsFeedbackHtml();
+  const env=document.getElementById('fbEnvPreview');
+  if(env) env.textContent=buildFeedbackEnv(collectFeedbackEnv());
+  renderSettingsShisei();
+}
+
+/* ① 版本信息（只读）：R1 应用版本 / R2 SW 缓存 / R3 IndexedDB schema / R4 数据规模 / R5 模块版本表 */
+function settingsVersionHtml(){
+  const dbVer=(idb.db&&idb.db.version)?idb.db.version:MODULE_VERSIONS.dbSchema;
+  const imgN=Object.keys(imgCache).length;
+  const rows=[['shell.html（页面骨架）',MODULE_VERSIONS.shell],['styles.css（样式）',MODULE_VERSIONS.styles],
+    ['01-data.js（数据层）',MODULE_VERSIONS.data],['02-core.js（核心纯函数）',MODULE_VERSIONS.core],
+    ['03-app.js（页面与交互）',MODULE_VERSIONS.app],['04-output.js（输出与后台）',MODULE_VERSIONS.output],
+    ['05-boot.js（启动）',MODULE_VERSIONS.boot],['06-settings.js（设置与反馈）',MODULE_VERSIONS.settings]];
+  return '<div class="card"><h2>版本信息</h2>'
+    +'<div class="settings-ver">v'+esc(APP_VERSION)+'</div>'
+    +'<dl class="settings-kv">'
+    +'<dt>Service Worker 缓存</dt><dd>'+esc(MODULE_VERSIONS.swCache)+'</dd>'
+    +'<dt>数据结构（IndexedDB）</dt><dd>'+dbVer+'</dd>'
+    +'<dt>数据规模</dt><dd>'+loadP().length+' 个策划案 · '+imgN+' 张已载图片</dd>'
+    +'</dl>'
+    +'<details class="src-panel"><summary>各代码模块最后实质变更</summary>'
+    +'<dl class="settings-kv" style="margin-top:8px">'+rows.map(r=>'<dt>'+r[0]+'</dt><dd>'+esc(r[1])+'</dd>').join('')
+    +'<dt>Service Worker 缓存</dt><dd>'+esc(MODULE_VERSIONS.swCache)+'</dd></dl>'
+    +'<p class="muted" style="margin-top:8px">模块版本自 '+esc(MODULE_VERSIONS.since)+' 源码模块化起记录；拆分前的单文件历史无法按模块归因。</p>'
+    +'</details></div>';
+}
+
+/* ② 模块配置：C1 姿势图库同步开关 + C2 立即同步/清除 + J3 PWA 安装（状态行异步填充，见 renderSettingsShisei） */
+function settingsConfigHtml(){
+  return '<div class="card"><h2>模块配置</h2>'
+    +'<div id="settingsShiseiBox"><p class="muted">正在读取姿势图库状态…</p></div>'
+    +'<div class="src-sync"><div><b>安装到桌面</b> <span class="muted">把工作台作为应用安装，离线也能打开</span></div>'
+    +'<div class="row" style="margin-top:6px">'
+    +(deferredPrompt
+      ?'<button class="btn btn-ghost btn-sm" onclick="installApp()">安装到桌面</button>'
+      :'<span class="muted">已安装或当前浏览器不支持安装</span>')
+    +'</div></div>'
+    +'</div>';
+}
+/* 姿势图库状态行（设置弹窗自备渲染，不共享情绪板的 #shiseiSyncBox，避免重复 id）：
+   renderShiseiSyncStatus() 开头对不存在的 box 安全空转，故直接复用既有开关/同步函数后在此自刷新 */
+async function renderSettingsShisei(){
+  const box=document.getElementById('settingsShiseiBox'); if(!box) return;
+  let meta=null, stats={count:0,bytes:0,avg:0};
+  try{ meta=await idb.getShiseiMeta(SHISEI_META_KEY); stats=await idb.shiseiImgStats(); }catch(e){}
+  let stat='未同步';
+  if(!shiseiSyncEnabled()) stat='已暂停';
+  else if(shiseiState.running) stat=(shiseiState.paused?'已暂停':'进行中 ')+Math.min(shiseiState.done,shiseiState.total||0)+'/'+(shiseiState.total||0);
+  else if(meta&&meta.paused) stat='已暂停';
+  else if(meta&&meta.failStreak>=3) stat='连续失败 '+meta.failStreak+' 次';
+  else if(meta&&meta.total&&stats.count) stat='已同步 '+stats.count+'/'+meta.total;
+  else if(stats.count) stat='已同步 '+stats.count+' 张';
+  const mb=(stats.bytes/1024/1024).toFixed(1), kb=(stats.avg/1024).toFixed(1);
+  box.innerHTML='<div class="src-sync"><div><b>姿势图库同步</b> <span class="muted">'+esc(stat)+' · '+stats.count+' 张'
+    +(stats.count?' · 约 '+mb+' MB（平均 '+kb+' KB）':'')+'</span></div>'
+    +'<div class="row" style="margin-top:6px">'
+    +'<button class="btn btn-ghost btn-sm" onclick="toggleSettingsShiseiSync()">'+(shiseiSyncEnabled()?'暂停':'恢复')+'</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="runSettingsShiseiSync()">立即同步</button>'
+    +(stats.count?'<button class="btn btn-danger btn-sm" onclick="clearShiseiGallery()">清除图库</button>':'')
+    +'</div></div>';
+}
+function toggleSettingsShiseiSync(){
+  toggleShiseiSync();        // 复用既有开关：写 localStorage['wb_sf_shisei_sync'] / 暂停或恢复同步
+  renderSettingsShisei();    // 设置弹窗内状态行自刷新
+}
+function runSettingsShiseiSync(){
+  startShiseiSync(true);     // 复用既有立即同步（空闲调度 + 失败退避），零逻辑复制
+  renderSettingsShisei();
+}
+
+/* ③ 数据与备份：J1 导出（复用 exportJSON）/ J2 导入（独立 id settingsImportFile——看板页 #importFile
+   仍在 DOM，不能重 id；onchange 同样交 importJSON(event)，其按 event.target 取文件）+ J4 词表说明 */
+function settingsDataHtml(){
+  const needBackup=backupItemCount(loadP())>=30;
+  return '<div class="card"><h2>数据与备份</h2>'
+    +(needBackup?'<p class="src-note">数据较多，建议定期「导出备份」留档。</p>':'')
+    +'<div class="row">'
+    +'<button class="btn btn-ghost btn-sm" onclick="exportJSON()">导出备份</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'settingsImportFile\').click()">导入备份</button>'
+    +'</div>'
+    +'<input type="file" id="settingsImportFile" accept=".json" style="display:none" onchange="importJSON(event)">'
+    +'<p class="src-note" style="margin-top:10px">标签词表为项目级数据：在各策划案的「情绪板」页编辑（改词 / 删词入口在标签云上），不设全局词表。</p>'
+    +'</div>';
+}
+
+/* ④ 反馈：类型 seg（默认 Bug）+ 标题（必填）/ 描述（选填）+ 环境信息只读预览 + 主/兜底两通道 + 隐私说明 */
+function settingsFeedbackHtml(){
+  const types=['bug','idea','other'];
+  return '<div class="card"><h2>反馈</h2>'
+    +'<div class="settings-form">'
+    +'<div class="seg" id="fbTypeSeg" style="align-self:flex-start">'
+    +types.map((t,i)=>'<button class="'+(i===0?'on':'')+'" data-fb-type="'+t+'" onclick="setFeedbackType(\''+t+'\')">'+feedbackTypeLabel(t)+'</button>').join('')
+    +'</div>'
+    +'<input id="fbTitle" maxlength="80" placeholder="标题（必填，80 字内）">'
+    +'<textarea id="fbBody" maxlength="4000" placeholder="描述：做了什么、期望什么、实际发生什么（选填，4000 字内）"></textarea>'
+    +'<details class="src-panel"><summary>环境信息（自动生成，随反馈一并发送）</summary>'
+    +'<div class="settings-env" id="fbEnvPreview"></div></details>'
+    +'<div class="row">'
+    +'<button class="btn btn-primary btn-sm" onclick="submitFeedback()">提交到 GitHub Issues</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="copyFeedbackText()">复制反馈文本</button>'
+    +'</div>'
+    +'<p class="muted">反馈仅包含你填写的文字与上列浏览器环境信息，不包含任何策划案内容、图片或数据文件。</p>'
+    +'</div></div>';
+}
+function setFeedbackType(t){
+  const seg=document.getElementById('fbTypeSeg'); if(!seg) return;
+  const btns=seg.querySelectorAll('button');
+  for(let i=0;i<btns.length;i++){
+    const b=btns[i];
+    if(b.getAttribute('data-fb-type')===t) b.classList.add('on'); else b.classList.remove('on');
+  }
+}
+function currentFeedbackType(){
+  const seg=document.getElementById('fbTypeSeg');
+  if(!seg) return 'bug';
+  const on=seg.querySelector('button.on');
+  return on?on.getAttribute('data-fb-type'):'bug';
+}
+/* 浏览器侧环境采集（DOM 函数，不进逻辑测试）：全部只读 API，不做全库 idb 扫描 */
+function collectFeedbackEnv(){
+  return {
+    version:APP_VERSION, swCache:MODULE_VERSIONS.swCache,
+    dbVersion:(idb.db&&idb.db.version)?idb.db.version:MODULE_VERSIONS.dbSchema,
+    userAgent:navigator.userAgent, platform:navigator.platform, language:navigator.language,
+    screenW:screen.width, screenH:screen.height, dpr:window.devicePixelRatio,
+    idbOk:!!window.indexedDB,
+    clipboardOk:!!(navigator.clipboard&&navigator.clipboard.writeText),
+    online:navigator.onLine, projectCount:loadP().length
+  };
+}
+/* 主通道：GitHub Issue 网页跳转（window.open + noopener，无需登录即可提交公开仓库 issue） */
+function submitFeedback(){
+  const title=String((document.getElementById('fbTitle')||{}).value||'').trim();
+  if(!title){ toast('请先填写反馈标题'); return; }
+  const body=String((document.getElementById('fbBody')||{}).value||'');
+  const env=buildFeedbackEnv(collectFeedbackEnv());
+  window.open(buildFeedbackUrl(currentFeedbackType(),title,body,env),'_blank','noopener');
+}
+/* 反馈纯文本（标题 + 类型 + 描述 + 环境信息），提交被拦截 / 剪贴板不可用时手动粘贴兜底 */
+function feedbackPlainText(){
+  const title=String((document.getElementById('fbTitle')||{}).value||'').trim();
+  const body=String((document.getElementById('fbBody')||{}).value||'');
+  return '['+feedbackTypeLabel(currentFeedbackType())+'] '+title+'\n\n'+body+'\n\n---\n'+buildFeedbackEnv(collectFeedbackEnv());
+}
+/* 兜底通道：navigator.clipboard → 隐藏 textarea + execCommand('copy') → 仍失败提示手动复制 */
+function copyFeedbackText(){
+  const title=String((document.getElementById('fbTitle')||{}).value||'').trim();
+  if(!title){ toast('请先填写反馈标题'); return; }
+  const text=feedbackPlainText();
+  const done=()=>toast('已复制，可粘贴到 Issue 或发给维护者');
+  const fail=()=>toast('复制失败：请在弹窗内手动选中文本复制');
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done,()=>{ if(!legacyCopy(text)) fail(); });
+  } else if(legacyCopy(text)){ done(); } else { fail(); }
+}
+function legacyCopy(text){
+  try{
+    const ta=document.createElement('textarea');
+    ta.value=text;
+    ta.style.position='fixed'; ta.style.left='0'; ta.style.top='0'; ta.style.opacity='0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok=document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  }catch(e){ return false; }
+}
 </script>
 </body>
 </html>
