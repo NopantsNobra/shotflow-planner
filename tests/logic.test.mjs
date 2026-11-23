@@ -650,7 +650,7 @@ check('v10.6.0 ②b buildFeedbackUrl mailto 与 subject/body 拼接',
 const VFBlong = vm.runInContext(`buildFeedbackUrl('idea','超长反馈','${'长'.repeat(4000)}','env')`, ctx);
 check('v10.6.0 ③ buildFeedbackUrl 超长截断且 URL ≤ 7800',
   VFBlong.length <= 7800 && decodeURIComponent(VFBlong).includes('描述过长已截断')
-  && decodeURIComponent(VFBlong).includes('复制反馈文本'), 'len=' + VFBlong.length);
+  && decodeURIComponent(VFBlong).includes('复制反馈内容'), 'len=' + VFBlong.length);
 
 // ④ buildFeedbackEnv：五段字段齐全（版本/环境/平台/状态/项目数）
 const VENV = vm.runInContext(

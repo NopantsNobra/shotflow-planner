@@ -56,7 +56,7 @@ function fbDecodeMail(){
 function buildFeedbackUrl(type,title,body,envText){
   const label=feedbackTypeLabel(type);
   const prefix='['+label+'] '+String(title==null?'':title);
-  const note='…（描述过长已截断，请用「复制反馈文本」）';
+  const note='…（描述过长已截断，请用「复制反馈内容」）';
   const mail=fbDecodeMail();
   if(!mail||mail.indexOf('@')<0) return '';
   const make=u=>'mailto:'+mail+'?subject='+encodeURIComponent(prefix)+'&body='+encodeURIComponent(u);
