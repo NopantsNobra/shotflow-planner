@@ -30,7 +30,6 @@
 
 ## 决策待定（非纯工程项）
 
-- **多浏览器 CI**：`playwright install firefox webkit` + 独立 job，成本最低的兼容性网。
 - **B1 Web3Forms access key 滥用面**：key 在客户端必然可还原，需在 Web3Forms 侧配域名/速率限制，属外部配置。
 - **PoseWear 功能**：`c9fb528` 有意 revert，当前 main 不含；是否恢复未决策。
 - **设计 §8 三项**：SW postMessage 运行时读 CACHE、跨项目全局词表、反馈下载为 `.md`，均为产品决策。

@@ -4,6 +4,22 @@
 
 所有日期为 2026 年。
 
+## [v10.7.2] - 2026-11-23
+
+工程化批次：E2E 从单一 Chromium 扩为三引擎矩阵，并统一各文档的版本与门禁口径。**功能行为零变化**，SW 缓存保持 `v10-11`。
+
+### Changed
+- **E2E 浏览器矩阵**：`playwright.config.js` 定义 `chromium` / `firefox` / `webkit` 三个 project，按 `E2E_BROWSERS`（逗号分隔）筛选——本地默认只跑 Chromium，CI 跑三引擎。顶层 `use` 不再固定 `devices['Desktop Chrome']`，各 project 使用各自设备描述。
+- **CI 的 `e2e` job 改矩阵**：`fail-fast: false`，每个引擎独立安装浏览器与系统依赖、独立上传失败 trace（`playwright-trace-<engine>`），单引擎失败不掩盖其余结果。
+- **文档口径统一**：README / CONTRIBUTING 的 CI job 数（5 → 7）与 E2E 安装命令（含 firefox / webkit）；README 文件结构补 `docs/backlog.md`、`src/js/01..06`；CHANGELOG 中 v10.6.0 / v10.7.0 的日期按提交日期校正为 2026-11-23。
+
+### Verification
+- `npx playwright test --list`：Chromium / Firefox / WebKit 各 11 条用例、合计 33 条，矩阵配置生效。
+- 逻辑测试 116 项、perf 门禁、verify:build / verify:version(10.7.2) / sync:check / lint / format:check 全绿。
+- **未实测**：本机无浏览器二进制且 Playwright CDN 不可达，三引擎实跑由 CI 首次执行；WebKit 为 Playwright 的 Safari 内核构建，不等同 macOS Safari 本体。
+
+---
+
 ## [v10.7.1] - 2026-11-23
 
 安全与稳定性修复批次（短期路线图 P0/P1）：关闭导入文件的存储型 XSS 注入面、启动不再白屏、消除示例注入覆盖用户数据的路径。SW 缓存不变（`v10-11`）。
@@ -30,7 +46,7 @@
 
 ---
 
-## [v10.7.0] - 2026-11-25
+## [v10.7.0] - 2026-11-23
 
 设置页收尾与反馈通道定稿：反馈改为 **Web3Forms 页面内提交**（取代 v10.6.0 的公开仓库 Issue 跳转与中间过渡的邮件方案）。SW 缓存 `v10-10` → `v10-11`。
 
@@ -51,7 +67,7 @@
 
 ---
 
-## [v10.6.0] - 2026-11-24
+## [v10.6.0] - 2026-11-23
 
 首个用户可见的功能版本：新增「设置」弹窗。SW 缓存 `v10-8` → `v10-10`（跳过 `v10-9`——该号曾被已回退的 PW 版本占用，避免版本序列混淆）。
 

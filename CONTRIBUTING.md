@@ -23,14 +23,16 @@
 npm run verify:build    # 交付物与源码一致
 npm run verify:version  # 版本号一致（package.json 为真源）
 npm run test:logic      # 逻辑测试（数量以 RESULT 行为准）
-npm run test:e2e        # E2E（需先 npx playwright install chromium）
+npm run test:e2e        # E2E（默认 Chromium；需先 npx playwright install chromium）
 npm run test:perf       # 规模压测 + 性能门禁（2000 分镜渲染须 < 50ms）
 npm run lint            # ESLint，须 0 error
 npm run format:check    # Prettier
 npm run sync:check      # 部署副本一致
 ```
 
-CI 会自动跑以上全部检查，5 个 job 全绿才可合入。
+跨引擎自查：`E2E_BROWSERS=firefox npm run test:e2e`（或 `npx playwright test --project=webkit`），需先安装对应引擎。
+
+CI 会自动跑以上全部检查：7 个 job 全绿才可合入——构建一致性、核心逻辑、规模压测、副本同步，外加 E2E 的 Chromium / Firefox / WebKit 三个矩阵任务。
 
 ## 提交规范
 

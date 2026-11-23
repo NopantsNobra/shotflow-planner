@@ -80,11 +80,11 @@
 ├── icon-192.png             # PWA 图标 192×192
 ├── icon-512.png             # PWA 图标 512×512
 ├── legacy/                  # 历史版本归档（v1 模块表单版 photo-planner.html）
-├── docs/                    # 设计文档（系统设计 / 类图 / 时序图）
+├── docs/                    # 设计文档（系统设计 / 设置页设计 / 类图 / 时序图）+ 修复与待办清单
 ├── overview.md              # 功能索引（开发视角）
 ├── README.md                # 本说明
-├── 竞品调研与升级方案.md    # 竞品分析与版本升级方案（含二次分析复核）
-├── src/                     # 源码（P3 拆分）：shell.html + styles.css + js/01..05（分段）
+├── 竞品调研与升级方案.md    # 竞品分析与版本升级方案（含二次分析、三次复核）
+├── src/                     # 源码（P3 拆分）：shell.html + styles.css + js/01..06（分段）
 ├── scripts/                 # build.mjs / verify-build.mjs / sync-app.mjs
 ├── tests/                   # 测试：logic.test.mjs（纯函数）+ e2e/app.spec.js（Playwright）
 ├── package.json             # 构建/测试脚本与依赖（Playwright / ESLint / Prettier）
@@ -101,7 +101,7 @@
 >
 > **部署副本同步**：构建后运行 `node scripts/sync-app.mjs` 同步到 `shotflow-app/` 再部署；`--check` 校验两端一致（CI 自动执行）。
 >
-> **测试与规范**：`npm install` 后，`npm run test:logic` 跑逻辑测试，`npm run test:e2e` 跑浏览器 E2E（首次需 `npx playwright install chromium`），`npm test` 两者都跑；`npm run test:perf` 跑规模压测（含性能门禁）；`npm run lint`、`npm run format:check` 检查代码规范。CI 有 5 个 job（构建一致性/逻辑/规模压测/E2E/副本同步）。
+> **测试与规范**：`npm install` 后，`npm run test:logic` 跑逻辑测试，`npm run test:e2e` 跑浏览器 E2E（首次需 `npx playwright install chromium firefox webkit`；默认只跑 Chromium，用 `E2E_BROWSERS=firefox` 或 `npx playwright test --project=webkit` 指定引擎），`npm test` 两者都跑；`npm run test:perf` 跑规模压测（含性能门禁）；`npm run lint`、`npm run format:check` 检查代码规范。CI 共 7 个 job：构建一致性、核心逻辑、规模压测、副本同步，以及 E2E 的 Chromium / Firefox / WebKit 三个矩阵任务。
 
 ---
 
@@ -155,7 +155,8 @@
 - **v2** `shotflow.html`：分镜中枢架构 + 多项目看板 + 拍摄日模式 + IndexedDB + PWA
 - **v3**：新增日程时间轴、备注协作、多参考图、日落/黄金时刻计算、提案文件导出、看板统计、PWA 更新提示
 - **v7**：修正 PoseAtlas 版权文案；新增 shisei 姿势图库空闲自动同步（IndexedDB 本地缓存、分类筛选、可暂停 / 清除、失败退避；导出保持轻量不包含图库）；测试扩至 44 项
-- **v10.7.1**（当前）：安全与稳定性修复（短期路线图 P0/P1 批次）——① **导入净化层**：新增纯函数 `sanitizeProject(p,mkId)`（实体 id 全部重写为新生成 id + 内部引用 sceneId 同步映射 + status 白名单回退 + 显示字段强转/截断 + 数值收敛 + 垃圾成员过滤 + 日期形状与月/日范围双重校验），导入链路先净化再 migrate，恶意备份 JSON 不再能携带可拼进 DOM 的字符串；② **XSS 注入面收口**：渲染层 8+ 处 raw 拼接（项目卡/导出按钮 onclick 的 `p.id`、`p.status` 文本、分镜 `data-id`、场景 `<option value>`、时间轴/拍摄日勾选与编辑按钮的 `it.id/x.id`、`sd-slot` 时间、待办 `due`、分镜/通告单/手册时长）统一补 `jstr()/esc()`/数值化；③ **启动降级（A2）**：`initData`/boot 全链 try-catch（不再白屏，失败给可见错误 + 刷新入口）、IndexedDB 全部方法降级守卫（db 未就绪时读类回 null/[]、写类空转）、看板新增降级提示条、写路径不进重试风暴只提示一次、降级时保留旧 localStorage 副本不清除、降级模式下暂停姿势图库同步；④ **seed 幂等加固（A3）**：内容级 guard（已有项目/示例即跳过）+ 追加注入，消除「标志缺失时 `saveP([demo])` 整体覆盖用户项目」的数据丢失路径；⑤ 一致性：`dayItems/cascadeShift` 时长兑底改用 `SHOT_DEFAULT_MIN`（与 `planDay` 同源，不再 20/10 漂移）、导出文件名改 `safeFilename()`（不再混入 `&amp;`）、看板统计排除只读示例（与备份计数同口径）、CI/CONTRIBUTING 文案防漂移（不再写死用例数）；逻辑测试 105 → **116 项**（新增 sanitizeProject 9 项 + safeFilename + 时长兑底；含复核补漏：分镜 `slot` 保留、缺 id 成员各自生成独立 id）、E2E 8 → **11 项**（恶意导入净化 / seed 不覆盖已有项目 / IDB 不可用降级）；SW 缓存保持 v10-11
+- **v10.7.2**（当前）：工程化与文档——E2E 由单一 Chromium 扩为 **Chromium / Firefox / WebKit 三引擎矩阵**（`playwright.config.js` 按 `E2E_BROWSERS` 选择 project，本地默认只跑 Chromium；CI 三个 job 并行、`fail-fast: false`，各引擎独立上传失败 trace）；同时重整 README / CHANGELOG / overview 的版本号、测试数量与 CI 口径。功能行为零变化，SW 缓存保持 v10-11
+- **v10.7.1**：安全与稳定性修复——新增导入净化 `sanitizeProject()`（实体 id 重写、status 白名单、类型与日期收敛、垃圾成员过滤），渲染层 12 处 raw 拼接补 `jstr()/esc()`；IndexedDB 不可用时启动降级不再白屏（看板提示、保留旧 localStorage 副本、暂停图库同步）；`seed()` 改为内容级幂等，消除标志缺失时的全量覆盖；顺带统一时长兜底、文件名清洗、看板统计排除示例。逻辑测试 105 → 116 项，E2E 8 → 11 项；SW 缓存保持 v10-11
 - **v10.7.0**：设置页收尾与反馈通道定稿——反馈改为 **Web3Forms 页面内提交**（`fetch` POST，不跳转、不拉起邮件客户端；access key 以双层混淆常量存储、仅提交时在运行时还原，源码 / 产物 / 测试 / 文档零明文；成功提示「反馈已提交，感谢！」并清空表单，失败静默降级到「复制反馈内容」，提交按钮防重复点击）；设置页新增「关于与部署」分区与「为自己部署」说明弹窗（部署方式 / 开源地址 / MIT 版权 / 项目用途 / 三句话介绍，Esc 先关弹窗再关设置，支持点遮罩关闭）；新增全局页脚（Powered by Stillmark · 瞬刻摄影工作台 · MIT License · 开源地址，桌面贴底、390px 不溢出）；版本 10.6.0 → **10.7.0**，SW 缓存 v10-10 → **v10-11**；逻辑测试 105 项、E2E 8 项
 - **v10.6.0**：新增设置页——看板「⚙ 设置」弹窗聚合四区：①版本信息（应用版本 / SW 缓存 / IndexedDB 数据结构 / 数据规模 / 各模块最后实质变更表，应用版本由构建脚本注入）；②模块配置（姿势图库同步开关、立即同步、清除本机图库、PWA 安装快捷入口）；③数据与备份（导出/导入复用既有链路、标签词表说明）；④反馈（GitHub Issue 网页跳转 + 复制文本兜底——该通道已在 v10.7.0 改为 Web3Forms 页面内提交）。构建脚本抽取共享组装模块 `scripts/assemble.mjs` 并注入 `APP_VERSION`；`verify:version` 新增 swCache 防漂移校验；逻辑测试扩至 104 项、E2E 扩至 7 项；SW 缓存 v10-8 → v10-10（跳过曾被已回退版本占用的 v10-9）
 - **v10.5.1**：性能补强——分镜列表 `shotListHtml()` 从 O(N²) 改为按日预计算查表（2000 分镜 1125ms→约 7ms），新增 `tests/perf.mjs` 规模压测与 50ms 回归门禁，CI 由 4 job 增至 5 job；功能行为对最终用户零变化，SW 缓存保持 v10-8

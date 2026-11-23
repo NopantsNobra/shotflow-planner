@@ -63,10 +63,15 @@ jobs:
       - name: 校验 shotflow-app/ 与真源一致
         run: node scripts/sync-app.mjs --check
 
-  # E2E 测试：浏览器端关键路径（新建→分镜→排程→导出 / 渲染层回归 / 持久化）
+  # E2E 测试：浏览器端关键路径，按引擎矩阵跑 Chromium / Firefox / WebKit
+  # （WebKit 为 Safari 内核的 Playwright 构建，不等于 macOS 上的 Safari 本体）
   e2e:
-    name: E2E 关键路径测试
+    name: E2E · ${{ matrix.browser }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -75,14 +80,16 @@ jobs:
           cache: npm
       - name: 安装依赖
         run: npm ci
-      - name: 安装 Chromium 及系统依赖
-        run: npx playwright install --with-deps chromium
-      - name: 运行 E2E
+      - name: 安装 ${{ matrix.browser }} 及系统依赖
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: 运行 E2E（${{ matrix.browser }}）
         run: npm run test:e2e
-      - name: 上传失败追踪（便于定位渲染层回归）
+        env:
+          E2E_BROWSERS: ${{ matrix.browser }}
+      - name: 上传失败追踪（${{ matrix.browser }}）
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-trace
+          name: playwright-trace-${{ matrix.browser }}
           path: playwright-report/
           retention-days: 7
