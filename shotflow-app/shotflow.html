@@ -1356,12 +1356,11 @@ function renderBoard(){
     +'<button class="btn btn-ghost btn-sm" id="installBtn" style="display:none" onclick="installApp()">安装到桌面</button>'
     +favoritesButton()
     +'<button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙ 设置</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="exportJSON()">导出备份</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'importFile\').click()">导入</button>'
     +'<button class="btn btn-danger btn-sm" onclick="clearAll()">清空</button>'
     +'<button class="btn btn-primary" onclick="newProject()">新建策划案</button>'
     +'<input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)"></div></header>'
-    +'<div class="backup-tip" id="backupTip"><span>数据较多，建议「导出备份」留档。</span></div>';
+    +'<div class="backup-tip" id="backupTip"><span>数据较多，建议在「⚙ 设置」中定期导出备份留档。</span></div>';
   const t=todayStr();
   const active=all.filter(isActiveStatus).length;
   const todayShoots=all.filter(p=>p.shootDate===t&&isActiveStatus(p)).length;
