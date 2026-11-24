@@ -710,3 +710,32 @@ test('图库索引复用并在图片写入删除后失效',async({page})=>{
   });
   expect(result).toBe(true);
 });
+
+test('分镜键盘排序、删除撤销、拍摄日补拍',async({page})=>{
+  await setupV108Project(page);
+  await page.locator('.shot [title^="复制分镜"]').click();
+  await expect(page.locator('.shot')).toHaveCount(2);
+  const secondId=await page.locator('.shot').nth(1).getAttribute('data-id');
+  await page.locator('.shot').nth(1).getByRole('button',{name:'上移分镜'}).click();
+  await expect(page.locator('.shot').first()).toHaveAttribute('data-id',secondId);
+  await page.locator('.shot').first().locator('[title="删除分镜"]').click();
+  await expect(page.locator('.shot')).toHaveCount(1);
+  await page.locator('.toast').getByRole('button',{name:'撤销'}).click();
+  await expect(page.locator('.shot')).toHaveCount(2);
+  await page.getByRole('button',{name:'进入拍摄日模式'}).click();
+  await expect(page.locator('#sdOverlay')).toHaveClass(/show/);
+  await page.getByRole('button',{name:'稍后补拍'}).first().click();
+  await expect(page.locator('#sdBody')).toContainText('待补拍');
+  await page.getByRole('button',{name:'取消补拍'}).click();
+  await expect(page.locator('#sdBody')).not.toContainText('待补拍');
+});
+test('弹窗具备可访问对话框语义和 Tab 循环',async({page})=>{
+  await openFreshApp(page);
+  await page.getByRole('button',{name:'新建策划案'}).click();
+  await expect(page.locator('#nameModal')).toHaveAttribute('aria-modal','true');
+  await page.locator('#nameModal').getByRole('button',{name:'创建'}).focus();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#nameInput')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#nameModal')).not.toHaveClass(/show/);
+});

@@ -861,12 +861,14 @@ function shotListHtml(p,days){
         return '<div class="shot '+(s.done?'done':'')+(editingThis?' editing':'')+'" data-id="'+esc(s.id)+'" data-fid="'+esc(s.id)+'">'
           +(view.batchMode?'<input class="batch-check" type="checkbox" aria-label="选择分镜" '+((view.batchShots||[]).includes(s.id)?'checked':'')+' onchange="toggleBatchShot('+jstr(s.id)+',this.checked)">':'')
           +'<span class="drag-handle" title="拖拽排序"><svg width="12" height="18" viewBox="0 0 12 18" fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></svg></span>'
-          +'<button class="chk '+(s.done?'on':'')+'" onclick="toggleShot('+jstr(s.id)+')">'+(s.done?'✓':'')+'</button>'
+          +'<button class="chk '+(s.done?'on':'')+'" aria-label="完成分镜" aria-pressed="'+!!s.done+'" onclick="toggleShot('+jstr(s.id)+')">'+(s.done?'✓':'')+'</button>'
           +'<div class="refs">'+refHtml+'</div>'
           +body
           +'<button class="rowbtn'+(isFav(s)?' on':'')+'" title="收藏/取消收藏" onclick="toggleFav(\'shots\','+jstr(s.id)+')">'+(isFav(s)?'★':'☆')+'</button>'
           +'<button class="rowbtn" title="复制分镜（时间顺延 '+COPY_SHIFT_MIN+' 分钟）" onclick="copyShot('+jstr(s.id)+')">⧉复制</button>'
           +'<button class="rowbtn" title="标记必拍" onclick="toggleMustShoot('+jstr(s.id)+')">'+(s.mustShoot?'取消必拍':'必拍')+'</button>'
+          +'<button class="rowbtn" title="上移分镜" aria-label="上移分镜" onclick="moveShotBy('+jstr(s.id)+',-1)">↑</button>'
+          +'<button class="rowbtn" title="下移分镜" aria-label="下移分镜" onclick="moveShotBy('+jstr(s.id)+',1)">↓</button>'
           +editBtn('Shot',s.id)
           +'<button class="iconbtn" title="删除分镜" onclick="delShot('+jstr(s.id)+')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
         }).join('')+'</div>'; }).join('')+'</div>' : '<p class="muted">'+(kw?'没有匹配的分镜。':'还没有分镜。添加第一条，把素材挂上来。')+'</p>');
@@ -1145,61 +1147,59 @@ function addShot(){
 
 /* 拖拽排序（桌面 + 触屏，Pointer Events） */
 function attachDrag(){
-  const list=document.getElementById('shotList'); if(!list) return;
+  const list=document.getElementById('shotList');if(!list)return;
   list.querySelectorAll('.drag-handle').forEach(h=>{
     h.addEventListener('pointerdown',e=>{
-      const dragEl=h.closest('.shot'); const startY=e.clientY; let active=false;
+      if(e.button!==0)return;
+      const dragEl=h.closest('.shot'),startY=e.clientY;let active=false,drop=null;
       h.setPointerCapture(e.pointerId);
+      const clear=()=>list.querySelectorAll('.shot').forEach(s=>s.classList.remove('dragging','drop-before','drop-after'));
       const move=ev=>{
-        if(!active && Math.abs(ev.clientY-startY)>6){ active=true; dragEl.classList.add('dragging'); }
-        if(!active) return;
-        list.querySelectorAll('.shot').forEach(s=>s.classList.remove('drop-before','drop-after'));
-        const t=document.elementFromPoint(ev.clientX,ev.clientY);
-        const target=t&&t.closest?t.closest('.shot'):null;
-        if(target&&target!==dragEl){
-          const r=target.getBoundingClientRect();
-          const after=(ev.clientY-r.top)>r.height/2;
-          target.classList.add(after?'drop-after':'drop-before');
-          dragEl._drop={el:target,after};
-        } else dragEl._drop=null;
-      };
-      const up=()=>{
-        h.removeEventListener('pointermove',move);
-        h.removeEventListener('pointerup',up);
-        h.removeEventListener('pointercancel',up);
-        const info=dragEl._drop;
-        if(active&&info){
-          if(info.after) info.el.after(dragEl); else info.el.before(dragEl);
-          persistOrder(list,dragEl.dataset.id);
-        } else {
-          list.querySelectorAll('.shot').forEach(s=>s.classList.remove('dragging','drop-before','drop-after'));
+        if(!active&&Math.abs(ev.clientY-startY)>6)active=true;
+        if(!active)return;
+        clear();dragEl.classList.add('dragging');
+        const el=document.elementFromPoint(ev.clientX,ev.clientY)?.closest('.shot');
+        drop=null;
+        if(el&&el!==dragEl&&list.contains(el)){
+          const r=el.getBoundingClientRect(),after=ev.clientY-r.top>r.height/2;
+          el.classList.add(after?'drop-after':'drop-before');drop={id:el.dataset.id,after};
         }
       };
-      h.addEventListener('pointermove',move);
-      h.addEventListener('pointerup',up);
-      h.addEventListener('pointercancel',up);
+      const end=ev=>{
+        h.removeEventListener('pointermove',move);h.removeEventListener('pointerup',end);h.removeEventListener('pointercancel',end);
+        clear();
+        if(ev.type==='pointerup'&&active&&drop)moveShotRelative(dragEl.dataset.id,drop.id,drop.after);
+      };
+      h.addEventListener('pointermove',move);h.addEventListener('pointerup',end);h.addEventListener('pointercancel',end);
     });
   });
 }
-function persistOrder(list,draggedId){
-  const ids=[...list.querySelectorAll('.shot')].map(el=>el.dataset.id);
-  let adopted=null;                                               // 目标日期（跨日拖拽时才有值），回调外要用
-  updateCur(p=>{
-    const byId={}; p.shots.forEach(s=>byId[s.id]=s);
-    const i=ids.indexOf(draggedId);
-    let adopt=null;
-    if(i<ids.length-1) adopt=byId[ids[i+1]].date;
-    else if(i>0) adopt=byId[ids[i-1]].date;
-    const before=byId[draggedId]?(byId[draggedId].date||''):'';   // 改期前必须取，改完再取就丢了
-    if(adopt!=null&&adopt!=='') byId[draggedId].date=adopt;
-    const counters={};
-    ids.forEach(id=>{ const s=byId[id]; if(!s) return; const d=s.date||''; counters[d]=(counters[d]||0); s.ord=counters[d]++; });
-    applyDay(p,before,null);                                     // 原日期重排
-    applyDay(p,(adopt!=null&&adopt!=='')?adopt:before,null);      // 新日期重排（同一天时幂等）
-    adopted=(adopt!=null&&adopt!=='')?adopt:null;
+function moveShotRelative(id,targetId,after){
+  const p=cur();if(!p||p.demo||id===targetId)return;
+  updateCur(pp=>{
+    const shot=pp.shots.find(s=>s.id===id),target=pp.shots.find(s=>s.id===targetId);
+    if(!shot||!target)return;
+    const from=shot.date||'',to=target.date||'';
+    // 使用完整项目而非当前筛选后的 DOM；目标日期明确取落点，隐藏分镜不会被重置。
+    const rows=pp.shots.filter(s=>s.id!==id&&s.date===target.date).sort((a,b)=>(+a.ord||0)-(+b.ord||0));
+    const index=rows.indexOf(target);
+    rows.splice(index+(after?1:0),0,shot);
+    shot.date=target.date;
+    rows.forEach((s,n)=>s.ord=n);
+    if(from!==to){
+      pp.shots.filter(s=>s.date===from).sort((a,b)=>(+a.ord||0)-(+b.ord||0)).forEach((s,n)=>s.ord=n);
+      if(to)addShootDate(pp,to);
+      if(from)applyDay(pp,from,null);
+    }
+    if(to)applyDay(pp,to,null);
   });
-  if(adopted) ensureShootDate(adopted);                           // 拖到未登记日期 → 该日首次有内容，登记为拍摄日
   renderProject();
+}
+function moveShotBy(id,delta){
+  const p=cur(),s=p&&p.shots.find(x=>x.id===id);if(!s||p.demo)return;
+  const rows=p.shots.filter(x=>x.date===s.date).sort((a,b)=>(+a.ord||0)-(+b.ord||0));
+  const target=rows[rows.indexOf(s)+delta];
+  if(target)moveShotRelative(id,target.id,delta>0);else toast('已到该拍摄日的边界');
 }
 function toggleShot(id){ updateCur(p=>{const s=p.shots.find(x=>x.id===id); if(s){s.done=!s.done;s.skipped=false;s.deferred=false;}}); renderProject(); }
 /* 删除分镜：立即删除（保持单击即删的习惯），toast 提供 6 秒撤销；
@@ -1207,10 +1207,11 @@ function toggleShot(id){ updateCur(p=>{const s=p.shots.find(x=>x.id===id); if(s)
 function delShot(id){
   updateCur(p=>{
     const s=p.shots.find(x=>x.id===id); if(!s) return;
-    const d=s.date||'';
+    const d=s.date||'',pid=p.id;
     p.shots=p.shots.filter(x=>x.id!==id);
     applyDay(p,d,null);      // 删除后重新紧凑排期
     toast('已删除分镜「'+summary40(s.name)+'」',6000,{label:'撤销',fn:function(){
+      if(!cur()||cur().id!==pid){toast('请回到原项目后再操作');return;}
       updateCur(pp=>{
         if(pp.shots.some(x=>x.id===s.id)) return;      // 已恢复过则不重复
         pp.shots.push(s);
@@ -1998,8 +1999,10 @@ async function renderShootDay(){
   const pendingMust=shots.filter(s=>s.mustShoot&&!s.done).length;
   const skipped=shots.filter(s=>s.skipped&&!s.done).length;
   const done=items.filter(x=>x.done).length;
-  const now=new Date(); const nowT=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-  const isToday=sdDate===todayStr();
+  const zone=projectTimeZone(p),parts=new Intl.DateTimeFormat('en-GB',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());
+  const part=k=>parts.find(x=>x.type===k).value;
+  const nowT=part('hour')+':'+part('minute');
+  const isToday=sdDate===part('year')+'-'+part('month')+'-'+part('day');
   let currentId=null;
   if(isToday){ items.forEach(x=>{ if(!x.done&&!x.skipped&&!x.deferred&&(x._time||'00:00')<=nowT) currentId=x.id; }); if(!currentId){ const nxt=items.find(x=>!x.done&&!x.skipped&&!x.deferred)||items.find(x=>!x.done&&!x.skipped); if(nxt) currentId=nxt.id; } }
   const sun=sunTimes(sdDate,p.lat,p.lng,projectTimeZone(p));

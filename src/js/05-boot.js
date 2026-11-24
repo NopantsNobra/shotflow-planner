@@ -25,3 +25,34 @@ window.addEventListener('offline',()=>{
 window.addEventListener('online',()=>{
   if(!shiseiState.running) startShiseiSync();
 });
+
+/* 弹窗焦点管理：按真实层叠顺序管理焦点、Tab 循环及关闭后的焦点恢复。 */
+function bindDialogAccessibility(){
+  let active=null,previous=null;
+  const selector='.modal-mask,.sd-overlay';
+  const top=()=>Array.from(document.querySelectorAll('.modal-mask.show,.sd-overlay.show')).filter(el=>el.classList.contains('show')).sort((a,b)=>Number(getComputedStyle(a).zIndex||0)-Number(getComputedStyle(b).zIndex||0)).pop()||null;
+  const controls=el=>Array.from(el.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex="0"]')).filter(x=>x.getClientRects().length&&getComputedStyle(x).visibility!=='hidden');
+  const sync=()=>{
+    const next=top();
+    if(next===active)return;
+    if(active)active.removeAttribute('aria-modal');
+    if(!active&&next)previous=document.activeElement;
+    active=next;
+    if(next){
+      next.setAttribute('role','dialog');next.setAttribute('aria-modal','true');next.tabIndex=-1;
+      if(!next.hasAttribute('aria-label'))next.setAttribute('aria-label',next.querySelector('h2,h3,.doc-bar-title')?.textContent||'拍摄工作台');
+      if(!next.contains(document.activeElement))(controls(next)[0]||next).focus();
+    }else if(previous&&previous.isConnected){previous.focus();previous=null;}
+  };
+  const observer=new MutationObserver(sync);
+  document.querySelectorAll(selector).forEach(el=>observer.observe(el,{attributes:true,attributeFilter:['class']}));
+  document.addEventListener('keydown',e=>{
+    if(e.key!=='Tab'||!active)return;
+    const list=controls(active),first=list[0],last=list[list.length-1];
+    if(!first){e.preventDefault();active.focus();return;}
+    if(e.shiftKey&&(document.activeElement===first||!active.contains(document.activeElement))){e.preventDefault();last.focus();}
+    else if(!e.shiftKey&&(document.activeElement===last||!active.contains(document.activeElement))){e.preventDefault();first.focus();}
+  });
+  sync();
+}
+bindDialogAccessibility();
