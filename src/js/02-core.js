@@ -499,6 +499,24 @@ function migrate(p){
 let projectsCache=null, persistTimer=null;
 let persistChain=Promise.resolve();      // 串行化所有落盘，保证写入顺序与最终一致性
 let pendingPersist=false, persistFailed=false;
+let persistExpected=null, persistConflict=false, persistGeneration=0, persistClearing=false;
+/* 冲突不是暂时性 I/O 故障：保留当前页草稿，停止写入，避免重试覆盖另一标签页。 */
+function markPersistConflict(){
+  persistConflict=true; persistFailed=true; pendingPersist=true;
+  if(typeof document!=='undefined'&&document.body&&!document.getElementById('persistConflictTip')){
+    const tip=document.createElement('div');
+    tip.id='persistConflictTip'; tip.className='backup-tip show';
+    tip.setAttribute('role','alert');
+    tip.style.cssText='position:sticky;top:0;z-index:100;display:flex;gap:8px;align-items:center;flex-wrap:wrap';
+    const message=document.createElement('span');
+    message.textContent='另一标签页已修改数据，或当前存储状态无法确认。本页修改尚未保存。请先导出本页备份，再刷新；不要直接覆盖导入。';
+    const btn=document.createElement('button');
+    btn.className='btn btn-ghost btn-sm'; btn.textContent='导出本页备份';
+    btn.addEventListener('click',()=>exportJSON());
+    tip.append(message,btn); document.body.prepend(tip);
+    toast('检测到存储冲突，已停止覆盖写入',6000);
+  }
+}
 let storageDegraded=false;               // A2：IndexedDB 不可用（open 失败 / 写入无门）时置真，看板显示降级提示
 const PERSIST_MAX_RETRY=5;
 function loadP(){ if(!projectsCache) projectsCache=[]; return projectsCache; }
@@ -506,15 +524,19 @@ function loadP(){ if(!projectsCache) projectsCache=[]; return projectsCache; }
 function persistRetryDelay(attempt){ return Math.min(200*Math.pow(2,attempt),10000); }
 /* 单次落盘（含退避重试）。snapshot 为固定快照：重试期间的新写入排在 persistChain 链尾，
    最终以最新 projectsCache 为准，不会出现旧快照覆盖新数据。 */
-function writeProjects(snapshot,attempt){
+function writeProjects(snapshot,attempt,generation){
   attempt=attempt||0;
+  if(generation==null) generation=persistGeneration;
+  if(persistConflict) return Promise.resolve(false);
   if(!idb.ready()){                        // A2 存储不可用：不进入重试风暴，只提示一次（看板有常驻降级提示）
     persistFailed=true; pendingPersist=true;
     if(!storageDegraded){ storageDegraded=true; toast('存储不可用，本次修改不会持久保存，请及时导出备份',6000); }
     return Promise.resolve(false);
   }
-  return idb.putProjects(snapshot).then(()=>{
-    pendingPersist=false;
+  return idb.putProjects(snapshot,persistExpected).then(ok=>{
+    if(ok===false){ markPersistConflict(); return false; }
+    persistExpected=JSON.stringify(snapshot);
+    pendingPersist=generation!==persistGeneration;
     if(persistFailed){ persistFailed=false; toast('数据已保存成功'); }
     return true;
   }).catch(()=>{
@@ -522,7 +544,7 @@ function writeProjects(snapshot,attempt){
     if(attempt<PERSIST_MAX_RETRY){
       toast('保存遇到问题，正在重试（'+(attempt+1)+'/'+PERSIST_MAX_RETRY+'）…');
       return new Promise(res=>setTimeout(res,persistRetryDelay(attempt)))
-        .then(()=>writeProjects(snapshot,attempt+1));
+        .then(()=>writeProjects(snapshot,attempt+1,generation));
     }
     toast('保存失败，请立即导出备份！');
     return false;
@@ -531,14 +553,16 @@ function writeProjects(snapshot,attempt){
 /* 立即冲刷：取消待执行的防抖定时器，把当前 projectsCache 追加到串行写链尾 */
 function flushPersist(){
   clearTimeout(persistTimer); persistTimer=null;
-  if(!projectsCache) return persistChain;
-  const snapshot=projectsCache;
-  persistChain=persistChain.then(()=>writeProjects(snapshot));
+  if(!projectsCache||persistConflict||persistClearing) return persistChain;
+  const snapshot=JSON.parse(JSON.stringify(projectsCache)), generation=persistGeneration;
+  persistChain=persistChain.then(()=>writeProjects(snapshot,0,generation));
   return persistChain;
 }
 function saveP(a){
   projectsCache=a;
-  clearTimeout(persistTimer);
+  persistGeneration++; pendingPersist=true;
+  clearTimeout(persistTimer); persistTimer=null;
+  if(persistConflict||persistClearing) return;
   persistTimer=setTimeout(()=>{ flushPersist(); },200);
 }
 /* 页面隐藏/关闭兜底：visibilitychange→hidden 最可靠（页面仍存活，IDB 事务有宽限期完成）；
@@ -551,9 +575,10 @@ function bindPersistFlush(){
 }
 async function initData(){
   try{ await idb.open(); }catch(e){ storageDegraded=true; }   // A2：open 失败降级为会话内存模式，不阻断启动
-  let arr=null;
+  let arr=null, readOk=false;
   if(idb.ready()){
-    try{ arr=await idb.getProjects(); }catch(e){}
+    try{ arr=await idb.getProjects(); readOk=true; persistExpected=JSON.stringify(arr==null?null:arr); }
+    catch(e){ markPersistConflict(); }
   }
   let migrated=false;
   if(Array.isArray(arr)){
@@ -565,8 +590,13 @@ async function initData(){
     migrated=true;
   }
   /* A2：仅在 IDB 可写时才清理旧 localStorage——否则它是当前唯一持久副本，删了就真丢了 */
-  if(idb.ready()){
-    try{ await idb.putProjects(projectsCache); localStorage.removeItem(LS_PROJ); }catch(e){}
+  if(idb.ready()&&readOk){
+    try{
+      const next=JSON.stringify(projectsCache);
+      const ok=next===persistExpected||await idb.putProjects(projectsCache,persistExpected);
+      if(ok===false) markPersistConflict();
+      else { persistExpected=next; localStorage.removeItem(LS_PROJ); }
+    }catch(e){ /* 保留旧副本，后续保存仍使用原读取基线 */ }
   }
   return migrated;
 }

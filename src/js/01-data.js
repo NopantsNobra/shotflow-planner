@@ -218,8 +218,26 @@ const idb={db:null,
   del(k){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('images','readwrite');t.objectStore('images').delete(k);t.oncomplete=res;t.onerror=rej;});},
   keys(){if(!idb.db) return Promise.resolve([]);return new Promise((res,rej)=>{const r=idb.db.transaction('images').objectStore('images').getAllKeys();r.onsuccess=()=>res(r.result);r.onerror=rej;});},
   getProjects(){if(!idb.db) return Promise.resolve(null);return new Promise((res,rej)=>{const r=idb.db.transaction('projects').objectStore('projects').get('all');r.onsuccess=()=>res(r.result);r.onerror=rej;});},
-  putProjects(a){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('projects','readwrite');t.objectStore('projects').put(a,'all');t.oncomplete=res;t.onerror=()=>rej(t.error);});},
-  clearProjects(){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('projects','readwrite');t.objectStore('projects').delete('all');t.oncomplete=res;t.onerror=rej;});},
+  /* 读比较与写入必须在同一个 readwrite 事务中：跨标签页串行，不能先在独立事务中检查。 */
+  putProjects(a,expected){return idb.compareProjects(a,expected,false);},
+  clearProjects(expected){return idb.compareProjects(null,expected,true);},
+  compareProjects(a,expected,clear){
+    if(!idb.db) return Promise.reject(new Error('IDB_UNAVAILABLE'));
+    return new Promise((res,rej)=>{
+      const t=idb.db.transaction(clear?['projects','images']:['projects'],'readwrite');
+      const store=t.objectStore('projects'), r=store.get('all');
+      let matched=false;
+      r.onsuccess=()=>{
+        if(JSON.stringify(r.result==null?null:r.result)!==expected) return;
+        matched=true;
+        if(clear){ store.delete('all'); t.objectStore('images').clear(); }
+        else store.put(a,'all');
+      };
+      t.oncomplete=()=>res(matched);
+      t.onabort=()=>rej(t.error||new Error('IDB_ABORT'));
+      t.onerror=()=>rej(t.error||new Error('IDB_WRITE'));
+    });
+  },
   /* 姿势图库：meta + 缩略图 */
   getShiseiMeta(k){if(!idb.db) return Promise.resolve(null);return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_meta').objectStore('shisei_meta').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
   putShiseiMeta(k,v){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_meta','readwrite');t.objectStore('shisei_meta').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});},

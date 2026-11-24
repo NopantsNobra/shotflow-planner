@@ -234,13 +234,22 @@ function closeConfirm(){ document.getElementById('confirmModal').classList.remov
 document.getElementById('confirmOk').onclick=()=>{ const cb=confirmCb; closeConfirm(); if(cb) cb(); };
 function clearAll(){
   askConfirm('清空全部数据？','不可恢复！将删除所有策划案与图片，建议先导出备份。姿势图库缓存不受影响，可在情绪板 → 素材来源中单独清除。',async()=>{
-    localStorage.removeItem(LS_PROJ);
-    try{ localStorage.removeItem(LS_DEMO_V9); localStorage.removeItem(LS_SEED); }catch(e){}
-    await idb.clearProjects();
-    const keys=await idb.keys(); for(const k of keys) await idb.del(k);
-    Object.keys(imgCache).forEach(k=>delete imgCache[k]);
-    projectsCache=[];
-    view=freshView(); renderBoard(); toast('已清空');
+    if(persistConflict||persistClearing||!idb.ready()){ toast('当前无法安全清空，请先导出备份并刷新'); return; }
+    if(persistTimer||pendingPersist) await flushPersist();
+    else await persistChain;
+    if(persistConflict||persistFailed){ toast('仍有未保存数据，请先导出备份'); return; }
+    const generation=persistGeneration;
+    persistClearing=true;
+    try{
+      if(!await idb.clearProjects(persistExpected)){ markPersistConflict(); return; }
+      persistExpected=JSON.stringify(null);
+      if(generation!==persistGeneration){ markPersistConflict(); return; }
+      try{ localStorage.removeItem(LS_PROJ); localStorage.removeItem(LS_DEMO_V9); localStorage.removeItem(LS_SEED); }catch(e){}
+      Object.keys(imgCache).forEach(k=>delete imgCache[k]);
+      projectsCache=[]; pendingPersist=false;
+      view=freshView(); renderBoard(); toast('已清空');
+    }catch(e){ toast('清空失败，原数据未被确认删除，请导出备份'); }
+    finally{ persistClearing=false; }
   });
 }
 

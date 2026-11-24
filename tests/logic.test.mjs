@@ -157,6 +157,7 @@ let captured = null;
 vm.runInContext(`globalThis.localStorage = { getItem: () => LEGACY, removeItem: k => { globalThis.REMOVED = k; LEGACY = null; } };
 globalThis.idb = { ready: ()=>true, open: async()=>{}, getProjects: async()=>undefined, putProjects: async a => { globalThis.CAPTURE = a; } };
 globalThis.LS_PROJ = 'wb_sf_projects';
+globalThis.persistExpected=null; globalThis.persistConflict=false;
 globalThis.LEGACY = ${JSON.stringify(legacy)};`, ctx);
 await vm.runInContext('__initData()', ctx);
 captured = vm.runInContext('CAPTURE', ctx);
@@ -573,6 +574,8 @@ vm.runInContext(`
   globalThis.PERSIST_MAX_RETRY=5;
   globalThis.persistChain=Promise.resolve(); globalThis.persistTimer=null;
   globalThis.pendingPersist=false; globalThis.persistFailed=false; globalThis.projectsCache=null;
+  globalThis.persistExpected=null; globalThis.persistConflict=false; globalThis.persistGeneration=0; globalThis.persistClearing=false;
+  globalThis.markPersistConflict=()=>{persistConflict=true;persistFailed=true;pendingPersist=true;};
   globalThis.storageDegraded=false;
   globalThis.__toasts=[]; globalThis.toast=m=>{ globalThis.__toasts.push(String(m)); };
   globalThis.__putCalls=[]; globalThis.__putFail=0;
@@ -781,6 +784,31 @@ check('v10.8.0 ④ favTypesForTab 映射正确', (() => {
     && JSON.stringify(g('shots'))==='["shots"]'
     && g('concept').length===0&&g('unknown').length===0;
 })());
+
+/* P0：快照独立于可变 UI 数据；遇到跨页冲突停止写入，不盲目重试。 */
+vm.runInContext(`
+  globalThis.persistConflict=false; globalThis.persistClearing=false; globalThis.persistGeneration=0;
+  globalThis.pendingPersist=false; globalThis.persistFailed=false; globalThis.persistTimer=null;
+  globalThis.persistChain=Promise.resolve(); globalThis.persistExpected="null";
+  globalThis.setTimeout=()=>1; globalThis.clearTimeout=()=>{};
+  globalThis.__putCalls=[]; globalThis.idb={ready:()=>true,putProjects:async(s,e)=>{__putCalls.push({s,e});return true;}};
+`,ctx);
+const snapshotCheck=await vm.runInContext(`(async()=>{
+  saveP([{id:'x',name:'first'}]); flushPersist();
+  projectsCache[0].name='second'; saveP(projectsCache);
+  await persistChain;
+  const first=__putCalls[0].s[0].name, dirty=pendingPersist;
+  await flushPersist();
+  return first==='first'&&dirty&&__putCalls[1].s[0].name==='second'&&!pendingPersist
+    &&__putCalls[1].e===JSON.stringify(__putCalls[0].s);
+})()`,ctx);
+check('P0 写入快照隔离后续编辑且更新比较基线',snapshotCheck);
+const conflictCheck=await vm.runInContext(`(async()=>{
+  let calls=0; idb.putProjects=async()=>{calls++;return false;};
+  saveP([{id:'draft'}]); const ok=await flushPersist(); await flushPersist();
+  return ok===false&&calls===1&&persistConflict&&pendingPersist&&projectsCache[0].id==='draft';
+})()`,ctx);
+check('P0 冲突停止写入、保留内存草稿',conflictCheck);
 
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

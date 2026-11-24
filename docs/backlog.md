@@ -6,9 +6,8 @@
 
 ## P1 · 数据安全与并发现象
 
-- **B2 多标签页并发写覆盖**：全部项目存于 `projects` store 单 key `'all'`，每页持内存缓存整写，last-writer-wins。
-  做法：`BroadcastChannel`（降级 `storage` 事件）+ 写前 `updatedAt` 版本比对，冲突时提示「另一标签页已修改」。
-  验收：双开编辑不同项目，任一页保存后另一页不覆盖且能看到提示。
+- **B2 多标签页并发写覆盖（第一阶段：事务保护，待 CI 验证）**：在同一 IndexedDB readwrite 事务内比较已读基线和磁盘数据；冲突拒绝写入并保留会话草稿、提示导出备份。清空同样检查基线并在一个事务内删除项目及图片。已补独立快照、脏状态与跨页 E2E。
+  后续：按项目增量合并不同项目的修改、主动跨页通知、导入图片键冲突保护、旧版本标签页兼容；未实现自动合并，不得标记完整关闭。
 - **B4 无 CSP**：`shell.html` 未设 `Content-Security-Policy`，且大量内联 `onclick`，注入面一旦回归即完全可利用。
   做法：先加不影响现有行为的指令（`object-src 'none'; base-uri 'self'; form-action 'none'`）；中期把内联 handler 迁事件委托后再收紧 `script-src`。
   注意：`file://` 打开是硬需求，CSP 必须在该场景下不阻断运行。

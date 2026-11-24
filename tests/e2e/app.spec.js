@@ -582,3 +582,33 @@ test('v10.8.2 所有可收藏页签主操作行均有打开收藏按钮，概念
   await page.locator('.ptab',{hasText:'概念'}).first().click();
   await expect(page.locator('#openFavBtn')).toHaveCount(0);
 });
+
+/* P0：两个同源标签页共享 IDB，过期基线不允许覆盖先保存的数据。 */
+test('P0 多标签页冲突：保留先保存的数据和本页草稿', async ({ page, context }) => {
+  await openFreshApp(page);
+  await createProject(page, '并发基线');
+  await waitProjectPersisted(page, '并发基线');
+  const second=await context.newPage();
+  await openFreshApp(second);
+  await expect(second.locator('.pcard',{hasText:'并发基线'})).toBeVisible();
+  await page.keyboard.press('Escape');
+  await createProject(page,'先保存的项目');
+  await waitProjectPersisted(page,'先保存的项目');
+  await createProject(second,'另一页未保存草稿');
+  await expect(second.locator('#persistConflictTip')).toBeVisible();
+  const state=await second.evaluate(async()=>{
+    const disk=await idb.getProjects();
+    return {disk:disk.map(p=>p.name),draft:loadP().map(p=>p.name),conflict:persistConflict};
+  });
+  expect(state.disk).toContain('先保存的项目');
+  expect(state.disk).not.toContain('另一页未保存草稿');
+  expect(state.draft).toContain('另一页未保存草稿');
+  expect(state.conflict).toBe(true);
+  await expect(second.getByRole('button',{name:'导出本页备份'})).toBeVisible();
+  await second.keyboard.press('Escape');
+  await second.getByRole('button',{name:'清空',exact:true}).click();
+  await second.locator('#confirmOk').click();
+  const after=await second.evaluate(async()=> (await idb.getProjects()).map(p=>p.name));
+  expect(after).toContain('先保存的项目');
+  await second.close();
+});
