@@ -2,7 +2,7 @@
 
 [简体中文](overview.md) · [README](README.en.md)
 
-Current: v10.9.1. A local-first photography planning and field-execution workbench for independent photographers and small teams. The shot list is the central data model: existing materials generate schedules, client documents and shoot-day reminders without making creative decisions for the photographer. Self-contained HTML, zero runtime dependencies, static hosting and PWA support.
+Current: v10.9.2. A local-first photography planning and field-execution workbench for independent photographers and small teams. The shot list is the central data model: existing materials generate schedules, client documents and shoot-day reminders without making creative decisions for the photographer. Self-contained HTML, zero runtime dependencies, static hosting and PWA support.
 
 ## Product flow
 
@@ -16,14 +16,14 @@ Projects hold identity, metadata, workspaceMode/workspaceCustom, timeZone, conce
 
 | Layer | Implementation |
 |---|---|
-| Storage | IndexedDB v3, projects/all collection and images store; in-memory cache, 200 ms debounce, serial write chain, retry, visibility/pagehide flush |
+| Storage | IndexedDB v4, projects/all collection and images store; in-memory cache, 200 ms debounce, serial write chain, retry, visibility/pagehide flush |
 | Concurrency | mergeProjectChanges compares project IDs in a readwrite transaction. Disjoint edits merge; same-project conflicts are rejected. BroadcastChannel notifications; full restore/clear retain strict baseline checks |
 | Migration | sanitizeProject whitelists fields and limits types/lengths, remaps entity IDs; migrate handles old structures. Backup image keys are remapped; project/image writes are atomic |
 | Scheduling | planDay derives slots; applyDay defaults to the original day. Explicit cross-day replanning requires confirmation and offers undo. Locked events retain their times |
 | Daylight | NOAA approximation using target date and IANA time zone; shoot-day current time uses the project zone |
-| Gallery | Shared index/statistics cache, invalidated on writes and expiring after 30 seconds; 48 images per category page with batched reads. Initial scan still reads image records |
+| Gallery | Separate shisei_index metadata and shisei_images payload stores, atomic v3 migration; shared index/statistics cache, 48 images per page, batches of six. Cold thumbnails limited to 96 entries and 8 Mi payload characters, evicted after five minutes; active project references retained |
 | Assets | buildAssetProjects and copyAssetDependencies preserve scene/image dependencies; imported assetPack groups stay out of the board |
-| Interaction | Pointer Events reorder the full project relative to the actual target; move buttons provide keyboard alternatives, dialog focus handling, baseline CSP and escaped input |
+| Interaction | Pointer Events reorder the full project relative to the actual target; move buttons provide keyboard alternatives, dialog focus handling, native reference buttons, keyboard board access, partial tab/selection/completion rendering, baseline CSP and escaped input |
 | AI | createAiService, ten task contracts, minimal context, capability/schema/reference validation and stale candidate protection. Production service disabled; phase 09 paused |
 
 ## Source and verification

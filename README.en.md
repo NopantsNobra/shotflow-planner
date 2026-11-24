@@ -8,7 +8,7 @@ Stillmark is a lightweight, local-first photography planning and shoot-day workb
 
 **Minimize planning overhead, maximize confidence on set, and preserve creative freedom.** Stillmark does not require exposure settings in advance, replace aesthetic judgment, or attempt to be a RAW manager, lighting simulator, editing suite or full production management system.
 
-- **v10.9.1** (current) | Self-contained HTML, zero runtime dependencies, no account or backend required.
+- **v10.9.2** (current) | Self-contained HTML, zero runtime dependencies, no account or backend required.
 - Local storage, offline use and PWA installation. Project data and user-uploaded images are not automatically uploaded.
 - [Build and test status](https://github.com/NopantsNobra/shotflow-planner/actions) · MIT License
 
@@ -62,7 +62,7 @@ Projects and images are stored in browser IndexedDB. Concurrent edits to differe
 - Export an individual project and import it as a new project.
 - Export a full backup under Settings → Data & backups; restoration requires confirmation, validates image dependencies and writes atomically.
 - Clearing site data, removing a browser or device failure can destroy local data. Back up before moving devices.
-- The optional shisei pose gallery syncs via a public CDN and caches images locally with pagination. Normal backups exclude the entire gallery; external references may need synchronization. Selected asset packs can contain cached portable references.
+- The optional shisei pose gallery syncs via a public CDN and caches images locally with pagination. IndexedDB v4 separates gallery metadata from image payloads and evicts cold thumbnails by count, payload size and inactivity. Normal backups exclude the entire gallery; external references may need synchronization. Selected asset packs can contain cached portable references.
 - Explicit feedback submission sends feedback and browser environment details through Web3Forms; project contents are not automatically included. AI is a disabled task contract only, with no live model integration.
 
 ## Development and deployment
