@@ -567,7 +567,7 @@ check('P2 safeColor 空值/数字/超范围 rgb 回退', vm.runInContext('safeCo
 check('P2 safeColor 边界值 255/360/100 保留', vm.runInContext('safeColor("rgb(255,0,255)")+"|"+safeColor("hsl(360,100%,100%)")', ctx) === 'rgb(255,0,255)|hsl(360,100%,100%)');
 
 /* ===== P0 持久化加固：串行写入 / 退避重试 / 隐藏冲刷（saveP 改造） ===== */
-for (const n of ['persistRetryDelay', 'writeProjects', 'flushPersist', 'saveP', 'bindPersistFlush']) vm.runInContext(fn(n), ctx);
+for (const n of ['mergeProjectChanges', 'persistRetryDelay', 'writeProjects', 'flushPersist', 'saveP', 'bindPersistFlush']) vm.runInContext(fn(n), ctx);
 // 公共 mock：可控成功/失败的 idb、收集提示的 toast、Promise
 vm.runInContext(`
   globalThis.Promise=Promise;
@@ -576,13 +576,14 @@ vm.runInContext(`
   globalThis.pendingPersist=false; globalThis.persistFailed=false; globalThis.projectsCache=null;
   globalThis.persistExpected=null; globalThis.persistConflict=false; globalThis.persistGeneration=0; globalThis.persistClearing=false;
   globalThis.markPersistConflict=()=>{persistConflict=true;persistFailed=true;pendingPersist=true;};
+  globalThis.notifyProjectChange=()=>{};globalThis.persistChannel=null;
   globalThis.storageDegraded=false;
   globalThis.__toasts=[]; globalThis.toast=m=>{ globalThis.__toasts.push(String(m)); };
   globalThis.__putCalls=[]; globalThis.__putFail=0;
-  globalThis.idb={ ready: ()=>true, putProjects: async snap => {
+  globalThis.idb={ ready: ()=>true, mergeProjects: async snap => {
     globalThis.__putCalls.push(snap);
     if(globalThis.__putFail>0){ globalThis.__putFail--; throw new Error('IDB_FAIL'); }
-    return true;
+    return snap;
   }};
 `, ctx);
 check('P0 退避延迟 200/400/800/3200/封顶10000',
@@ -610,13 +611,13 @@ check('P0 flushPersist 立即落盘最新数据并清空定时器', VB.calls===1
 vm.runInContext(`globalThis.setTimeout=(fn2,ms)=>{ if(typeof fn2==='function') fn2(); return 0; }; globalThis.clearTimeout=()=>{};`, ctx);
 const VC = await vm.runInContext(`(async()=>{
   persistChain=Promise.resolve(); pendingPersist=false; persistFailed=false; __putCalls.length=0; __toasts.length=0; __putFail=2;
-  const ok=await writeProjects([{id:'retry'}],0);
+  projectsCache=[{id:'retry'}];const ok=await writeProjects(JSON.parse(JSON.stringify(projectsCache)),0);
   return {ok, calls:__putCalls.length, pending:pendingPersist, failed:persistFailed, toasts:__toasts.slice()};
 })()`, ctx);
 check('P0 落盘失败退避重试后成功并清除失败标记', VC.ok===true && VC.calls===3 && VC.pending===false && VC.failed===false && VC.toasts.some(t=>t.indexOf('重试')>=0) && VC.toasts.some(t=>t.indexOf('已保存成功')>=0), JSON.stringify(VC));
 const VD = await vm.runInContext(`(async()=>{
   persistChain=Promise.resolve(); pendingPersist=false; persistFailed=false; __putCalls.length=0; __toasts.length=0; __putFail=999;
-  const ok=await writeProjects([{id:'dead'}],0);
+  projectsCache=[{id:'dead'}];const ok=await writeProjects(JSON.parse(JSON.stringify(projectsCache)),0);
   return {ok, calls:__putCalls.length, pending:pendingPersist, failed:persistFailed, toasts:__toasts.slice()};
 })()`, ctx);
 check('P0 重试耗尽后降级提示且保留待落盘标记', VD.ok===false && VD.calls===6 && VD.pending===true && VD.failed===true && VD.toasts.some(t=>t.indexOf('导出备份')>=0), JSON.stringify(VD));
@@ -791,10 +792,11 @@ vm.runInContext(`
   globalThis.pendingPersist=false; globalThis.persistFailed=false; globalThis.persistTimer=null;
   globalThis.persistChain=Promise.resolve(); globalThis.persistExpected="null";
   globalThis.setTimeout=()=>1; globalThis.clearTimeout=()=>{};
-  globalThis.__putCalls=[]; globalThis.idb={ready:()=>true,putProjects:async(s,e)=>{__putCalls.push({s,e});return true;}};
+  globalThis.__putCalls=[];globalThis.idb={ready:()=>true,mergeProjects:async(s,e)=>{__putCalls.push({s,e});return s;}};
 `,ctx);
 const snapshotCheck=await vm.runInContext(`(async()=>{
   saveP([{id:'x',name:'first'}]); flushPersist();
+  await Promise.resolve(); // 写链进入队首并固定快照后，再模拟用户编辑
   projectsCache[0].name='second'; saveP(projectsCache);
   await persistChain;
   const first=__putCalls[0].s[0].name, dirty=pendingPersist;
@@ -804,7 +806,7 @@ const snapshotCheck=await vm.runInContext(`(async()=>{
 })()`,ctx);
 check('P0 写入快照隔离后续编辑且更新比较基线',snapshotCheck);
 const conflictCheck=await vm.runInContext(`(async()=>{
-  let calls=0; idb.putProjects=async()=>{calls++;return false;};
+  let calls=0; idb.mergeProjects=async()=>{calls++;return null;};
   saveP([{id:'draft'}]); const ok=await flushPersist(); await flushPersist();
   return ok===false&&calls===1&&persistConflict&&pendingPersist&&projectsCache[0].id==='draft';
 })()`,ctx);
