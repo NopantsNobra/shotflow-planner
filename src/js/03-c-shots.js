@@ -109,6 +109,7 @@ function setShotFilter(v){
     const p=cur(), host=document.getElementById('shotListWrap');
     if(!p||!host) return;
     host.innerHTML=shotListHtml(p,shootDatesOf(p));
+    attachDrag(); // 局部重绘销毁旧 DOM 监听器，须重新绑定。
   },160);
 }
 /* 全量重绘前记录输入焦点（如空闲同步触发重绘时正在打字），绘完恢复 */

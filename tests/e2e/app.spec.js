@@ -741,6 +741,7 @@ test('弹窗具备可访问对话框语义和 Tab 循环',async({page})=>{
 });
 
 test('筛选状态跨日拖拽以实际目标为准，不重置隐藏分镜',async({page})=>{
+  await page.setViewportSize({width:1440,height:1400});
   await setupV108Project(page);
   await page.evaluate(()=>{
     updateCur(p=>{
