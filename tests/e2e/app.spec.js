@@ -668,3 +668,34 @@ test('批量修改分镜时长并保留原名称',async({page})=>{
   await expect.poll(async()=> (await shotData(page))[0].duration).toBe(30);
   await expect(page.locator('.shot').first()).toContainText('原始分镜');
 });
+
+
+test('素材包追加导入、依赖重映射、引用到项目且不进入看板',async({page})=>{
+  await openFreshApp(page);
+  await createProject(page,'素材接续项目');
+  await waitProjectPersisted(page,'素材接续项目');
+  await page.keyboard.press('Escape');
+  const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV7sAAAAASUVORK5CYII=';
+  const pack={app:'stillmark',version:4,type:'assets',assetVersion:1,assets:[{
+    name:'迁移收藏组',shots:[{id:'s',name:'迁移分镜',fav:true,sceneId:'c',refIds:['old']}],
+    scenes:[{id:'c',name:'迁移场景'}],refs:[{id:'r',key:'old',name:'样片'}]
+  }],images:{old:image}};
+  await page.locator('#importFile').setInputFiles({name:'assets.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(pack))});
+  await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  await page.locator('#confirmOk').click();
+  await expect(page.locator('.masthead h1')).toContainText('已收藏');
+  await expect(page.locator('#app')).toContainText('迁移分镜');
+  const data=await page.evaluate(async()=>{
+    const ps=await idb.getProjects(),p=ps.find(x=>x.assetPack&&x.name==='迁移收藏组');
+    const s=p.shots[0],r=p.refs[0];return {key:r.key,ref:s.refIds[0],scene:s.sceneId,actual:p.scenes[0].id,image:await idb.get(r.key)};
+  });
+  expect(data.key).not.toBe('old');expect(data.ref).toBe(data.key);expect(data.scene).toBe(data.actual);expect(data.image).toBe(image);
+  await page.getByRole('button',{name:'返回看板'}).click();
+  await expect(page.locator('.pcard',{hasText:'迁移收藏组'})).toHaveCount(0);
+  await page.locator('.pcard',{hasText:'素材接续项目'}).click();
+  await expect(page.locator('#s_name')).toBeVisible();
+  await page.locator('#openFavBtn').click();
+  await expect(page.locator('#favPickerModal')).toContainText('迁移分镜');
+  await page.evaluate(()=>{const p=loadP().find(x=>x.assetPack&&x.name==='迁移收藏组');referenceFav('shots',p.id,p.shots[0].id);});
+  await expect.poll(async()=>page.evaluate(()=>{const p=cur(),s=p.shots.find(x=>x.name==='迁移分镜');return !!(s&&p.scenes.some(c=>c.id===s.sceneId)&&p.refs.some(r=>r.key===s.refIds[0]));})).toBe(true);
+});
