@@ -424,6 +424,53 @@ svg{display:inline-block;vertical-align:middle}
 .workspace-checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:7px;margin-top:8px}
 .workspace-checks label{display:flex;align-items:center;gap:6px;font-size:12px}
 .workspace-checks input{width:auto;accent-color:var(--accent)}
+
+/* Stillmark 轻量视觉更新：保留温暖纸色与编辑式排版，减少边框噪音，强化层级和操作反馈。 */
+:root{--bg:#f4f1eb;--surface:#fffdf9;--surface-2:#f9f6f0;--ink:#292822;--ink2:#5e584e;--ink3:#766e61;--line:#e0d9ce;--accent:#976b3c;--accent-ink:#775022;--accent-soft:#f0e5d5;--radius:14px;--shadow-sm:0 2px 8px rgba(42,37,28,.045)}
+@media screen{
+  .wrap{max-width:1320px}
+  .brand .eyebrow{font-weight:600;letter-spacing:.2em;color:var(--accent-ink)}
+  .brand h1{font-size:clamp(23px,3vw,32px);letter-spacing:.035em}
+  .card h2{font-size:16px;letter-spacing:.035em}
+  .masthead,.phead{border-bottom-color:var(--line2)}
+  .metrics{gap:8px;background:transparent;border:0;overflow:visible}
+  .metric{border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-sm)}
+  .board{gap:12px;scrollbar-color:var(--line2) transparent}
+  .bcol{background:rgba(255,253,249,.38);border-radius:12px;padding:9px}
+  .bcol-head{padding:4px 3px 10px}
+  .pcard{border-radius:10px}
+  .ptabs{background:var(--surface);border:1px solid var(--line);padding:6px 10px;border-radius:12px;align-items:center}
+  .ptab.active{background:var(--accent-soft);color:var(--accent-ink);border-radius:7px}
+  .ptab.active::after{display:none}
+  .ptab{padding:9px 12px}
+  .rowbtn{opacity:.85;color:var(--ink2)}
+  .rowbtn:focus-visible,.rowbtn:hover,.rowbtn.on{opacity:1}
+  .iconbtn{color:var(--ink2)}
+  button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+  .btn:disabled{opacity:.55;cursor:not-allowed}
+  .shot.done .refs{opacity:.7}
+  .shot .grow,.tl-body,.pname{overflow-wrap:anywhere}
+  .image-drop{padding:11px 12px;border:1px dashed var(--line2);border-radius:9px;background:var(--surface-2);text-align:center;color:var(--ink2);font-size:12px;margin:10px 0}
+  .image-drop:hover{border-color:var(--accent)}
+  .batch-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:10px;background:var(--accent-soft);border-radius:9px;font-size:12px}
+  .batch-bar select{width:auto;min-width:110px;max-width:190px;padding:6px 8px;font-size:13px}
+  .batch-check{width:20px;height:20px;accent-color:var(--accent);margin-top:8px;flex-shrink:0}
+  .toast.show{pointer-events:auto}
+  .toast button{padding:5px 8px}
+  #refViewer{z-index:360}
+  .sd-inner{max-width:760px}
+  .sd-shot{flex-wrap:wrap;align-items:center}
+  .sd-refs{display:flex;gap:8px;flex:1 0 100%;overflow-x:auto}
+  .sd-ref{flex:0 0 auto;width:min(28vw,124px);height:min(28vw,124px);border-radius:9px;background:#29251e;color:#e4d6c0;overflow:hidden}
+  .sd-ref img{width:100%;height:100%;object-fit:cover}
+  .sd-shot.now .sd-ref{width:min(40vw,180px);height:min(40vw,180px)}
+  .sd-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .sd-btn{min-height:44px;color:#f2e9da;border-color:#6c6252}
+  .sd-shot.done{opacity:.7}
+  .sd-chk{color:#b3a48d}
+}
+@media(max-width:700px){.wrap{padding-left:12px;padding-right:12px}.card{padding:16px 13px}.metric{padding:12px 10px}.metrics{gap:6px}.bcol{padding:5px}.rowbtn{min-height:38px}.phead h1{font-size:23px}.workspace-control{gap:8px}.workspace-control>.muted{flex:1 0 100%}.batch-bar select{max-width:100%;flex:1}.sd-inner{padding-inline:12px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
 </style>
 </head>
 <body>
@@ -824,7 +871,7 @@ function freshView(patch){
   const d={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',
     moodFilter:[],moodFilterMode:'any',shotDraft:{},poseCat:null,editingShotId:null,editingShotEditId:null,replaceIdx:-1,
     allowDemoWrite:false,editingNodeId:null,editingStuffId:null,editingStuffKey:null,
-    editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null,lastShift:null,newDay:false,moodRefPicker:false};
+    editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null,lastShift:null,newDay:false,moodRefPicker:false,batchMode:false,batchShots:[]};
   return Object.assign(d,patch||{});
 }
 let view=freshView();
@@ -1269,7 +1316,7 @@ function sanitizeProject(raw,mkId){
     sceneId:ids[s(x.sceneId)]||'',
     refIds:(Array.isArray(x.refIds)?x.refIds:[]).map(y=>cut(y,200)).filter(Boolean).slice(0,3),
     position:cut(x.position,20),light:cut(x.light,20),note:cut(x.note,1000),
-    done:bool(x.done),ord:(+x.ord>0)?Math.round(+x.ord):0,fav:bool(x.fav)}));
+    done:bool(x.done),mustShoot:bool(x.mustShoot),skipped:bool(x.skipped),deferred:bool(x.deferred),ord:(+x.ord>0)?Math.round(+x.ord):0,fav:bool(x.fav)}));
   p.schedule=objs(raw.schedule).map(x=>({id:nid(x.id),type:cut(x.type,20),title:cut(x.title,200),
     start:time(x.start),end:time(x.end),note:cut(x.note,1000),date:date(x.date),
     done:bool(x.done),fav:bool(x.fav),timeLocked:bool(x.timeLocked),auto:(x.auto==='call'||x.auto==='wrap')?x.auto:null}));
@@ -1844,7 +1891,7 @@ function workspacePanel(p,modules){
   const mode=p.workspaceMode||'professional';
   const labels=TABS.map(t=>[t[0],t[1]]).concat([['proposal','客户提案'],['callsheet','拍摄通告单'],['manual','执行手册'],['shootday','拍摄日模式']]);
   return '<div class="workspace-control"><label for="workspaceMode">策划模式</label><select id="workspaceMode" onchange="setWorkspaceMode(this.value)"'+(p.demo?' disabled':'')+'>'+workspaceOptions(mode)+'</select>'
-    +(mode==='custom'?'<details><summary>配置可见模块</summary><div class="workspace-checks">'+labels.map(x=>'<label><input type="checkbox" '+(modules.includes(x[0])?'checked':'')+(x[0]==='shots'||p.demo?' disabled':'')+' onchange="toggleWorkspaceModule('+jstr(x[0])+',this.checked)">'+x[1]+'</label>').join('')+'</div></details>':'')
+    +(mode==='custom'?'<details open><summary>配置可见模块</summary><div class="workspace-checks">'+labels.map(x=>'<label><input type="checkbox" '+(modules.includes(x[0])?'checked':'')+(x[0]==='shots'||p.demo?' disabled':'')+' onchange="toggleWorkspaceModule('+jstr(x[0])+',this.checked)">'+x[1]+'</label>').join('')+'</div></details>':'')
     +'<span class="muted">切换仅改变显示，不删除数据。</span></div>';
 }
 function renderProject(){
@@ -1982,7 +2029,8 @@ function renderMood(p){
     +favPickerBtn()
     +'<button class="btn btn-primary" onclick="document.getElementById(\'m_img\').click()">上传精选图</button>'
     +'<button class="btn btn-ghost" onclick="toggleRefPicker()">'+(view.moodRefPicker?'收起参考图库':'＋ 从参考图库精选')+'</button>'
-    +'<input type="file" id="m_img" accept="image/*" style="display:none" onchange="addMoodImg(event)"></div>'
+    +'<input type="file" id="m_img" accept="image/*" multiple style="display:none" onchange="addMoodImg(event)"></div>'
+    +'<div class="image-drop" ondragover="allowImageDrop(event)" ondrop="dropImages(event)">拖入图片，或直接粘贴剪贴板图片</div>'
     +(view.moodRefPicker?refPickerHtml(p):'')
     +'<div id="tagEditor"></div>'
     +'<div class="tag-filter"><input id="m_filter" placeholder="按标签筛选，逗号分隔…" value="'+esc(view.moodFilter.join(', '))+'" oninput="setMoodFilter(this.value)">'
@@ -2122,22 +2170,26 @@ function addMood(type){
    target==='mood' 时才额外精选到情绪板（仅「情绪板页上传精选图」这一显式动作）。
    压缩策略与 800px/.72 不变；tags 由调用方决定（情绪板读输入框，分镜页传空）。 */
 async function ingestImageFile(f,tags,silent,target){
-  if(!f) return null;
+  const owner=cur();
+  if(!f||!owner||owner.demo) return null;
+  const pid=owner.id;
   return new Promise(res=>{
     const rd=new FileReader();
     rd.onload=ev=>{ const img=new Image();
       img.onload=async()=>{
         try{
-          const c=document.createElement('canvas'); const s=Math.min(1,800/img.width);
+          if(!cur()||cur().id!==pid||persistClearing) {res(null);return;}
+          const c=document.createElement('canvas'); const s=Math.min(1,800/Math.max(img.width,img.height));
           c.width=img.width*s; c.height=img.height*s;
           c.getContext('2d').drawImage(img,0,0,c.width,c.height);
           const imgId=uid(); const data=c.toDataURL('image/jpeg',.72);
           await idb.put(imgId,data); imgCache[imgId]=data;
+          if(!cur()||cur().id!==pid||persistClearing){res(null);return;}
           updateCur(p=>{
             p.refs=Array.isArray(p.refs)?p.refs:[];
             p.refs.push({id:uid(),key:imgId,name:(f&&f.name)||'',tags:(tags||[]).slice(),createdAt:Date.now(),fav:false});
             if(target==='mood'){
-              p.mood.push({id:uid(),type:'image',content:imgId,tag:(tags&&tags[0])||'',tags:(tags||[]).slice(),fav:false});
+              p.mood.push({id:uid(),type:'image',content:imgId,tag:(tags&&tags[0])||'',tags:(tags||[]).slice(),fav:true});
             }
             p.tagVocab=mergeVocab(p.tagVocab,tags||[]);
           });
@@ -2150,17 +2202,32 @@ async function ingestImageFile(f,tags,silent,target){
     rd.readAsDataURL(f);
   });
 }
+function allowImageDrop(e){
+  if(e.dataTransfer&&Array.from(e.dataTransfer.types||[]).includes('Files'))e.preventDefault();
+}
+function dispatchImageFiles(files){
+  const p=cur();
+  if(view.mode!=='project'||!p||p.demo||!['mood','shots'].includes(view.tab)||!files.length)return false;
+  const e={target:{files,value:''}};
+  if(view.tab==='mood')addMoodImg(e);else addShotImg(e);
+  return true;
+}
+function dropImages(e){e.preventDefault();dispatchImageFiles(Array.from(e.dataTransfer.files||[]).filter(f=>f.type.startsWith('image/')));}
+document.addEventListener('paste',e=>{
+  const files=Array.from(e.clipboardData&&e.clipboardData.files||[]).filter(f=>f.type.startsWith('image/'));
+  if(files.length&&dispatchImageFiles(files))e.preventDefault();
+});
 async function addMoodImg(e){
   const p=cur();
-  if(p&&p.demo){
-    try{ e.target.value=''; }catch(err){}
-    toast('示例项目只读，请点「复制为我的项目」后再修改'); return;
+  const files=parseMultiImage(e);e.target.value='';
+  if(!p||p.demo){toast('示例项目只读，请先复制为我的项目');return;}
+  const tags=parseTagsInput(gv('m_tag')),pid=p.id;
+  let count=0;
+  for(const f of files){
+    if(!cur()||cur().id!==pid)break;
+    if(await ingestImageFile(f,tags,true,'mood'))count++;
   }
-  const f=e.target.files[0]; if(!f) return;
-  const tags=parseTagsInput(gv('m_tag'));   // 异步前同步读取，避免压缩期间切页丢输入
-  const imgId=await ingestImageFile(f,tags,false,'mood');   // 情绪板页主动上传＝精选，同时进 refs 与 mood
-  e.target.value='';
-  if(imgId) renderProject();
+  if(cur()&&cur().id===pid){renderProject();toast('已导入 '+count+'/'+files.length+' 张精选图');}
 }
 function delMood(id){ updateCur(p=>p.mood=p.mood.filter(m=>m.id!==id)); renderProject(); }
 
@@ -2219,6 +2286,7 @@ async function renderShots(p){
     .filter(m=>matchByTags(m,view.moodFilter,view.moodFilterMode));
   let gallery=[];
   try{ gallery=await idb.shiseiIndex(); }catch(e){ gallery=[]; }
+  if(view.mode!=='project'||view.tab!=='shots'||!cur()||cur().id!==p.id)return;
   const cats=[...new Set(gallery.map(r=>r.cat).filter(Boolean))];
   const galleryRows=view.poseCat?gallery.filter(r=>r.cat===view.poseCat):[];
   const editing=p.shots.find(x=>x.id===view.editingShotId);
@@ -2231,7 +2299,7 @@ async function renderShots(p){
     +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'s_img\').click()">上传图片</button>'
     +'<input type="file" id="s_img" accept="image/*" multiple style="display:none" onchange="addShotImg(event)">'
     +'<span class="muted" style="margin-left:2px">一次最多 3 张</span></div></div>';
-  const mineHtml='<div class="ref-group">'+mineHead
+  const mineHtml='<div class="ref-group">'+mineHead+'<div class="image-drop" ondragover="allowImageDrop(event)" ondrop="dropImages(event)">拖入或粘贴图片 · 自动存入参考图库</div>'
     +(moodImgs.length?'<div class="ref-picker">'
       +moodImgs.map(m=>
         '<div class="ref-opt '+(selRefs.includes(m.content)?'on':'')+'" title="'+esc(tagsForDisplay(m).join(' / '))+'" onclick="toggleRef('+jstr(m.content)+')"><img src="'+esc(imgCache[m.content]||'')+'">'
@@ -2289,7 +2357,9 @@ async function renderShots(p){
     +(mineHtml||galleryHtml?'':'<p class="muted" style="margin-bottom:10px">还没有任何参考图来源。上传图片、到情绪板添加，或在下方「素材来源」开启姿势图库同步。</p>')
     +mineHtml+galleryHtml
     +'<div class="row" style="margin-bottom:12px"><input id="s_filter" class="grow" placeholder="搜索分镜 / 场景 / 备注…" value="'+esc(view.shotFilter)+'" oninput="setShotFilter(this.value)">'
+      +'<button class="btn btn-ghost btn-sm" onclick="toggleBatchMode()">'+(view.batchMode?'退出批量':'批量编辑')+'</button>'
       +'<button class="btn btn-ghost btn-sm" id="reschedAllBtn" title="对所有拍摄日统一重排一次（复制 / 调整完成后点此）" onclick="rescheduleAllDays()">↻ 重新排程</button></div>'
+    +(view.batchMode?batchShotControls(p):'')
     +'<div id="shotListWrap">'+shotListHtml(p,days)+'</div></div>';
   galleryRows.forEach(r=>ensureShiseiImage(r.key));
   attachDrag();
@@ -2321,6 +2391,41 @@ function restoreFocus(snap){
   if(el){ el.focus(); try{ el.setSelectionRange(snap.ss,snap.se); }catch(e){} }
 }
 /* 分镜列表（含分组头 / 空状态）：renderShots 全量绘与 setShotFilter 局部刷新共用 */
+function toggleBatchMode(){view.batchMode=!view.batchMode;view.batchShots=[];renderShots(cur());}
+function batchShotControls(p){
+  return '<div class="batch-bar"><span id="batchCount">已选 '+view.batchShots.length+' 条</span>'
+    +'<button class="btn btn-ghost btn-sm" onclick="selectVisibleShots()">全选当前列表</button>'
+    +'<select id="batchDate"><option value="">日期不变</option>'+shootDatesOf(p).map(d=>'<option value="'+esc(d)+'">'+esc(d)+'</option>').join('')+'</select>'
+    +'<select id="batchDuration"><option value="">时长不变</option>'+[10,15,20,30,45,60,90].map(n=>'<option value="'+n+'">'+n+' 分钟</option>').join('')+'</select>'
+    +'<select id="batchScene"><option value="">场景不变</option><option value="__none">清除场景</option>'+(p.scenes||[]).map(s=>'<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>').join('')+'</select>'
+    +'<button class="btn btn-primary btn-sm" onclick="applyBatchShots()">应用</button></div>';
+}
+function toggleBatchShot(id,checked){
+  view.batchShots=checked?Array.from(new Set(view.batchShots.concat(id))):view.batchShots.filter(x=>x!==id);
+  const el=document.getElementById('batchCount');if(el)el.textContent='已选 '+view.batchShots.length+' 条';
+}
+function selectVisibleShots(){
+  view.batchShots=Array.from(new Set(view.batchShots.concat(Array.from(document.querySelectorAll('#shotList .shot')).map(el=>el.dataset.id))));
+  renderShots(cur());
+}
+function applyBatchShots(){
+  const p=cur();if(!p||p.demo||!view.batchShots.length){toast('请选择要修改的分镜');return;}
+  const ids=new Set(view.batchShots),date=gv('batchDate'),duration=Number(gv('batchDuration')),scene=gv('batchScene');
+  if(!date&&!duration&&!scene){toast('请选择要修改的字段');return;}
+  updateCur(pp=>{
+    const affected=new Set();
+    pp.shots.forEach(s=>{
+      if(!ids.has(s.id))return;
+      affected.add(s.date);
+      if(date){s.date=date;affected.add(date);}
+      if(duration)s.duration=duration;
+      if(scene)s.sceneId=scene==='__none'?'':scene;
+    });
+    affected.forEach(d=>{if(d)applyDay(pp,d,null);});
+  });
+  view.batchMode=false;view.batchShots=[];renderProject();toast('已批量更新分镜');
+}
+function toggleMustShoot(id){updateCur(p=>{const s=p.shots.find(x=>x.id===id);if(s)s.mustShoot=!s.mustShoot;});renderProject();}
 function shotListHtml(p,days){
   const kw=(view.shotFilter||'').trim().toLowerCase();
   const sorted=[...p.shots].sort((a,b)=>shotSortKey(a)<shotSortKey(b)?-1:1)
@@ -2359,15 +2464,17 @@ function shotListHtml(p,days){
           scene?scene.name:'',s.position||'',s.light||'',s.note||''].filter(Boolean).join(' · ');
         const body=editingThis
           ? shotEditPanel(s,p)
-          :'<div class="grow" style="min-width:150px"><div class="'+(s.done?'done-text':'')+'" style="font-weight:600">'+esc(s.name)+(clash?' <span class="tag red">时间重叠</span>':'')+'</div>'
+          :'<div class="grow" style="min-width:150px"><div class="'+(s.done?'done-text':'')+'" style="font-weight:600">'+esc(s.name)+(s.mustShoot?' <span class="tag blue">必拍</span>':'')+(clash?' <span class="tag red">时间重叠</span>':'')+'</div>'
             +'<div class="muted" style="font-size:12px;margin-top:2px">'+esc(meta)+'</div></div>';
         return '<div class="shot '+(s.done?'done':'')+(editingThis?' editing':'')+'" data-id="'+esc(s.id)+'" data-fid="'+esc(s.id)+'">'
+          +(view.batchMode?'<input class="batch-check" type="checkbox" aria-label="选择分镜" '+((view.batchShots||[]).includes(s.id)?'checked':'')+' onchange="toggleBatchShot('+jstr(s.id)+',this.checked)">':'')
           +'<span class="drag-handle" title="拖拽排序"><svg width="12" height="18" viewBox="0 0 12 18" fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></svg></span>'
           +'<button class="chk '+(s.done?'on':'')+'" onclick="toggleShot('+jstr(s.id)+')">'+(s.done?'✓':'')+'</button>'
           +'<div class="refs">'+refHtml+'</div>'
           +body
           +'<button class="rowbtn'+(isFav(s)?' on':'')+'" title="收藏/取消收藏" onclick="toggleFav(\'shots\','+jstr(s.id)+')">'+(isFav(s)?'★':'☆')+'</button>'
           +'<button class="rowbtn" title="复制分镜（时间顺延 '+COPY_SHIFT_MIN+' 分钟）" onclick="copyShot('+jstr(s.id)+')">⧉复制</button>'
+          +'<button class="rowbtn" title="标记必拍" onclick="toggleMustShoot('+jstr(s.id)+')">'+(s.mustShoot?'取消必拍':'必拍')+'</button>'
           +editBtn('Shot',s.id)
           +'<button class="iconbtn" title="删除分镜" onclick="delShot('+jstr(s.id)+')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
         }).join('')+'</div>'; }).join('')+'</div>' : '<p class="muted">'+(kw?'没有匹配的分镜。':'还没有分镜。添加第一条，把素材挂上来。')+'</p>');
@@ -2565,8 +2672,8 @@ function openRefViewer(shotId,ri){
     +'<div class="row" style="justify-content:center;margin-top:16px">'
     +'<button class="btn btn-ghost btn-sm" onclick="refNav(-1)">‹ 上一张</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="refNav(1)">下一张 ›</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="closeRefViewer();openShotRefEditor('+jstr(shotId)+');view.replaceIdx='+idx+'">更换这张</button>'
-    +'<button class="btn btn-danger btn-sm" onclick="removeShotRef('+jstr(shotId)+','+idx+')">从分镜移除</button>'
+    +(!document.getElementById('sdOverlay')?.classList.contains('show')?'<button class="btn btn-ghost btn-sm" onclick="closeRefViewer();openShotRefEditor('+jstr(shotId)+');view.replaceIdx='+idx+'">更换这张</button>'
+    +'<button class="btn btn-danger btn-sm" onclick="removeShotRef('+jstr(shotId)+','+idx+')">从分镜移除</button>':'')
     +'<button class="btn btn-ghost btn-sm" onclick="closeRefViewer()">关闭</button></div>';
   document.getElementById('refViewer').classList.add('show');
 }
@@ -2585,12 +2692,14 @@ async function addShotImg(e){
   const files=parseMultiImage(e);
   try{ e.target.value=''; }catch(err){}
   if(!files.length) return;
-  const editingId=view.editingShotId, rIdx=view.replaceIdx;
+  const pid=current&&current.id,editingId=view.editingShotId, rIdx=view.replaceIdx;
   const okIds=[], failN=[];
   for(const f of files){
+    if(!cur()||cur().id!==pid)break;
     const id=await ingestImageFile(f,[],true);
     if(id) okIds.push(id); else failN.push(1);
   }
+  if(!cur()||cur().id!==pid||view.tab!=='shots')return;
   if(!okIds.length){ toast('本次 '+files.length+' 张图片均处理失败，可重试'); renderShots(cur()); return; }
   let hung=0;
   if(editingId){
@@ -2628,8 +2737,11 @@ function addShot(){
       refIds:[...selRefs].slice(0,3),note:note,done:false,ord:ord,fav:false});
     plan=applyDay(p,d,null);      // 落库即重排：slot 由排程引擎派生（不写死时间）
   });
-  selRefs=[]; view.shotDraft={}; if(view.editingShotEditId) view.editingShotEditId=null;
+  selRefs=[]; view.shotDraft={date:d,duration:dur,scene:sc==='__new'?'':sc,position:pos,light}; if(view.editingShotEditId) view.editingShotEditId=null;
   toastResched(plan); renderProject();
+  // 连续输入时保持拍摄日/场景/时长，不要求重复选择。
+  const pid=cur()&&cur().id;
+  requestAnimationFrame(()=>{const el=document.getElementById('s_name');if(el&&cur()&&cur().id===pid)el.focus();});
 }
 
 /* 拖拽排序（桌面 + 触屏，Pointer Events） */
@@ -2690,7 +2802,7 @@ function persistOrder(list,draggedId){
   if(adopted) ensureShootDate(adopted);                           // 拖到未登记日期 → 该日首次有内容，登记为拍摄日
   renderProject();
 }
-function toggleShot(id){ updateCur(p=>{const s=p.shots.find(x=>x.id===id); if(s) s.done=!s.done;}); renderProject(); }
+function toggleShot(id){ updateCur(p=>{const s=p.shots.find(x=>x.id===id); if(s){s.done=!s.done;s.skipped=false;s.deferred=false;}}); renderProject(); }
 /* 删除分镜：立即删除（保持单击即删的习惯），toast 提供 6 秒撤销；
    撤销时按原对象放回（ord / 参考图 / 完成态原样保留），并重排当天 */
 function delShot(id){
@@ -3483,19 +3595,21 @@ async function renderShootDay(){
   autoSyncDay(sdDate);                 // 切到某日期时补齐集合/收工并重排（demo 只读自动跳过）
   await ensureShiseiRefs(p);
   const shots=p.shots.filter(s=>s.date===sdDate);
-  const items=dayItems(p,sdDate);
+  const items=dayItems(p,sdDate).sort((a,b)=>Number(!!a.deferred)-Number(!!b.deferred));
+  const pendingMust=shots.filter(s=>s.mustShoot&&!s.done).length;
+  const skipped=shots.filter(s=>s.skipped&&!s.done).length;
   const done=items.filter(x=>x.done).length;
   const now=new Date(); const nowT=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
   const isToday=sdDate===todayStr();
   let currentId=null;
-  if(isToday){ items.forEach(x=>{ if(!x.done&&(x._time||'00:00')<=nowT) currentId=x.id; }); if(!currentId){ const nxt=items.find(x=>!x.done); if(nxt) currentId=nxt.id; } }
+  if(isToday){ items.forEach(x=>{ if(!x.done&&!x.skipped&&!x.deferred&&(x._time||'00:00')<=nowT) currentId=x.id; }); if(!currentId){ const nxt=items.find(x=>!x.done&&!x.skipped&&!x.deferred)||items.find(x=>!x.done&&!x.skipped); if(nxt) currentId=nxt.id; } }
   const sun=sunTimes(sdDate,p.lat,p.lng,projectTimeZone(p));
   let h='<div class="sd-head"><h2>'+esc(p.name)+'</h2>'
     +'<button class="sd-nav" onclick="sdShift(-1)" title="前一天">‹</button>'
     +'<input type="date" value="'+sdDate+'" onchange="sdSetDate(this.value)" style="background:#221e18;color:#f0ebe2;border-color:#3a342b;max-width:150px">'
     +'<button class="sd-nav" onclick="sdShift(1)" title="后一天">›</button>'
     +'<button class="sd-btn" onclick="closeShootDay()">退出</button></div>'
-    +'<div class="muted" style="color:#a99e8c">拍摄日模式 · 完成 '+done+'/'+items.length+'</div>'
+    +'<div class="muted" style="color:#d7ccbb">拍摄日模式 · 完成 '+done+'/'+items.length+(skipped?' · 已跳过 '+skipped:'')+(pendingMust?' · 必拍未完成 '+pendingMust:'')+'</div>'
     +'<div class="sd-progress"><i style="width:'+(items.length?done/items.length*100:0)+'%"></i></div>';
   if(sun) h+='<div class="sd-sun"><span>日出 '+sun.sunrise+'</span><span>黄金 '+sun.goldenStart+'</span><span>日落 '+sun.sunset+'</span><span>暮光 '+addMin(sun.sunset,30)+'</span></div>';
   if(!items.length){ h+='<div class="sd-empty">这一天没有安排。<br>回日程页添加流程，或切换上方日期。</div>'; }
@@ -3505,18 +3619,19 @@ async function renderShootDay(){
       const time=x._t==='shot'&&x._time?x._time+' – '+fmtMin(x._end):(x._time||'未排时');
       if(time!==lastT){ lastT=time;
         h+='<div class="sd-slot">◷ '+esc(time)+(x.id===currentId?' <span class="now">当前</span>':'')+'</div>'; }
-      const overdue=isToday&&!x.done&&(x._time||'00:00')<nowT&&x.id!==currentId&&x._time;
+      const overdue=isToday&&!x.done&&!x.skipped&&!x.deferred&&(x._time||'00:00')<nowT&&x.id!==currentId&&x._time;
       const cflag=x._conflict?' <span class="tag red" style="border:1px solid #a32d2d">重叠</span>':'';
       if(x._t==='shot'){
         const scene=p.scenes.find(s=>s.id===x.sceneId);
-        const refs=(x.refIds||[]).filter(r=>imgCache[r]||String(r||'').startsWith('shisei:'));
-        h+='<div class="sd-shot '+(x.done?'done':'')+' '+(x.id===currentId?'now':'')+'">'
-          +(refs.length?refs.map(r=>imgCache[r]?'<img src="'+esc(imgCache[r])+'">':'<div style="width:68px;height:68px;border-radius:9px;border:1px solid #2c2822;background:#12100c;color:#a99e8c;font-size:10px;display:flex;align-items:center;justify-content:center;text-align:center;padding:4px">图库原图已更新</div>').join(''):'')
-          +'<div style="flex:1;min-width:120px"><div class="sd-name"><span class="sd-tag">分镜</span>'+esc(x.name)+cflag+'</div>'
+        const refs=x.refIds||[];
+        h+='<div class="sd-shot '+(x.done||x.skipped?'done':'')+' '+(x.id===currentId?'now':'')+'">'
+          +(refs.length?'<div class="sd-refs">'+refs.map((r,i)=>'<button class="sd-ref" aria-label="查看参考图 '+(i+1)+'" onclick="openRefViewer('+jstr(x.id)+','+i+')">'+(imgCache[r]?'<img src="'+esc(imgCache[r])+'" alt="参考图">':'<span>查看参考图</span>')+'</button>').join('')+'</div>':'')
+          +'<div style="flex:1;min-width:120px"><div class="sd-name"><span class="sd-tag">分镜</span>'+esc(x.name)+(x.mustShoot?' <span class="sd-tag">必拍</span>':'')+(x.skipped?' <span class="sd-tag">已跳过</span>':x.deferred?' <span class="sd-tag">待补拍</span>':'')+cflag+'</div>'
           +'<div class="sd-meta">'+(scene?esc(scene.name)+' · ':'')+'约 '+(+x.duration||0)+' 分钟'+(x.note?' · '+esc(x.note):'')+'</div>'
           +((overdue||x._conflict)?'<button class="sd-btn" style="margin-top:8px" onclick="sdPostpone()" title="当天所有环节与分镜整体后移 1 小时，收工随之重排">⚠ 已'+(overdue?'超时':'重叠')+' · 整日顺延 1 小时</button>':'')
+          +(!x.done?'<div class="sd-actions"><button class="sd-btn" onclick="sdDisposition('+jstr(x.id)+',\'deferred\')">'+(x.deferred?'取消补拍':'稍后补拍')+'</button><button class="sd-btn" onclick="sdDisposition('+jstr(x.id)+',\'skipped\')">'+(x.skipped?'恢复':'跳过')+'</button></div>':'')
           +'</div>'
-          +'<button class="sd-chk '+(x.done?'on':'')+'" onclick="sdToggle('+jstr(x.id)+')">✓</button></div>';
+          +'<button class="sd-chk '+(x.done?'on':'')+'" aria-label="完成或恢复分镜" onclick="sdToggle('+jstr(x.id)+')">✓</button></div>';
       } else {
         h+='<div class="sd-shot node '+(x.done?'done':'')+' '+(x.id===currentId?'now':'')+'">'
           +'<div style="flex:1;min-width:120px"><div class="sd-name" style="font-size:16px">'+esc(x.title)+cflag+'</div>'
@@ -3528,7 +3643,12 @@ async function renderShootDay(){
   document.getElementById('sdBody').innerHTML=h;
 }
 function sdShift(d){ const dt=new Date(sdDate+'T12:00:00'); dt.setDate(dt.getDate()+d); sdDate=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0'); renderShootDay(); }
-function sdToggle(id){ updateCur(p=>{const s=p.shots.find(x=>x.id===id); if(s) s.done=!s.done;}); renderShootDay(); }
+function sdToggle(id){ updateCur(p=>{const s=p.shots.find(x=>x.id===id); if(s){s.done=!s.done;s.skipped=false;s.deferred=false;}}); renderShootDay(); }
+function sdDisposition(id,kind){
+  if(!['skipped','deferred'].includes(kind))return;
+  updateCur(p=>{const s=p.shots.find(x=>x.id===id);if(!s)return;const next=!s[kind];s.skipped=false;s.deferred=false;s.done=false;s[kind]=next;});
+  renderShootDay();
+}
 function sdToggleNode(id){ updateCur(p=>{const n=p.schedule.find(x=>x.id===id); if(n) n.done=!n.done;}); renderShootDay(); }
 /* v10：整日顺延 1 小时 —— 当天所有节点（含集合、收工）+60，随后整链重排 */
 function sdPostpone(){

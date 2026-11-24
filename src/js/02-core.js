@@ -11,7 +11,7 @@ function freshView(patch){
   const d={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',
     moodFilter:[],moodFilterMode:'any',shotDraft:{},poseCat:null,editingShotId:null,editingShotEditId:null,replaceIdx:-1,
     allowDemoWrite:false,editingNodeId:null,editingStuffId:null,editingStuffKey:null,
-    editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null,lastShift:null,newDay:false,moodRefPicker:false};
+    editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null,lastShift:null,newDay:false,moodRefPicker:false,batchMode:false,batchShots:[]};
   return Object.assign(d,patch||{});
 }
 let view=freshView();
@@ -456,7 +456,7 @@ function sanitizeProject(raw,mkId){
     sceneId:ids[s(x.sceneId)]||'',
     refIds:(Array.isArray(x.refIds)?x.refIds:[]).map(y=>cut(y,200)).filter(Boolean).slice(0,3),
     position:cut(x.position,20),light:cut(x.light,20),note:cut(x.note,1000),
-    done:bool(x.done),ord:(+x.ord>0)?Math.round(+x.ord):0,fav:bool(x.fav)}));
+    done:bool(x.done),mustShoot:bool(x.mustShoot),skipped:bool(x.skipped),deferred:bool(x.deferred),ord:(+x.ord>0)?Math.round(+x.ord):0,fav:bool(x.fav)}));
   p.schedule=objs(raw.schedule).map(x=>({id:nid(x.id),type:cut(x.type,20),title:cut(x.title,200),
     start:time(x.start),end:time(x.end),note:cut(x.note,1000),date:date(x.date),
     done:bool(x.done),fav:bool(x.fav),timeLocked:bool(x.timeLocked),auto:(x.auto==='call'||x.auto==='wrap')?x.auto:null}));

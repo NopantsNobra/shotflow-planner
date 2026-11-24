@@ -658,3 +658,13 @@ test('策划模式切换只隐藏模块，不删除预算或分镜',async({page}
   await page.locator('.ptab',{hasText:'预算'}).click();
   await expect(page.locator('#tabBody')).toContainText('保留的预算');
 });
+
+test('批量修改分镜时长并保留原名称',async({page})=>{
+  await setupV108Project(page);
+  await page.getByRole('button',{name:'批量编辑'}).click();
+  await page.locator('.batch-check').check();
+  await page.locator('#batchDuration').selectOption('30');
+  await page.getByRole('button',{name:'应用',exact:true}).click();
+  await expect.poll(async()=> (await shotData(page))[0].duration).toBe(30);
+  await expect(page.locator('.shot').first()).toContainText('原始分镜');
+});
