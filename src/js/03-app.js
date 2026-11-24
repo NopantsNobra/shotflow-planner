@@ -294,9 +294,6 @@ function renderProject(){
       +'</div></div>').join('')
     +'</div>'
     +'<div class="subbar">'
-    /* v10.8.1：分镜页与日程页的入口移到各自的「添加分镜 / 添加环节」按钮旁；
-       其余可收藏页签仍在 subbar 保留入口，避免丢失「所有收藏页可打开」的能力。 */
-    +(favTypesForTab(view.tab).length&&view.tab!=='shots'&&view.tab!=='schedule'?'<button class="btn btn-ghost btn-sm" id="openFavBtn" title="打开与当前页面相关的收藏并引用" onclick="openFavPicker()">☆ 打开收藏</button>':'')
     +'<span class="muted" style="font-size:10px;letter-spacing:.14em">文档输出 ▸</span>'
     +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'proposal\')">客户提案</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'callsheet\')">拍摄通告单</button>'
@@ -330,6 +327,11 @@ function editBtn(kind,id,key){
 function favBtn(type,it){
   return '<button class="rowbtn'+(isFav(it)?' on':'')+'" title="收藏/取消收藏" onclick="toggleFav(\''+type+'\','+jstr(it.id)+')">'+(isFav(it)?'★':'☆')+'</button>';
 }
+/* v10.8.2：所有可收藏页签统一在「主操作行」放打开收藏入口（紧邻各自添加按钮之前）。
+   样式真源唯一（btn-ghost btn-sm），避免 6 处字面各写一份导致漂移；concept 页无收藏条目不渲染。 */
+function favPickerBtn(){
+  return '<button class="btn btn-ghost btn-sm" id="openFavBtn" title="打开与当前页面相关的收藏并引用" onclick="openFavPicker()">☆ 打开收藏</button>';
+}
 
 /* ---- 概念 ---- */
 function renderConcept(p){
@@ -357,6 +359,7 @@ function renderMood(p){
     +'<input type="color" id="m_color" value="#c8a97e" style="width:54px;height:44px;padding:4px">'
     +'<button class="btn btn-ghost" onclick="addMood(\'text\')">加文字</button>'
     +'<button class="btn btn-ghost" onclick="addMood(\'color\')">加色彩</button>'
+    +favPickerBtn()
     +'<button class="btn btn-primary" onclick="document.getElementById(\'m_img\').click()">上传精选图</button>'
     +'<button class="btn btn-ghost" onclick="toggleRefPicker()">'+(view.moodRefPicker?'收起参考图库':'＋ 从参考图库精选')+'</button>'
     +'<input type="file" id="m_img" accept="image/*" style="display:none" onchange="addMoodImg(event)"></div>'
@@ -648,7 +651,7 @@ async function renderShots(p){
     +'<select id="s_pos" style="max-width:108px" onchange="saveShotDraft(\'position\',this.value)"><option value="">— 机位 —</option>'+POSITION_OPTS.map(o=>'<option value="'+o+'" '+(D.position===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
     +'<select id="s_light" style="max-width:108px" onchange="saveShotDraft(\'light\',this.value)"><option value="">— 光线 —</option>'+LIGHT_OPTS.map(o=>'<option value="'+o+'" '+(D.light===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
     +'<input id="s_note" class="grow" placeholder="补充描述（姿势 / 构图 / 道具…）" value="'+esc(D.note||'')+'" oninput="saveShotDraft(\'note\',this.value)">'
-    +'<button class="btn btn-ghost btn-sm" id="openFavBtn" title="打开与当前页面相关的收藏并引用" onclick="openFavPicker()">☆ 打开收藏</button>'
+    +favPickerBtn()
     +'<button class="btn btn-primary" onclick="addShot()">添加分镜</button></div>'
     +(curDay==='__new'
       ?'<div class="new-scene"><span class="muted">新拍摄日</span>'
@@ -1227,7 +1230,7 @@ function renderSchedule(p){
     +'<input type="time" id="n_start" style="max-width:105px" value="10:00">'
     +'<input type="time" id="n_end" style="max-width:105px" value="10:30">'
     +'<input id="n_note" class="grow" placeholder="备注…">'
-    +'<button class="btn btn-ghost btn-sm" id="openFavBtn" title="打开与当前页面相关的收藏并引用" onclick="openFavPicker()">☆ 打开收藏</button>'
+    +favPickerBtn()
     +'<button class="btn btn-primary" onclick="addNode()">添加环节</button></div>'
     +timelineHtml(p,schedDate)
     +'</div>';
@@ -1651,7 +1654,9 @@ function renderStuff(p){
     items_g:'还没有器材。机位定了就写进来，避免当天缺件。'};
   const section=(title,key,arr,ph,ek)=>{
     return '<div class="card"><h2>'+title+'</h2>'
-      +'<div class="row" style="margin-bottom:10px"><input id="f_'+key+'" class="grow" placeholder="'+ph+'" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addStuff(\''+key+'\');}"><input id="fn_'+key+'" class="grow" placeholder="备注…"><button class="btn btn-primary btn-sm" onclick="addStuff(\''+key+'\')">添加</button></div>'
+      +'<div class="row" style="margin-bottom:10px"><input id="f_'+key+'" class="grow" placeholder="'+ph+'" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addStuff(\''+key+'\');}"><input id="fn_'+key+'" class="grow" placeholder="备注…">'
+      +(key==='scenes'?favPickerBtn():'')   // 清单页入口只放首个分区，覆盖 scenes + items 两类收藏
+      +'<button class="btn btn-primary btn-sm" onclick="addStuff(\''+key+'\')">添加</button></div>'
       +(arr.length?arr.map(it=>{
         const editing=view.editingStuffId===it.id&&view.editingStuffKey===key;
         const body=editing
@@ -1705,6 +1710,7 @@ function renderBudget(p){
     +'<div class="row" style="margin-bottom:10px"><input id="b_item" class="grow" placeholder="费用项目…">'
     +'<select id="b_cat" style="max-width:120px">'+CATS.map(c=>'<option>'+c+'</option>').join('')+'</select>'
     +'<input type="number" id="b_amt" style="max-width:120px" placeholder="金额 ¥" min="0" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addBudget();}">'
+    +favPickerBtn()
     +'<button class="btn btn-primary btn-sm" onclick="addBudget()">添加</button></div>'
     +(p.budget.length?p.budget.map(b=>'<div class="brow" data-fid="'+esc(b.id)+'"><span class="grow">'+esc(b.item)+'</span><span class="tag">'+esc(b.cat)+'</span>'
       +'<span class="amount-red">¥'+(+b.amount).toLocaleString()+'</span>'
@@ -1734,6 +1740,7 @@ function renderNotes(p){
     +'<div class="row" style="margin-bottom:12px"><input id="td_title" class="grow" placeholder="待办内容，如：给客户发提案确认报价" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addTodo();}">'
     +'<input id="td_owner" style="max-width:110px" placeholder="负责人">'
     +'<input type="date" id="td_due" style="max-width:150px">'
+    +favPickerBtn()
     +'<button class="btn btn-primary" onclick="addTodo()">添加</button></div>'
     +p.todos.map(x=>{
         const od=!x.done&&x.due&&x.due<t;

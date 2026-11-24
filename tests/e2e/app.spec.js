@@ -553,3 +553,32 @@ test('v10.8.1 复制后不立即重排、点重新排程后一次性整体重排
   expect(shots.find(s=>s.id==='shot-a').slot).toBe('10:00');
   await expect(page.locator('.shot')).toHaveCount(2);
 });
+
+test('v10.8.2 所有可收藏页签主操作行均有打开收藏按钮，概念页无', async ({ page }) => {
+  await setupV108Project(page);
+  // 每个页签：按钮存在、与主操作按钮同 .row、样式一致、subbar 内不再有
+  const tabs=[['情绪板','上传精选图','#m_text'],['分镜','添加分镜','#s_name'],['日程','添加环节','#n_title'],
+    ['清单','添加','#f_scenes'],['预算','添加','#b_item'],['协作','添加','#td_title']];
+  for(const [tab,addText,marker] of tabs){
+    await page.locator('.ptab',{hasText:tab}).first().click();
+    /* 等该页签特有元素出现，再读按钮——renderShots 异步，不能只等按钮（旧页签也有同名按钮） */
+    await expect(page.locator(marker)).toBeVisible();
+    const ctx=await page.evaluate((addText)=>{
+      const btn=document.getElementById('openFavBtn');
+      if(!btn) return {found:false};
+      const rowBtn=[...btn.parentElement.querySelectorAll('button')].find(b=>b.textContent.trim()===addText);
+      const inSubbar=!!document.querySelector('.subbar #openFavBtn');
+      return {found:true, sameRow:!!rowBtn, inSubbar, cls:btn.className,
+        rowCls:btn.parentElement.className};
+    },addText);
+    expect(ctx.found,{message:tab+' 页应有打开收藏按钮'}).toBe(true);
+    expect(ctx.sameRow,{message:tab+' 页按钮应在主操作行'}).toBe(true);
+    expect(ctx.inSubbar,{message:tab+' 页按钮不应在 subbar'}).toBe(false);
+    expect(ctx.cls).toContain('btn-ghost');
+    expect(ctx.cls).toContain('btn-sm');
+    expect(ctx.rowCls).toContain('row');
+  }
+  // 概念页无收藏条目 → 无按钮
+  await page.locator('.ptab',{hasText:'概念'}).first().click();
+  await expect(page.locator('#openFavBtn')).toHaveCount(0);
+});
