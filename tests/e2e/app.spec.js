@@ -271,7 +271,8 @@ test('设置页「关于与部署」弹窗 + 全局 footer（Esc 先关弹窗再
   await expect(modal).toContainText('纯静态单文件应用');
   await expect(modal).toContainText('GitHub Pages / Cloudflare Pages / Vercel / 自有服务器');
   await expect(modal).toContainText('MIT License © 2026 Stillmark-服雲');
-  await expect(modal).toContainText('数据全部保存在本地浏览器（IndexedDB），离线可用');
+  await expect(modal).toContainText('项目数据保存在本地浏览器（IndexedDB）');
+  await expect(modal).toContainText('离线用');
   await expect(modal.locator('.deploy-points li')).toHaveCount(3);
   const link = modal.locator('a[href]').first();
   await expect(link).toHaveAttribute('href', 'https://github.com/NopantsNobra/shotflow-planner');
