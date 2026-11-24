@@ -1,13 +1,15 @@
 # 瞬刻摄影工作台 · Stillmark 功能索引（开发视角）
 
 ## 版本
-- 当前：v10.8.2（`shotflow.html` 由 `src/` 构建产出的单文件、全内联零依赖；120 项逻辑测试 + 16 项 E2E × 三引擎矩阵 + perf 压测门禁通过）
+- 当前：v10.9.0（单文件零依赖，新增策划模式、素材包、现场执行优化与 AI 契约预留；验证以 CI 实际结果为准）
 - 历史：v9（收藏 / 只读示例 / 多图 / 行内编辑）、v7（姿势图库）、v6（素材标签）、v5（提案封面）、v4（IndexedDB/导入确认/时间级联）、v1 `legacy/photo-planner.html`（表单版，已归档）、v2（分镜中枢 + 看板 + 拍摄日模式）
 
 ## v3 + v9 + v10 数据模型
 ```
 project = {
   id,name,client,studio,status:'灵感期|策划中|待拍摄|后期中|已交付|已归档',shootDate,location,lat,lng,v3,
+  workspaceMode?:'casual'|'portrait'|'professional'|'custom',workspaceCustom?:string[],timeZone?:string,
+  assetPack?:boolean,         // 导入收藏包，仅展示于收藏夹
   demo:boolean,               // v9：只读示例标记；唯一写守卫在 updateCur()
   v9?:number,                 // v9：示例注入幂等标记（cloneDemo 删除）
   createdAt,updatedAt,
@@ -18,8 +20,8 @@ project = {
   scenes:[{id,name,note,done,fav}],
   dayInit:[ISODate],          // v10：已完成默认项初始化的日期（集合/收工不重复补，删了不复活）
   shootDates:[ISODate],       // v10：拍摄日清单（升序去重）；shootDate 恒 = shootDates[0] || ''，供看板倒计时 / 通告单复用
-  shots:[{id,name,date,slot,duration,sceneId,refIds:[≤3],position,light,note,done,ord,fav}],
-  schedule:[{id,type,title,start,end,note,date,done,fav,auto?:'call'|'wrap'}],  // v10：slot 由排程引擎派生并物化
+  shots:[{id,name,date,slot,duration,sceneId,refIds:[≤3],position,light,note,done,ord,fav,mustShoot?,skipped?,deferred?}],
+  schedule:[{id,type,title,start,end,note,date,done,fav,timeLocked?,auto?:'call'|'wrap'}],  // v10：slot 由排程引擎派生并物化
   items:[{id,kind:'服装道具|器材',name,note,done,fav}],
   budget:[{id,item,cat,amount,paid,fav}],
   notes:[{id,kind,content,ts,fav}],
