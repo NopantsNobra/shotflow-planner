@@ -15,7 +15,7 @@ async function renderShots(p){
   const moodImgs=(p.refs||[]).map(r=>({id:r.id,type:'image',content:r.key,tags:r.tags||[],fav:!!r.fav}))
     .filter(m=>matchByTags(m,view.moodFilter,view.moodFilterMode));
   let gallery=[];
-  try{ gallery=await idb.shiseiIndex(); }catch(e){ gallery=[]; }
+  try{ gallery=await idb.shiseiIndex(); }catch{ gallery=[]; }
   if(view.mode!=='project'||view.tab!=='shots'||!cur()||cur().id!==p.id)return;
   const cats=[...new Set(gallery.map(r=>r.cat).filter(Boolean))];
   const categoryRows=view.poseCat?gallery.filter(r=>r.cat===view.poseCat):[];
@@ -123,7 +123,7 @@ function snapshotFocus(){
 function restoreFocus(snap){
   if(!snap) return;
   const el=document.getElementById(snap.id);
-  if(el){ el.focus(); try{ el.setSelectionRange(snap.ss,snap.se); }catch(e){} }
+  if(el){ el.focus(); try{ el.setSelectionRange(snap.ss,snap.se); }catch{} }
 }
 /* 分镜列表（含分组头 / 空状态）：renderShots 全量绘与 setShotFilter 局部刷新共用 */
 function toggleBatchMode(){view.batchMode=!view.batchMode;view.batchShots=[];renderShots(cur());}
@@ -430,11 +430,11 @@ function closeRefViewer(){ view.refViewer=null; document.getElementById('refView
 async function addShotImg(e){
   const current=cur();
   if(current&&current.demo){
-    try{ e.target.value=''; }catch(err){}
+    try{ e.target.value=''; }catch{}
     toast('示例项目只读，请点「复制为我的项目」后再修改'); return;
   }
   const files=parseMultiImage(e);
-  try{ e.target.value=''; }catch(err){}
+  try{ e.target.value=''; }catch{}
   if(!files.length) return;
   const pid=current&&current.id,editingId=view.editingShotId, rIdx=view.replaceIdx;
   const okIds=[], failN=[];

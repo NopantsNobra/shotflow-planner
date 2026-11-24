@@ -44,7 +44,7 @@ const TagProviders=Object.create(null);         // 可插拔建议器注册表�
 let aiConfig=(()=>{                             // 仅内存 + sessionStorage，不入库不导出
   const def={enabled:false,endpoint:'',apiKey:'',model:'',timeoutMs:8000};
   try{ return Object.assign(def,JSON.parse(sessionStorage.getItem('sf_ai_cfg_v1'))||{}); }
-  catch(e){ return def; }
+  catch{ return def; }
 })();
 const MATERIAL_SOURCES=[
   {name:'shisei · 人像姿势参考',url:'https://github.com/wquguru/shisei',

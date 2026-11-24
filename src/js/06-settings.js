@@ -49,7 +49,7 @@ function fbDecodeKey(){
     if (g[2] !== 64 && i + 2 < b1.length) out.push(((g[1] & 15) << 4) | (g[2] >> 2));
     if (g[3] !== 64 && i + 3 < b1.length) out.push(((g[2] & 3) << 6) | g[3]);
   }
-  try{ return String.fromCharCode.apply(null, out); }catch(err){ return ''; }
+  try{ return String.fromCharCode.apply(null, out); }catch{ return ''; }
 }
 /* 反馈提交负载（纯函数）：Web3Forms 页面内 POST 用。access_key 由 fbDecodeKey() 运行时还原，
    只在请求体中出现，不打印、不落 DOM。message 超过 20000 字符时截断并追加提示（保护请求体积）；
@@ -222,7 +222,7 @@ async function submitFeedback(){
     } else {
       toast('提交失败，请使用「复制反馈内容」');
     }
-  } catch(e){
+  } catch{
     toast('网络异常，请使用「复制反馈内容」');
   } finally {
     if(btn){ btn.disabled=false; btn.textContent='提交反馈'; }
@@ -255,5 +255,5 @@ function legacyCopy(text){
     const ok=document.execCommand('copy');
     document.body.removeChild(ta);
     return ok;
-  }catch(e){ return false; }
+  }catch{ return false; }
 }

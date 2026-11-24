@@ -231,7 +231,7 @@ function validBackupImage(v){
     const m=svg.match(/<rect width="640" height="420" fill="(#[0-9a-fA-F]{3,6})"\/><circle cx="486" cy="106" r="62" fill="(#[0-9a-fA-F]{3,6})"/);
     const label=svg.match(/<text x="34" y="72" font-size="32" font-family="sans-serif" fill="#[0-9a-fA-F]{3,6}">([^<]*)<\/text><\/svg>$/);
     return !!(m&&label&&slugPreview(label[1],[m[2],m[1]])===v);
-  }catch(e){ return false; }
+  }catch{ return false; }
 }
 /* 重映射依赖图片键，保留同包内共享关系，绝不引用本机同名键。 */
 function remapBackupImages(projects,images,mkId){
@@ -257,7 +257,7 @@ function importJSON(e){
   const rd=new FileReader();
   rd.onload=ev=>{
     let d;
-    try{ d=JSON.parse(ev.target.result); }catch(err){ toast('文件格式不正确，导入失败'); e.target.value=''; return; }
+    try{ d=JSON.parse(ev.target.result); }catch{ toast('文件格式不正确，导入失败'); e.target.value=''; return; }
     const isAssets=d&&d.type==='assets';
     const list=d&&typeof d==='object'?(isAssets?d.assets:d.project?[d.project]:d.projects):null;
     if(isAssets&&(d.app!=='stillmark'||d.assetVersion!==1)){toast('不支持的素材包版本');return;}
@@ -323,11 +323,11 @@ function clearAll(){
       if(!await idb.clearProjects(persistExpected)){ markPersistConflict(); return; }
       persistExpected=JSON.stringify(null);
       if(generation!==persistGeneration){ markPersistConflict(); return; }
-      try{ localStorage.removeItem(LS_PROJ); localStorage.removeItem(LS_DEMO_V9); localStorage.removeItem(LS_SEED); }catch(e){}
+      try{ localStorage.removeItem(LS_PROJ); localStorage.removeItem(LS_DEMO_V9); localStorage.removeItem(LS_SEED); }catch{}
       Object.keys(imgCache).forEach(k=>delete imgCache[k]);
       projectsCache=[]; pendingPersist=false; notifyProjectChange();
       view=freshView(); renderBoard(); toast('已清空');
-    }catch(e){ toast('清空失败，原数据未被确认删除，请导出备份'); }
+    }catch{ toast('清空失败，原数据未被确认删除，请导出备份'); }
     finally{ persistClearing=false; }
   });
 }
@@ -453,7 +453,7 @@ const ai=createAiService({enabled:false});
 /* ===== AI 打标签：兼容旧接口（本期恒关闭，零网络请求） ===== */
 function setAiConfig(k,v){
   aiConfig[k]=v;
-  try{ sessionStorage.setItem('sf_ai_cfg_v1',JSON.stringify(aiConfig)); }catch(e){}
+  try{ sessionStorage.setItem('sf_ai_cfg_v1',JSON.stringify(aiConfig)); }catch{}
 }
 function registerTagProvider(name,provider){
   const n=String(name==null?'':name).trim();
@@ -471,7 +471,7 @@ async function requestAiTags(req,cfg){
   try{
     const r=await suggestTags(req,cfg);
     return r&&Array.isArray(r.tags)?r.tags:[];
-  }catch(e){
+  }catch{
     toast('AI 打标签暂不可用，已跳过（可手动添加标签）');
     return [];
   }
@@ -503,7 +503,7 @@ const SHISEI_META_KEY='catalog', SHISEI_SYNC_INTERVAL=24*60*60*1000, SHISEI_BATC
 let shiseiInitReady=false;
 let shiseiState={running:false,paused:false,total:0,done:0};
 function shiseiSyncEnabled(){
-  try{ return localStorage.getItem('wb_sf_shisei_sync')!=='0'; }catch(e){ return true; }
+  try{ return localStorage.getItem('wb_sf_shisei_sync')!=='0'; }catch{ return true; }
 }
 function shiseiCanStart(force){
   if(!idb.ready()) return false;                 // A2：存储降级时不同步图库（同步了也存不住，只会空转烧流量）
@@ -554,7 +554,7 @@ function startShiseiSync(force){
       const resumable=meta&&Array.isArray(meta.pending)&&meta.pending.length&&meta.cursor>0;
       if(!force&&meta&&meta.checkedAt&&!resumable&&Date.now()-meta.checkedAt<SHISEI_SYNC_INTERVAL) return;
       await runShiseiSync(!!force);
-    }catch(e){ renderShiseiSyncStatus(); }
+    }catch{ renderShiseiSyncStatus(); }
   });
 }
 async function runShiseiSync(force){
@@ -648,7 +648,7 @@ async function finishShiseiSync(meta){
 async function renderShiseiStatusInto(boxId){
   const box=document.getElementById(boxId); if(!box) return;
   let meta=null, stats={count:0,bytes:0,avg:0};
-  try{ meta=await idb.getShiseiMeta(SHISEI_META_KEY); stats=await idb.shiseiImgStats(); }catch(e){}
+  try{ meta=await idb.getShiseiMeta(SHISEI_META_KEY); stats=await idb.shiseiImgStats(); }catch{}
   let stat='未同步';
   if(!shiseiSyncEnabled()) stat='已暂停';
   else if(shiseiState.running) stat=(shiseiState.paused?'已暂停':'进行中 ')+Math.min(shiseiState.done,shiseiState.total||0)+'/'+(shiseiState.total||0);
@@ -669,10 +669,10 @@ async function renderShiseiStatusInto(boxId){
 function renderShiseiSyncStatus(){return renderShiseiStatusInto('shiseiSyncBox');}
 function toggleShiseiSync(){
   if(shiseiSyncEnabled()){
-    try{ localStorage.setItem('wb_sf_shisei_sync','0'); }catch(e){}
+    try{ localStorage.setItem('wb_sf_shisei_sync','0'); }catch{}
     if(shiseiState.running) shiseiState.paused=true;
   } else {
-    try{ localStorage.removeItem('wb_sf_shisei_sync'); }catch(e){}
+    try{ localStorage.removeItem('wb_sf_shisei_sync'); }catch{}
     startShiseiSync(true);
   }
   renderShiseiSyncStatus();
@@ -680,8 +680,8 @@ function toggleShiseiSync(){
 function clearShiseiGallery(){
   askConfirm('清除姿势图库？','将删除本机缓存的图库缩略图与同步进度；分镜里已引用的图库图会显示为「图库原图已更新」占位，不会改动分镜数据。',async()=>{
     if(shiseiState.running){shiseiState.paused=true;toast('正在暂停同步，请稍后再清除');return;}
-    try{ localStorage.setItem('wb_sf_shisei_sync','0'); }catch(e){}
-    try{ await idb.clearShisei(); }catch(e){ toast('清除失败'); return; }
+    try{ localStorage.setItem('wb_sf_shisei_sync','0'); }catch{}
+    try{ await idb.clearShisei(); }catch{ toast('清除失败'); return; }
     Object.keys(imgCache).forEach(k=>{ if(String(k).startsWith('shisei:')) delete imgCache[k]; });
     shiseiState={running:false,paused:false,total:0,done:0};
     renderShiseiSyncStatus(); renderSettingsShisei();
@@ -701,7 +701,7 @@ async function ensureShiseiImage(key){
       });
       return rec.data;
     }
-  }catch(e){}
+  }catch{}
   return '';
 }
 async function ensureShiseiRefs(p){
@@ -709,7 +709,7 @@ async function ensureShiseiRefs(p){
   for(const k of keys){
     if(imgCache[k]) continue;
     try{ const rec=await idb.getShiseiImg(k); if(rec&&rec.data) imgCache[k]=rec.data; else if(imgCache[k]) delete imgCache[k]; }
-    catch(e){}
+    catch{}
   }
 }
 

@@ -583,7 +583,7 @@ let persistChain=Promise.resolve();      // 串行化所有落盘，保证写入
 let pendingPersist=false, persistFailed=false;
 let persistExpected=null, persistConflict=false, persistGeneration=0, persistClearing=false;
 let persistChannel=null;
-function notifyProjectChange(){if(persistChannel)try{persistChannel.postMessage({type:'projects-changed'});}catch(e){}}
+function notifyProjectChange(){if(persistChannel)try{persistChannel.postMessage({type:'projects-changed'});}catch{}}
 function showRemoteProjectChange(){
   if(persistConflict||document.getElementById('remoteProjectTip'))return;
   const tip=document.createElement('div');tip.id='remoteProjectTip';tip.className='backup-tip show';
@@ -674,7 +674,7 @@ function bindPersistFlush(){
   if(typeof BroadcastChannel!=='undefined'){
     try{persistChannel=new BroadcastChannel('stillmark-projects-v1');persistChannel.onmessage=e=>{
       if(e.data&&e.data.type==='projects-changed')showRemoteProjectChange();
-    };}catch(e){}
+    };}catch{}
   }
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState==='hidden'&&(persistTimer||pendingPersist)) flushPersist();
@@ -682,18 +682,18 @@ function bindPersistFlush(){
   window.addEventListener('pagehide',()=>{ if(persistTimer||pendingPersist) flushPersist(); });
 }
 async function initData(){
-  try{ await idb.open(); }catch(e){ storageDegraded=true; }   // A2：open 失败降级为会话内存模式，不阻断启动
+  try{ await idb.open(); }catch{ storageDegraded=true; }   // A2：open 失败降级为会话内存模式，不阻断启动
   let arr=null, readOk=false;
   if(idb.ready()){
     try{ arr=await idb.getProjects(); readOk=true; persistExpected=JSON.stringify(arr==null?null:arr); }
-    catch(e){ markPersistConflict(); }
+    catch{ markPersistConflict(); }
   }
   let migrated=false;
   if(Array.isArray(arr)){
     migrated=arr.some(p=>!p.v3);
     projectsCache=arr.map(p=>{ migrate(p); p.v3=1; return p; });
   } else {
-    try{ arr=JSON.parse(localStorage.getItem(LS_PROJ))||[]; }catch(e){ arr=[]; }
+    try{ arr=JSON.parse(localStorage.getItem(LS_PROJ))||[]; }catch{ arr=[]; }
     projectsCache=(Array.isArray(arr)?arr:[]).map(p=>{ migrate(p); p.v3=1; return p; });
     migrated=true;
   }
@@ -704,7 +704,7 @@ async function initData(){
       const ok=next===persistExpected||await idb.putProjects(projectsCache,persistExpected);
       if(ok===false) markPersistConflict();
       else { persistExpected=next; localStorage.removeItem(LS_PROJ); }
-    }catch(e){ /* 保留旧副本，后续保存仍使用原读取基线 */ }
+    }catch{ /* 保留旧副本，后续保存仍使用原读取基线 */ }
   }
   return migrated;
 }
@@ -712,7 +712,7 @@ async function initData(){
 /* ================= 太阳时间（NOAA 近似算法） ================= */
 function validTimeZone(zone){
   if(!zone) return false;
-  try{new Intl.DateTimeFormat('en',{timeZone:zone});return true;}catch(e){return false;}
+  try{new Intl.DateTimeFormat('en',{timeZone:zone});return true;}catch{return false;}
 }
 function projectTimeZone(p){
   if(p&&p.timeZone&&validTimeZone(p.timeZone)) return p.timeZone;
@@ -734,7 +734,7 @@ function sunTimes(dateStr,lat,lng,zone){
   if(cosHa>1||cosHa<-1) return null;
   const ha=Math.acos(cosHa)*180/Math.PI;
   let format;
-  try{format=new Intl.DateTimeFormat('en-GB',{timeZone:zone||undefined,hour:'2-digit',minute:'2-digit',hourCycle:'h23'});}catch(e){return null;}
+  try{format=new Intl.DateTimeFormat('en-GB',{timeZone:zone||undefined,hour:'2-digit',minute:'2-digit',hourCycle:'h23'});}catch{return null;}
   const fmt=m=>{const parts=format.formatToParts(new Date(d.getTime()+Math.round(m)*60000));return parts.find(x=>x.type==='hour').value+':'+parts.find(x=>x.type==='minute').value;};
   const sunrise=720-4*(lngN+ha)-eq, sunset=720-4*(lngN-ha)-eq, noon=720-4*lngN-eq;
   return {sunrise:fmt(sunrise),noon:fmt(noon),sunset:fmt(sunset),goldenStart:fmt(sunset-75),goldenEnd:fmt(sunset),timeZone:format.resolvedOptions().timeZone};
@@ -743,12 +743,12 @@ function sunTimes(dateStr,lat,lng,zone){
 /* ================= 预置示例 ================= */
 function seed(){
   let seeded=false;
-  try{ seeded=localStorage.getItem(LS_SEED)==='1'; }catch(e){ seeded=false; }
+  try{ seeded=localStorage.getItem(LS_SEED)==='1'; }catch{ seeded=false; }
   if(seeded) return;
   /* A3 内容级幂等：localStorage 标志可能缺失/被清（部分清理、多标签页竞态），但内存里已有
      项目或示例时绝不注入、更不得整体替换——老实现 saveP([demo]) 会把 IDB 里的用户项目整批覆盖。 */
   const existing=loadP();
-  if(existing.length){ try{ localStorage.setItem(LS_SEED,'1'); }catch(e){} return; }
+  if(existing.length){ try{ localStorage.setItem(LS_SEED,'1'); }catch{} return; }
   const t=todayStr();
   const scene1=uid(),scene2=uid();
   const demo=migrate({id:uid(),v3:1,name:'城市漫游者 · 人像写真',client:'示例客户',status:'待拍摄',shootDate:t,
@@ -798,12 +798,12 @@ function seed(){
     ]});
   rescheduleDay(demo,t);   // 预置示例同样走排程引擎：slot 从集合结束起顺序派生，收工按最晚结束 +15
   saveP(existing.concat([demo]));          // A3：追加而非整体替换（existing 恒为空，双保险）
-  try{ localStorage.setItem(LS_SEED,'1'); }catch(e){}
+  try{ localStorage.setItem(LS_SEED,'1'); }catch{}
 }
 /* v9 示例注入：独立于 seed，双 guard 幂等；只追加新示例与给旧「城市漫游者」补三个字段 */
 async function ensureV9Demo(){
   let flagged=false;
-  try{ flagged=localStorage.getItem(LS_DEMO_V9)==='1'; }catch(e){ flagged=false; }
+  try{ flagged=localStorage.getItem(LS_DEMO_V9)==='1'; }catch{ flagged=false; }
   const a=loadP();
   if(flagged||a.some(p=>p&&p.demo===true&&p.v9===1)) return;
   const now=Date.now(), images=[];
@@ -829,9 +829,9 @@ async function ensureV9Demo(){
     });
   });
   saveP(a);
-  try{ localStorage.setItem(LS_DEMO_V9,'1'); }catch(e){}
+  try{ localStorage.setItem(LS_DEMO_V9,'1'); }catch{}
   for(const [key,data] of images){
-    try{ await idb.put(key,data); }catch(e){ /* 内存图仍在，离线可见 */ }
+    try{ await idb.put(key,data); }catch{ /* 内存图仍在，离线可见 */ }
   }
 }
 function copyDemoToMine(pid){

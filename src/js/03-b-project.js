@@ -326,7 +326,7 @@ async function ingestImageFile(f,tags,silent,target){
             p.tagVocab=mergeVocab(p.tagVocab,tags||[]);
           });
           res(imgId);
-        }catch(err){ if(!silent) toast('图片处理失败'); res(null); }
+        }catch{ if(!silent) toast('图片处理失败'); res(null); }
       };
       img.onerror=()=>{ if(!silent) toast('图片读取失败'); res(null); };
       img.src=ev.target.result; };
