@@ -113,6 +113,7 @@ async function openDoc(kind){
 }
 function closeDoc(){
   document.getElementById('docModal').classList.remove('show');
+  document.getElementById('docBody').replaceChildren();
   const exBtn=document.getElementById('docExportBtn'); if(exBtn) exBtn.style.display='none';
 }
 

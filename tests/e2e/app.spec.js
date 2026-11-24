@@ -779,17 +779,25 @@ test('直接打开本地 HTML 时基础 CSP 不阻断核心交互',async({page})
   await page.getByRole('button',{name:'添加分镜'}).click();
   await expect(page.locator('.shot')).toContainText('本地分镜');
 });
-test('PWA 首次缓存后离线刷新仍可打开项目',async({page,context})=>{
+test('PWA 首次缓存后离线刷新仍可打开项目',async({page,context,browserName,request})=>{
   await page.addInitScript(()=>{try{localStorage.setItem('wb_sf_shisei_sync','0');}catch{/* Browser storage may be unavailable. */}});
   await openFreshApp(page);
   await createProject(page,'离线项目');
   await waitProjectPersisted(page,'离线项目');
   await expect.poll(()=>page.evaluate(()=>!!navigator.serviceWorker.controller),{timeout:15000}).toBe(true);
-  await context.setOffline(true);
+  // WebKit's offline emulation aborts navigation before its service worker can answer.
+  // Simulate a real unavailable origin instead, without skipping the offline cache path.
+  const webkit=browserName==='webkit';
+  if(webkit){
+    const r=await request.post('/__e2e/navigation-failure?enabled=1');expect(r.status()).toBe(204);
+  }else await context.setOffline(true);
   try{
     await page.reload();
     await expect(page.locator('.pcard',{hasText:'离线项目'})).toBeVisible();
-  }finally{await context.setOffline(false);}
+  }finally{
+    if(webkit)await request.post('/__e2e/navigation-failure?enabled=0');
+    else await context.setOffline(false);
+  }
 });
 
 test('图库 v4 元数据与图片分离，写删事务保持一致',async({page})=>{

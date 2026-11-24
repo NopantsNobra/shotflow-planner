@@ -940,7 +940,7 @@ function activeImageKeys(){
   return keys;
 }
 function trimImageCache(dropInactive=false,now=Date.now()){
-  const keep=activeImageKeys(),rows=[];
+  const keep=activeImageKeys(),rows=[],inactive=[];
   let size=0;
   for(const k of Object.keys(imgCache)){
     if(keep.has(k))continue;
@@ -950,10 +950,15 @@ function trimImageCache(dropInactive=false,now=Date.now()){
       rows.push({k,at,n:imgCache[k].length});size+=imgCache[k].length;
     }else if(dropInactive&&idb.ready()&&!storageDegraded&&!persistConflict){
       // Only evict confirmed disk-backed data. Failed imports/temporary data are retained.
-      const value=imgCache[k];
-      idb.get(k).then(stored=>{if(stored===value&&imgCache[k]===value&&!activeImageKeys().has(k))delete imgCache[k];}).catch(()=>{});
+      inactive.push({key:k,value:imgCache[k]});
     }
   }
+  // Image keys are immutable after creation; one key-only scan replaces N full image reads.
+  if(inactive.length)idb.keys().then(keys=>{
+    if(!idb.ready()||storageDegraded||persistConflict)return;
+    const stored=new Set(keys),active=activeImageKeys();
+    for(const {key,value} of inactive)if(stored.has(key)&&imgCache[key]===value&&!active.has(key))delete imgCache[key];
+  }).catch(()=>{});
   rows.sort((a,b)=>a.at-b.at);
   let count=rows.length;
   for(const row of rows){
@@ -1972,11 +1977,13 @@ async function jumpToFav(type,pid,id){
   const p=loadP().find(x=>x.id===pid); if(!p) return;
   const item=(p[type]||[]).find(x=>x.id===id);
   const date=type==='schedule'?((item&&item.date)||p.shootDate||todayStr()):null;
-  view=freshView({mode:'project',pid:pid,tab:FAV_TAB[type]||'shots'});
+  selRefs=[];view=freshView({mode:'project',pid:pid,tab:FAV_TAB[type]||'shots'});
+  trimImageCache(true);
   if(date) schedDate=date;
   const now=Date.now();
   view.focusRef={type:type,id:id,at:now,until:now+3000};
   await cacheProjectImages(p);
+  if(view.mode!=='project'||view.pid!==pid)return;
   renderProject();
   highlightFav(view.focusRef);
 }
@@ -2085,7 +2092,7 @@ function confirmNewProject(){
   saveP(a); openProject(a[a.length-1].id);
   toast('已创建「'+name+'」');
 }
-async function openProject(pid){ view=freshView({mode:'project',pid:pid,tab:'shots'}); schedDate=null; trimImageCache(true); await cacheProjectImages(cur()); if(view.mode==='project'&&view.pid===pid)renderProject(); }
+async function openProject(pid){ selRefs=[];view=freshView({mode:'project',pid:pid,tab:'shots'}); schedDate=null; trimImageCache(true); await cacheProjectImages(cur()); if(view.mode==='project'&&view.pid===pid)renderProject(); }
 
 /* ================= 项目页 ================= */
 const TABS=[['concept','概念','策划'],['mood','情绪板','策划'],['shots','分镜','执行'],['schedule','日程','执行'],['stuff','清单','执行'],['budget','预算','落地'],['notes','协作','落地']];
@@ -2951,7 +2958,7 @@ function refNav(delta){
   const p=cur(), s=p&&p.shots.find(x=>x.id===v.shotId); if(!s||!s.refIds||!s.refIds.length){ closeRefViewer(); return; }
   openRefViewer(v.shotId,(v.ri+delta+s.refIds.length)%s.refIds.length);
 }
-function closeRefViewer(){ view.refViewer=null; document.getElementById('refViewer').classList.remove('show'); }
+function closeRefViewer(){ view.refViewer=null; document.getElementById('refViewer').classList.remove('show');document.getElementById('refViewerBody').replaceChildren(); }
 async function addShotImg(e){
   const current=cur();
   if(current&&current.demo){
@@ -3864,12 +3871,14 @@ function delNote(id){ updateCur(p=>p.notes=p.notes.filter(n=>n.id!==id)); render
 /* ================= 拍摄日模式 ================= */
 let sdDate=null;
 function openShootDay(){ const p=cur(); sdDate=p.shootDate||todayStr(); renderShootDay(); document.getElementById('sdOverlay').classList.add('show'); }
-function closeShootDay(){ document.getElementById('sdOverlay').classList.remove('show'); renderProject(); }
+function closeShootDay(){ document.getElementById('sdOverlay').classList.remove('show');document.getElementById('sdBody').replaceChildren(); renderProject(); }
 function sdSetDate(d){ sdDate=d; renderShootDay(); }
 async function renderShootDay(){
   const p=cur(); if(!p) return;
   autoSyncDay(sdDate);                 // 切到某日期时补齐集合/收工并重排（demo 只读自动跳过）
+  const requestedDate=sdDate;
   await ensureShiseiRefs(p);
+  if(!document.getElementById('sdOverlay').classList.contains('show')||cur()?.id!==p.id||sdDate!==requestedDate)return;
   const shots=p.shots.filter(s=>s.date===sdDate);
   const items=dayItems(p,sdDate).sort((a,b)=>Number(!!a.deferred)-Number(!!b.deferred));
   const pendingMust=shots.filter(s=>s.mustShoot&&!s.done).length;
@@ -4069,6 +4078,7 @@ async function openDoc(kind){
 }
 function closeDoc(){
   document.getElementById('docModal').classList.remove('show');
+  document.getElementById('docBody').replaceChildren();
   const exBtn=document.getElementById('docExportBtn'); if(exBtn) exBtn.style.display='none';
 }
 
