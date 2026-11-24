@@ -558,10 +558,41 @@ function migrate(p){
 /* 内存缓存 + 异步持久化：UI 层仍同步读 loadP()，写通过 saveP() 合并后落 IndexedDB。
    P0 加固：串行化写入（避免并发事务竞态）+ 失败指数退避重试 + 页面隐藏强制 flush，
    消除「200ms 防抖窗口内关页/刷新导致末次写入丢失」与「落盘失败仅提示无重试」两个风险。 */
+/* 三方合并以项目为原子：不同时修改的项目安全合并；同项目分歧、删除/编辑冲突拒绝。
+   不用 updatedAt 判等，避免同毫秒写入及旧版客户端时间差。 */
+function mergeProjectChanges(base,local,remote){
+  const index=rows=>{
+    const m=new Map();
+    for(const p of rows||[]){if(!p||typeof p.id!=='string'||!p.id||m.has(p.id))return null;m.set(p.id,p);}
+    return m;
+  };
+  const b=index(base),l=index(local),r=index(remote);
+  if(!b||!l||!r)return null;
+  const ids=new Set([...r.keys(),...l.keys(),...b.keys()]),out=[];
+  const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+  for(const id of ids){
+    const before=b.get(id),mine=l.get(id),theirs=r.get(id);
+    const mc=!same(mine,before),rc=!same(theirs,before);
+    if(mc&&rc&&!same(mine,theirs))return null;
+    const value=mc?mine:theirs;if(value!==undefined)out.push(value);
+  }
+  return out;
+}
 let projectsCache=null, persistTimer=null;
 let persistChain=Promise.resolve();      // 串行化所有落盘，保证写入顺序与最终一致性
 let pendingPersist=false, persistFailed=false;
 let persistExpected=null, persistConflict=false, persistGeneration=0, persistClearing=false;
+let persistChannel=null;
+function notifyProjectChange(){if(persistChannel)try{persistChannel.postMessage({type:'projects-changed'});}catch(e){}}
+function showRemoteProjectChange(){
+  if(persistConflict||document.getElementById('remoteProjectTip'))return;
+  const tip=document.createElement('div');tip.id='remoteProjectTip';tip.className='backup-tip show';
+  tip.setAttribute('role','status');
+  const msg=document.createElement('span');msg.textContent='另一标签页已保存修改。不同项目可自动合并；刷新可查看最新内容。';
+  const btn=document.createElement('button');btn.className='btn btn-ghost btn-sm';btn.textContent='保存并刷新';
+  btn.onclick=async()=>{await flushPersist();if(!pendingPersist&&!persistConflict&&!persistFailed)location.reload();};
+  tip.append(msg,btn);document.body.prepend(tip);
+}
 /* 冲突不是暂时性 I/O 故障：保留当前页草稿，停止写入，避免重试覆盖另一标签页。 */
 function markPersistConflict(){
   persistConflict=true; persistFailed=true; pendingPersist=true;
@@ -595,9 +626,16 @@ function writeProjects(snapshot,attempt,generation){
     if(!storageDegraded){ storageDegraded=true; toast('存储不可用，本次修改不会持久保存，请及时导出备份',6000); }
     return Promise.resolve(false);
   }
-  return idb.putProjects(snapshot,persistExpected).then(ok=>{
-    if(ok===false){ markPersistConflict(); return false; }
-    persistExpected=JSON.stringify(snapshot);
+  return idb.mergeProjects(snapshot,persistExpected).then(merged=>{
+    if(merged===null){ markPersistConflict(); return false; }
+    persistExpected=JSON.stringify(merged);
+    // 保存期间可能继续编辑，不能用磁盘快照覆盖当前页面的新输入。
+    const current=mergeProjectChanges(snapshot,projectsCache,merged);
+    if(current===null){markPersistConflict();return false;}
+    // 保留当前对象身份，避免正在运行的异步渲染引用变成旧快照。
+    const live=new Map(projectsCache.map(p=>[p.id,p]));
+    projectsCache=current.map(p=>{const old=live.get(p.id);return old&&JSON.stringify(old)===JSON.stringify(p)?old:p;});
+    notifyProjectChange();
     pendingPersist=generation!==persistGeneration;
     if(persistFailed){ persistFailed=false; toast('数据已保存成功'); }
     return true;
@@ -616,8 +654,11 @@ function writeProjects(snapshot,attempt,generation){
 function flushPersist(){
   clearTimeout(persistTimer); persistTimer=null;
   if(!projectsCache||persistConflict||persistClearing) return persistChain;
-  const snapshot=JSON.parse(JSON.stringify(projectsCache)), generation=persistGeneration;
-  persistChain=persistChain.then(()=>writeProjects(snapshot,0,generation));
+  // 到达队首才获取快照与基线，防止前一次合并引入的远端项目被旧快照删除。
+  persistChain=persistChain.then(()=>{
+    if(!pendingPersist||persistConflict)return !persistConflict;
+    return writeProjects(JSON.parse(JSON.stringify(projectsCache)),0,persistGeneration);
+  });
   return persistChain;
 }
 function saveP(a){
@@ -630,6 +671,11 @@ function saveP(a){
 /* 页面隐藏/关闭兜底：visibilitychange→hidden 最可靠（页面仍存活，IDB 事务有宽限期完成）；
    pagehide 再兜一层。仅在有未落盘数据时触发，避免无谓写入。 */
 function bindPersistFlush(){
+  if(typeof BroadcastChannel!=='undefined'){
+    try{persistChannel=new BroadcastChannel('stillmark-projects-v1');persistChannel.onmessage=e=>{
+      if(e.data&&e.data.type==='projects-changed')showRemoteProjectChange();
+    };}catch(e){}
+  }
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState==='hidden'&&(persistTimer||pendingPersist)) flushPersist();
   });

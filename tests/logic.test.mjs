@@ -874,5 +874,12 @@ check('AI 禁止虚构场景引用和非图片 URL',vm.runInContext(`(()=>{
   try{aiValidateReferences('generateShots',{shots:[{sceneId:'fake'}]},{scenes:[]});return false;}catch(e){if(e.message!=='AI_REFERENCE_INVALID')return false;}
   try{aiContext('analyzeReference',{images:['https://example.com/a.png']});return false;}catch(e){return e.message==='AI_IMAGE_INVALID';}
 })()`,ctx));
+vm.runInContext(fn('mergeProjectChanges'),ctx);
+check('并发不同项目合并，同项目和删除编辑冲突拒绝',vm.runInContext(`(()=>{
+  const b=[{id:'a',name:'A'},{id:'b',name:'B'}],l=[{id:'a',name:'A2'},b[1]],r=[b[0],{id:'b',name:'B2'}];
+  const m=mergeProjectChanges(b,l,r);
+  return m.map(x=>x.name).join(',')==='A2,B2'&&mergeProjectChanges(b,l,[{id:'a',name:'A3'},b[1]])===null
+    &&mergeProjectChanges(b,l,[b[1]])===null&&mergeProjectChanges(b,l.concat({id:'c'}),r).length===3;
+})()`,ctx));
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

@@ -301,7 +301,7 @@ async function applyImport(){
     persistExpected=JSON.stringify(arr);
     Object.keys(images).forEach(k=>{imgCache[k]=images[k];});
     if(generation!==persistGeneration){markPersistConflict();return;}
-    projectsCache=arr; pendingPersist=false; persistFailed=false;
+    projectsCache=arr; pendingPersist=false; persistFailed=false; notifyProjectChange();
     if(assets){view=freshView({mode:'favorites'});renderFavorites();toast('已导入 '+imported.length+' 组素材');}
     else {view=freshView();renderBoard();toast('导入成功，共 '+arr.filter(p=>!p.assetPack).length+' 个策划案');}
   }catch(err){ toast('导入失败：'+String(err.message||err)+'，原项目未被覆盖',6000); }
@@ -325,7 +325,7 @@ function clearAll(){
       if(generation!==persistGeneration){ markPersistConflict(); return; }
       try{ localStorage.removeItem(LS_PROJ); localStorage.removeItem(LS_DEMO_V9); localStorage.removeItem(LS_SEED); }catch(e){}
       Object.keys(imgCache).forEach(k=>delete imgCache[k]);
-      projectsCache=[]; pendingPersist=false;
+      projectsCache=[]; pendingPersist=false; notifyProjectChange();
       view=freshView(); renderBoard(); toast('已清空');
     }catch(e){ toast('清空失败，原数据未被确认删除，请导出备份'); }
     finally{ persistClearing=false; }

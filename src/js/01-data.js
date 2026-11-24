@@ -221,6 +221,23 @@ const idb={db:null,
   /* 读比较与写入必须在同一个 readwrite 事务中：跨标签页串行，不能先在独立事务中检查。 */
   putProjects(a,expected){return idb.compareProjects(a,expected,false);},
   clearProjects(expected){return idb.compareProjects(null,expected,true);},
+  mergeProjects(a,expected){
+    if(!idb.db)return Promise.reject(new Error('IDB_UNAVAILABLE'));
+    return new Promise((res,rej)=>{
+      const tx=idb.db.transaction('projects','readwrite'),store=tx.objectStore('projects'),r=store.get('all');
+      let merged=null;
+      r.onsuccess=()=>{
+        const disk=r.result==null?null:r.result;
+        // 全库清空不能被旧页面的保存复活。
+        if(disk===null&&expected!=='null')return;
+        merged=mergeProjectChanges(JSON.parse(expected),a,disk);
+        if(merged!==null)store.put(merged,'all');
+      };
+      tx.oncomplete=()=>res(merged);
+      tx.onabort=()=>rej(tx.error||new Error('IDB_ABORT'));
+      tx.onerror=()=>rej(tx.error||new Error('IDB_WRITE'));
+    });
+  },
   importProjects(a,expected,images){return idb.compareProjects(a,expected,false,images);},
   compareProjects(a,expected,clear,images){
     if(!idb.db) return Promise.reject(new Error('IDB_UNAVAILABLE'));
