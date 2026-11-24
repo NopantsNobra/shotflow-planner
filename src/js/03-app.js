@@ -779,19 +779,43 @@ function copyShot(id){
 }
 /* v10.8.1：整体重排——对每个拍摄日各跑一次 applyDay（含自动跨日），把复制 / 手动调整后的
    slot 交给排程引擎统一派生。只在用户主动点击时执行，绝不自动触发，避免打断编辑。 */
+/* 仅比较排程相关数据，撤销不触碰情绪板、预算、概念等其他信息。 */
+function scheduleSnapshot(p){
+  return JSON.stringify({shots:p.shots||[],schedule:p.schedule||[],shootDates:p.shootDates||[],shootDate:p.shootDate||'',dayInit:p.dayInit||[]});
+}
+function scheduleChanges(before,after){
+  let moved=0,crossDay=0,nodes=0;
+  const oldShots=new Map((before.shots||[]).map(s=>[s.id,s]));
+  const oldNodes=new Map((before.schedule||[]).map(n=>[n.id,n]));
+  (after.shots||[]).forEach(s=>{const b=oldShots.get(s.id);if(b&&(s.slot!==b.slot||s.date!==b.date)){moved++;if(s.date!==b.date)crossDay++;}});
+  (after.schedule||[]).forEach(n=>{const b=oldNodes.get(n.id);if(!b||b.start!==n.start||b.end!==n.end)nodes++;});
+  const days=(after.shootDates||[]).filter(d=>!(before.shootDates||[]).includes(d));
+  return {moved,crossDay,nodes,days};
+}
 function rescheduleAllDays(){
-  const p=cur(); if(!p){ return; }
+  const p=cur(); if(!p) return;
   if(p.demo&&!view.allowDemoWrite){ toast('示例项目只读，请点「复制为我的项目」后再重排'); return; }
-  const dates=(Array.isArray(p.shootDates)?p.shootDates.slice():[]);
-  (p.shots||[]).forEach(s=>{ if(s.date&&dates.indexOf(s.date)<0) dates.push(s.date); });
-  if(!dates.length){ toast('还没有拍摄日，无需重排'); return; }
-  let plan=null;
-  updateCur(pp=>{
-    dates.forEach(d=>{ const one=applyDay(pp,d,null); if(one){ plan=plan||one; plan.shiftedCount=(plan.shiftedCount||0)+(one.shiftedCount||0); } });
+  const dates=Array.from(new Set([...(p.shootDates||[]),...(p.shots||[]).map(s=>s.date).filter(Boolean)])).sort();
+  if(!dates.length){toast('还没有拍摄日，无需重排');return;}
+  const before=scheduleSnapshot(p), draft=JSON.parse(JSON.stringify(p));
+  let overflow=false;
+  dates.forEach(d=>{const r=applyDay(draft,d,null,true);if(r&&(r.capHit||r.overflowHard||r.overflow))overflow=true;});
+  const after=scheduleSnapshot(draft), changes=scheduleChanges(p,draft), pid=p.id;
+  if(before===after){toast('排程已是最新');return;}
+  const desc='预计调整 '+changes.moved+' 条分镜、'+changes.nodes+' 个环节；跨日 '+changes.crossDay+' 条'
+    +(changes.days.length?'，新增拍摄日 '+changes.days.join('、'):'')+'。'
+    +(overflow?'仍存在超时，请核对冲突。':'')+'确认后才会修改计划，可立即撤销。';
+  askConfirm('确认整体重排？',desc,()=>{
+    const now=cur();
+    if(!now||now.id!==pid||scheduleSnapshot(now)!==before){toast('计划已变化，请重新预览');return;}
+    updateCur(pp=>Object.assign(pp,JSON.parse(after)));
+    renderProject();
+    toast('已重排 '+dates.length+' 个拍摄日',10000,{label:'撤销',fn:()=>{
+      const current=cur();
+      if(!current||current.id!==pid||scheduleSnapshot(current)!==after){toast('排程已再次变化，不能覆盖新修改');return;}
+      updateCur(pp=>Object.assign(pp,JSON.parse(before)));renderProject();toast('已撤销重排');
+    }});
   });
-  if(!plan) return;
-  toastResched(plan,dates.length);
-  renderProject();
 }
 function setShiseiCat(cat){ view.poseCat=(view.poseCat===cat)?null:String(cat||null); renderShots(cur()); }
 function removeSelRef(i){ if(i>=0&&i<selRefs.length){ selRefs.splice(i,1); renderShots(cur()); } }
@@ -1077,15 +1101,10 @@ function nodeTag(t){ const i=NODE_TYPES.indexOf(t); return '<span class="tag '+(
 function autoSyncDay(date){
   const p=cur(); if(!p||!date||p.demo) return;
   if(shootDatesOf(p).indexOf(date)<0) return;   // 未登记的日期（只是查看）不补默认项、不写盘
-  const plan=planDay(p,date,null);
   const inited=Array.isArray(p.dayInit)&&p.dayInit.indexOf(date)>=0;
-  const drift=(p.shots||[]).some(function(s){
-    if(s.date!==date) return false;
-    const r=plan.shots.filter(x=>x.id===s.id)[0];
-    return !!r&&s.slot!==fmtMin(r.start);
-  });
-  if(inited&&!drift&&dayDefaults(p,date).length===0) return;
-  updateCur(function(pp){ ensureDayDefaults(pp,date); rescheduleDay(pp,date,null); });
+  // 已初始化日期的查看操作不得覆盖用户的计划或刚撤销的排程。
+  if(inited) return;
+  updateCur(function(pp){ applyDay(pp,date,null); });
 }
 
 /* 重排结果统一提示；被顺延的节点记进 view.lastShift，时间轴上临时显示「已顺延」（30 秒或下次重排清除） */
@@ -1094,7 +1113,7 @@ function toastResched(plan,allDays){
   const ids=(plan.nodeShifts||[]).map(function(x){return x.id;});
   view.lastShift=ids.length?{date:plan.date,ids:ids,ts:Date.now()}:null;
   if(plan.capHit){ toast('排期已跨越 7 天，请检查分镜时长'); return; }
-  if(plan.overflow){ toast('排期超出当天 24:00，请缩短时长或改到另一天'); return; }
+  if(plan.overflow){ toast('当天排期超时，未能安排的分镜保留原日期；请调整或确认整体重排',6000); return; }
   const parts=[];
   parts.push((allDays?'已整体重排 '+allDays+' 个拍摄日':'已重排当天分镜')+'（'+plan.shiftedCount+' 条后移）');
   if(ids.length) parts.push(ids.length+' 项日程已顺延');
@@ -1339,14 +1358,14 @@ function planDay(p,date,anchorId,noRoll){
   const callR=callN?pinOf(callN):null;
   // ③ 位置节点（排除集合与收工）按 start 升序；anchor 之后的节点链式顺延，anchor 自身与前序节点不动
   const pos=nodesIn.filter(n=>n!==callN&&n!==wrapN)
-    .map(n=>{const r=pinOf(n);return {id:n.id,start:r.start,end:r.end,dur:r.end-r.start};})
+    .map(n=>{const r=pinOf(n);return {id:n.id,start:r.start,end:r.end,dur:r.end-r.start,locked:n.timeLocked===true};})
     .sort((a,b)=>a.start-b.start||a.end-b.end);
   const nodeShifts=[];
   const aIdx=anchorId?pos.findIndex(x=>x.id===anchorId):-1;
   if(aIdx>=0){
     let prevEnd=-1;
     pos.forEach((it,i)=>{
-      if(i>aIdx&&it.start<prevEnd){
+      if(i>aIdx&&it.start<prevEnd&&!it.locked){
         nodeShifts.push({id:it.id,from:it.start,to:prevEnd});
         it.end=prevEnd+it.dur; it.start=prevEnd;
       }
@@ -1503,7 +1522,19 @@ function rescheduleDay(p,date,anchorId){
 }
 
 /** 补默认节点 + 重排，一条写入口的标准收尾。anchorId 见 planDay。 */
-function applyDay(p,date,anchorId){ ensureDayDefaults(p,date); return rescheduleDay(p,date,anchorId); }
+function applyDay(p,date,anchorId,allowRoll){
+  ensureDayDefaults(p,date);
+  if(allowRoll===true) return rescheduleDay(p,date,anchorId);
+  const plan=planDay(p,date,anchorId);
+  if(!date) return plan;
+  // 自动重排仅在原日内工作。未排下的分镜留在原日期且清空 slot，交给摄影师决定。
+  const waiting=(plan.overflowShots||[]).map(x=>x.id);
+  plan.shots=plan.shots.filter(r=>{if(r.end>1440){waiting.push(r.id);return false;}return true;});
+  applyPlanWrite(p,date,plan);
+  (p.shots||[]).forEach(s=>{if(s.date===date&&waiting.includes(s.id)) s.slot='';});
+  if(waiting.length) plan.overflow=true;
+  return plan;
+}
 
 function dayItems(p,date){
   const out=[];
@@ -1586,13 +1617,14 @@ function timelineHtml(p,date){
         +'<button class="btn btn-primary btn-sm" onclick="saveNodeEdit('+jstr(it.id)+')">保存</button>'
         +'<button class="btn btn-ghost btn-sm" onclick="cancelInlineEdit()">取消</button></div>'
         +(autoN?'<div class="muted" style="margin-top:6px">收工时间由排程引擎接管（当天最晚结束 +15 分钟），此处只能改名称与备注。</div>':'')+'</div>'
-      :'<div class="tl-body"><div class="tl-title '+(it.done?'done-text':'')+'">'+nodeTag(it.type)+' '+esc(it.title)+autoPill+cflag+shiftedFlag(it.id)+'</div>'
+      :'<div class="tl-body"><div class="tl-title '+(it.done?'done-text':'')+'">'+nodeTag(it.type)+' '+esc(it.title)+autoPill+(it.timeLocked?'<span class="tag blue">时间锁定</span>':'')+cflag+shiftedFlag(it.id)+'</div>'
         +(it.note?'<div class="tl-note">'+esc(it.note)+'</div>':'')+'</div>';
     return '<div class="tl-item" data-fid="'+esc(it.id)+'"><div class="tl-time">'+esc(time)+'</div><div class="tl-dot" style="background:'+(it.type==='拍摄'?'var(--accent)':'#b4b2a9')+'"></div>'
       +body
       +'<button class="chk '+(it.done?'on':'')+'" onclick="toggleNode('+jstr(it.id)+')">'+(it.done?'✓':'')+'</button>'
       +editBtn('Node',it.id)
       +favBtn('schedule',it)
+      +(!it.auto?'<button class="rowbtn" title="锁定或解锁时间" onclick="toggleNodeLock('+jstr(it.id)+')">'+(it.timeLocked?'解锁':'锁时')+'</button>':'')
       +'<button class="iconbtn" onclick="delNode('+jstr(it.id)+')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
   }).join('');
   return h;
@@ -1627,6 +1659,7 @@ function addNode(){
   toastResched(plan); renderProject();
 }
 function toggleNode(id){ updateCur(p=>{const n=p.schedule.find(x=>x.id===id); if(n) n.done=!n.done;}); renderProject(); }
+function toggleNodeLock(id){updateCur(p=>{const n=p.schedule.find(x=>x.id===id);if(n&&!n.auto)n.timeLocked=!n.timeLocked;});renderProject();}
 /* 删除日程环节：同样提供 6 秒撤销（环节删除会牵动当天顺延链，误删代价高） */
 function delNode(id){
   updateCur(p=>{
@@ -1877,7 +1910,7 @@ function sdToggleNode(id){ updateCur(p=>{const n=p.schedule.find(x=>x.id===id); 
 /* v10：整日顺延 1 小时 —— 当天所有节点（含集合、收工）+60，随后整链重排 */
 function sdPostpone(){
   const p=cur(); if(!p) return;
-  const nodes=(p.schedule||[]).filter(n=>(n.date||sdDate)===sdDate&&n.start);
+  const nodes=(p.schedule||[]).filter(n=>(n.date||sdDate)===sdDate&&n.start&&!n.timeLocked&&n.auto!=='wrap');
   if(!nodes.length){ toast('当天只有分镜，请先在日程里插入环节再整体顺延'); return; }
   let overflow=false;
   nodes.forEach(n=>{
@@ -1888,7 +1921,7 @@ function sdPostpone(){
   let ok=false;
   updateCur(pp=>{
     (pp.schedule||[]).forEach(n=>{
-      if((n.date||sdDate)!==sdDate||!n.start) return;
+      if((n.date||sdDate)!==sdDate||!n.start||n.timeLocked||n.auto==='wrap') return;
       const st0=n.start, en0=n.end;
       n.start=addMin(st0,60);
       n.end=en0?addMin(en0,60):addMin(n.start,COLLECT_MIN);

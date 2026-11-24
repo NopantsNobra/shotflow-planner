@@ -550,6 +550,8 @@ test('v10.8.1 复制后不立即重排、点重新排程后一次性整体重排
   // 重新排程按钮存在
   await expect(page.locator('#reschedAllBtn')).toBeVisible();
   await page.locator('#reschedAllBtn').click();
+  await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  await page.locator('#confirmOk').click();
   // 整体重排后：两条按 ord 链派生，第一条 10:00，第二条 10:20（原时长 20 分钟）
   await expect.poll(async()=>{
     const s=await shotData(page);

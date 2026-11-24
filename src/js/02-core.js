@@ -438,7 +438,7 @@ function sanitizeProject(raw,mkId){
     done:bool(x.done),ord:(+x.ord>0)?Math.round(+x.ord):0,fav:bool(x.fav)}));
   p.schedule=objs(raw.schedule).map(x=>({id:nid(x.id),type:cut(x.type,20),title:cut(x.title,200),
     start:time(x.start),end:time(x.end),note:cut(x.note,1000),date:date(x.date),
-    done:bool(x.done),fav:bool(x.fav),auto:(x.auto==='call'||x.auto==='wrap')?x.auto:null}));
+    done:bool(x.done),fav:bool(x.fav),timeLocked:bool(x.timeLocked),auto:(x.auto==='call'||x.auto==='wrap')?x.auto:null}));
   p.items=objs(raw.items).map(x=>({id:nid(x.id),kind:x.kind==='器材'?'器材':'服装道具',
     name:cut(x.name,120),note:cut(x.note,500),done:bool(x.done),fav:bool(x.fav)}));
   p.budget=objs(raw.budget).map(x=>({id:nid(x.id),item:cut(x.item,120),cat:cut(x.cat,20),

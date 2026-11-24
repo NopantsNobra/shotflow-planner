@@ -821,5 +821,14 @@ check('P0 备份依赖重映射并拒绝缺失图片',vm.runInContext(`(()=>{
     &&rejected&&!validBackupImage('https://example.com/a.jpg')&&!validBackupImage('data:image/svg+xml,<svg/>')
     &&validBackupImage(slugPreview('样片',['#9a6a33','#f3e9da']));
 })()`,ctx));
+// P0 只在显式确认后跨日；锁定节点保留时间。
+check('P0 自动日内排程不改日期，溢出分镜待安排',vm.runInContext(`(()=>{
+  const d='2026-11-24',p={shots:[{id:'a',date:d,duration:600,ord:0},{id:'b',date:d,duration:400,ord:1}],schedule:[],dayInit:[d],shootDates:[d]};
+  const r=applyDay(p,d,null);return r.overflow&&p.shots[1].date===d&&p.shots[1].slot===''&&p.shootDates.length===1;
+})()`,ctx));
+check('P0 锁定节点不参与级联顺延',vm.runInContext(`(()=>{
+  const d='2026-11-24',p={shots:[],schedule:[{id:'a',date:d,start:'10:00',end:'12:00'},{id:'b',date:d,start:'11:00',end:'11:30',timeLocked:true}]};
+  const r=planDay(p,d,'a');return r.nodes.find(n=>n.id==='b').start===660&&!r.nodeShifts.some(n=>n.id==='b');
+})()`,ctx));
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);
