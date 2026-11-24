@@ -141,11 +141,13 @@ async function jumpToFav(type,pid,id){
   const p=loadP().find(x=>x.id===pid); if(!p) return;
   const item=(p[type]||[]).find(x=>x.id===id);
   const date=type==='schedule'?((item&&item.date)||p.shootDate||todayStr()):null;
-  view=freshView({mode:'project',pid:pid,tab:FAV_TAB[type]||'shots'});
+  selRefs=[];view=freshView({mode:'project',pid:pid,tab:FAV_TAB[type]||'shots'});
+  trimImageCache(true);
   if(date) schedDate=date;
   const now=Date.now();
   view.focusRef={type:type,id:id,at:now,until:now+3000};
   await cacheProjectImages(p);
+  if(view.mode!=='project'||view.pid!==pid)return;
   renderProject();
   highlightFav(view.focusRef);
 }
@@ -254,5 +256,5 @@ function confirmNewProject(){
   saveP(a); openProject(a[a.length-1].id);
   toast('已创建「'+name+'」');
 }
-async function openProject(pid){ view=freshView({mode:'project',pid:pid,tab:'shots'}); schedDate=null; trimImageCache(true); await cacheProjectImages(cur()); if(view.mode==='project'&&view.pid===pid)renderProject(); }
+async function openProject(pid){ selRefs=[];view=freshView({mode:'project',pid:pid,tab:'shots'}); schedDate=null; trimImageCache(true); await cacheProjectImages(cur()); if(view.mode==='project'&&view.pid===pid)renderProject(); }
 

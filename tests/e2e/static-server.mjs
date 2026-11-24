@@ -19,10 +19,17 @@ const MIME = {
   '.md': 'text/markdown; charset=utf-8'
 };
 
+let failNavigation=false;
 const server = http.createServer((req, res) => {
   let urlPath;
   try { urlPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname); }
   catch { res.writeHead(400); res.end('bad request'); return; }
+  // Test-only origin failure: the browser stays online while the navigation socket fails.
+  if(req.method==='POST'&&urlPath==='/__e2e/navigation-failure'){
+    failNavigation=new URL(req.url,'http://localhost').searchParams.get('enabled')==='1';
+    res.writeHead(204);res.end();return;
+  }
+  if(failNavigation&&(urlPath==='/'||urlPath==='/shotflow.html')){res.destroy();return;}
   const rel = urlPath === '/' ? 'shotflow.html' : urlPath.replace(/^\/+/, '');
   const file = path.resolve(ROOT, rel);
   if (!file.startsWith(ROOT + path.sep) && file !== ROOT) { res.writeHead(403); res.end('forbidden'); return; }

@@ -446,7 +446,7 @@ function refNav(delta){
   const p=cur(), s=p&&p.shots.find(x=>x.id===v.shotId); if(!s||!s.refIds||!s.refIds.length){ closeRefViewer(); return; }
   openRefViewer(v.shotId,(v.ri+delta+s.refIds.length)%s.refIds.length);
 }
-function closeRefViewer(){ view.refViewer=null; document.getElementById('refViewer').classList.remove('show'); }
+function closeRefViewer(){ view.refViewer=null; document.getElementById('refViewer').classList.remove('show');document.getElementById('refViewerBody').replaceChildren(); }
 async function addShotImg(e){
   const current=cur();
   if(current&&current.demo){

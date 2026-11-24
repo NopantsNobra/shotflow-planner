@@ -339,7 +339,7 @@ function activeImageKeys(){
   return keys;
 }
 function trimImageCache(dropInactive=false,now=Date.now()){
-  const keep=activeImageKeys(),rows=[];
+  const keep=activeImageKeys(),rows=[],inactive=[];
   let size=0;
   for(const k of Object.keys(imgCache)){
     if(keep.has(k))continue;
@@ -349,10 +349,15 @@ function trimImageCache(dropInactive=false,now=Date.now()){
       rows.push({k,at,n:imgCache[k].length});size+=imgCache[k].length;
     }else if(dropInactive&&idb.ready()&&!storageDegraded&&!persistConflict){
       // Only evict confirmed disk-backed data. Failed imports/temporary data are retained.
-      const value=imgCache[k];
-      idb.get(k).then(stored=>{if(stored===value&&imgCache[k]===value&&!activeImageKeys().has(k))delete imgCache[k];}).catch(()=>{});
+      inactive.push({key:k,value:imgCache[k]});
     }
   }
+  // Image keys are immutable after creation; one key-only scan replaces N full image reads.
+  if(inactive.length)idb.keys().then(keys=>{
+    if(!idb.ready()||storageDegraded||persistConflict)return;
+    const stored=new Set(keys),active=activeImageKeys();
+    for(const {key,value} of inactive)if(stored.has(key)&&imgCache[key]===value&&!active.has(key))delete imgCache[key];
+  }).catch(()=>{});
   rows.sort((a,b)=>a.at-b.at);
   let count=rows.length;
   for(const row of rows){

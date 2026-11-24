@@ -1,12 +1,14 @@
 /* ================= 拍摄日模式 ================= */
 let sdDate=null;
 function openShootDay(){ const p=cur(); sdDate=p.shootDate||todayStr(); renderShootDay(); document.getElementById('sdOverlay').classList.add('show'); }
-function closeShootDay(){ document.getElementById('sdOverlay').classList.remove('show'); renderProject(); }
+function closeShootDay(){ document.getElementById('sdOverlay').classList.remove('show');document.getElementById('sdBody').replaceChildren(); renderProject(); }
 function sdSetDate(d){ sdDate=d; renderShootDay(); }
 async function renderShootDay(){
   const p=cur(); if(!p) return;
   autoSyncDay(sdDate);                 // 切到某日期时补齐集合/收工并重排（demo 只读自动跳过）
+  const requestedDate=sdDate;
   await ensureShiseiRefs(p);
+  if(!document.getElementById('sdOverlay').classList.contains('show')||cur()?.id!==p.id||sdDate!==requestedDate)return;
   const shots=p.shots.filter(s=>s.date===sdDate);
   const items=dayItems(p,sdDate).sort((a,b)=>Number(!!a.deferred)-Number(!!b.deferred));
   const pendingMust=shots.filter(s=>s.mustShoot&&!s.done).length;
