@@ -182,6 +182,28 @@ async function imagesFor(ps){
   if(missing.length) throw new Error('缺失 '+missing.length+' 张引用图片');
   return out;
 }
+async function exportSelectedAssets(){
+  try{
+    const selected=[...document.querySelectorAll('.asset-select:checked')].map(el=>JSON.parse(el.dataset.entry));
+    const assets=buildAssetProjects(loadP(),selected);
+    if(!assets.length){toast('请先选择要导出的收藏');return;}
+    const images=await imagesFor(assets),poseMap=new Map();
+    const poseKey=async key=>{
+      if(!String(key||'').startsWith('shisei:'))return key;
+      if(poseMap.has(key))return poseMap.get(key);
+      const data=await ensureShiseiImage(key);
+      if(!validBackupImage(data))throw Error('姿势参考未缓存，请先加载后重试');
+      const next=uid();images[next]=data;poseMap.set(key,next);return next;
+    };
+    for(const p of assets){
+      for(const r of p.refs)r.key=await poseKey(r.key);
+      for(const m of p.mood)if(m.type==='image')m.content=await poseKey(m.content);
+      for(const s of p.shots)s.refIds=await Promise.all((s.refIds||[]).map(poseKey));
+    }
+    downloadData({app:'stillmark',version:4,type:'assets',assetVersion:1,exportedAt:new Date().toISOString(),assets,images},'Stillmark_素材包_'+todayStr()+'.json');
+    toast('素材包已导出 · '+selected.length+' 条');
+  }catch(e){toast('素材包未完成：'+String(e.message||e),6000);}
+}
 async function exportJSON(){
   const projects=JSON.parse(JSON.stringify(loadP()));
   try{
@@ -236,12 +258,16 @@ function importJSON(e){
   rd.onload=ev=>{
     let d;
     try{ d=JSON.parse(ev.target.result); }catch(err){ toast('文件格式不正确，导入失败'); e.target.value=''; return; }
-    const list=d&&typeof d==='object'?(d.project?[d.project]:d.projects):null;
+    const isAssets=d&&d.type==='assets';
+    const list=d&&typeof d==='object'?(isAssets?d.assets:d.project?[d.project]:d.projects):null;
+    if(isAssets&&(d.app!=='stillmark'||d.assetVersion!==1)){toast('不支持的素材包版本');return;}
     if(!Array.isArray(list)||!list.length||list.some(p=>!p||typeof p!=='object'||Array.isArray(p))){ toast('文件中没有合法的策划案'); e.target.value=''; return; }
     if(d.version!=null&&(!Number.isInteger(d.version)||d.version<1||d.version>4)){ toast('不支持的备份版本'); e.target.value=''; return; }
     pendingImport=d;
     const names=list.slice(0,3).map(p=>p.name||'未命名').join('、')+(list.length>3?' 等':'');
-    if(d.type==='project'||d.project){
+    if(isAssets){
+      askConfirm('导入素材包？','将新增 '+list.length+' 组收藏素材，保留原有项目与收藏。',applyImport);
+    } else if(d.type==='project'||d.project){
       askConfirm('导入为新的策划案？','将新增 1 个策划案「'+(list[0].name||'未命名')+'」，不会覆盖现有数据。',applyImport);
     } else {
       askConfirm('导入将覆盖全部数据？','文件含 '+list.length+' 个策划案：'+names+'。此操作会替换当前全部数据，不可撤销；建议先导出备份。',applyImport);
@@ -255,12 +281,13 @@ async function applyImport(){
   let locked=false;
   const app=document.getElementById('app');
   try{
-    const single=d.type==='project'||!!d.project;
-    const raw=single?[d.project]:d.projects;
+    const assets=d.type==='assets';
+    const single=!assets&&(d.type==='project'||!!d.project);
+    const raw=assets?d.assets:single?[d.project]:d.projects;
     if(!Array.isArray(raw)||!raw.length) throw new Error('文件中没有合法项目');
     const imported=raw.map(p=>sanitizeProject(p));
     if(imported.some(p=>!p)) throw new Error('文件中有非法项目');
-    imported.forEach(p=>{migrate(p);p.v3=1;});
+    imported.forEach(p=>{migrate(p);p.v3=1;if(assets){p.assetPack=true;p.demo=false;}});
     if(single) imported[0].name+='（导入）';
     const images=remapBackupImages(imported,d.images,uid);
     if(app) app.inert=true;
@@ -268,14 +295,15 @@ async function applyImport(){
     if(persistConflict||persistFailed) throw new Error('现有数据尚未保存');
     persistClearing=true; locked=true;
     const generation=persistGeneration;
-    const arr=single?JSON.parse(JSON.stringify(loadP())).concat(imported):imported;
+    const arr=single||assets?JSON.parse(JSON.stringify(loadP())).concat(imported):imported;
     const ok=await idb.importProjects(arr,persistExpected,images);
     if(!ok){markPersistConflict();return;}
     persistExpected=JSON.stringify(arr);
     Object.keys(images).forEach(k=>{imgCache[k]=images[k];});
     if(generation!==persistGeneration){markPersistConflict();return;}
     projectsCache=arr; pendingPersist=false; persistFailed=false;
-    view=freshView(); renderBoard(); toast('导入成功，共 '+arr.length+' 个策划案');
+    if(assets){view=freshView({mode:'favorites'});renderFavorites();toast('已导入 '+imported.length+' 组素材');}
+    else {view=freshView();renderBoard();toast('导入成功，共 '+arr.filter(p=>!p.assetPack).length+' 个策划案');}
   }catch(err){ toast('导入失败：'+String(err.message||err)+'，原项目未被覆盖',6000); }
   finally{ if(locked) persistClearing=false; if(app) app.inert=false; }
 }

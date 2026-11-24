@@ -232,6 +232,47 @@ function collectFavorites(projects){
   });
   return out;
 }
+/* 轻量资产包只复制选中收藏及其直接依赖，不复制客户、预算之外的项目背景等字段。 */
+function buildAssetProjects(projects,selected){
+  const picks=Array.isArray(selected)?selected:[],result=[];
+  const copy=x=>JSON.parse(JSON.stringify(x));
+  for(const p of projects||[]){
+    const own=picks.filter(e=>e.pid===p.id);
+    if(!own.length)continue;
+    const pack={id:p.id,name:p.name,assetPack:true,demo:false,v3:1,status:'灵感期',refs:[],concept:{},tagVocab:[],shootDates:[],dayInit:[]};
+    for(const type of FAV_KINDS) pack[type]=(p[type]||[]).filter(x=>isFav(x)&&own.some(e=>e.type===type&&e.id===x.id)).map(copy);
+    if(!FAV_KINDS.some(k=>pack[k].length))continue;
+    const scenes=new Set(pack.shots.map(x=>x.sceneId).filter(Boolean));
+    for(const scene of p.scenes||[])if(scenes.has(scene.id)&&!pack.scenes.some(x=>x.id===scene.id))pack.scenes.push({...copy(scene),fav:false,done:false});
+    const keys=new Set([...pack.mood.filter(x=>x.type==='image').map(x=>x.content),...pack.shots.flatMap(x=>x.refIds||[])].filter(Boolean));
+    pack.refs=[...keys].map(k=>copy((p.refs||[]).find(r=>r.key===k)||{id:k,key:k,name:'参考图',tags:[],fav:false}));
+    pack.tagVocab=[...new Set([...pack.mood.flatMap(x=>x.tags||[]),...pack.refs.flatMap(x=>x.tags||[])])];
+    pack.shootDates=[...new Set([...pack.shots,...pack.schedule].map(x=>x.date).filter(Boolean))].sort();pack.shootDate=pack.shootDates[0]||'';
+    result.push(pack);
+  }
+  return result;
+}
+function copyAssetDependencies(target,source,type,clone,mkId){
+  if(type==='shots'&&clone.sceneId&&target.id!==source.id){
+    const scene=(source.scenes||[]).find(x=>x.id===clone.sceneId);
+    if(scene){
+      target.scenes=target.scenes||[];
+      let dest=target.scenes.find(x=>x.name===scene.name);
+      if(!dest){dest={...JSON.parse(JSON.stringify(scene)),id:mkId(),fav:false,done:false};target.scenes.push(dest);}
+      clone.sceneId=dest.id;
+    }else clone.sceneId='';
+  }
+  const keys=type==='shots'?(clone.refIds||[]):type==='mood'&&clone.type==='image'?[clone.content]:[];
+  target.refs=target.refs||[];
+  for(const key of keys.filter(Boolean))if(!target.refs.some(r=>r.key===key)){
+    const ref=(source.refs||[]).find(r=>r.key===key);
+    target.refs.push({...JSON.parse(JSON.stringify(ref||{key,name:'参考图',tags:[]})),id:mkId(),fav:false});
+  }
+  if(type==='shots'){clone.skipped=false;clone.deferred=false;}
+  if('paid' in clone)clone.paid=false;
+  if(type==='schedule')clone.auto=null;
+  return clone;
+}
 function backupItemCount(projects){
   return (Array.isArray(projects)?projects:[]).reduce((n,p)=>{
     if(!p||p.demo===true) return n;
@@ -437,7 +478,7 @@ function sanitizeProject(raw,mkId){
   p.shootDates=dates(raw.shootDates); p.dayInit=dates(raw.dayInit);
   p.createdAt=(+raw.createdAt>0)?+raw.createdAt:Date.now();
   p.updatedAt=(+raw.updatedAt>0)?+raw.updatedAt:Date.now();
-  p.demo=(raw.demo===true);
+  p.demo=(raw.demo===true); p.assetPack=raw.assetPack===true;
   const c=(raw.concept&&typeof raw.concept==='object')?raw.concept:{};
   p.concept={theme:cut(c.theme,200),model:cut(c.model,200),style:cut(c.style,200),
     audience:cut(c.audience,200),usage:cut(c.usage,200),note:cut(c.note,4000)};

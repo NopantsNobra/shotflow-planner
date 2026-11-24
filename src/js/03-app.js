@@ -40,7 +40,7 @@ function shootCountdown(p,t){
   return {diff:diff,text:diff>0?' · '+diff+' 天后':(diff===0?' · 今天':'')};
 }
 function renderBoard(){
-  const all=loadP();
+  const all=loadP().filter(p=>!p.assetPack);
   const q=(view.boardQuery||'').trim().toLowerCase();
   const ps=all.filter(p=>matchBoardScope(p,view.boardScope)&&searchHit(p,q));
   let h='<header class="masthead"><div class="brand"><span class="eyebrow">Stillmark · 摄影策划</span><h1>瞬刻摄影工作台</h1><span class="tagline">定格一瞬，刻下永恒。</span></div><div class="sp"></div>'
@@ -80,7 +80,7 @@ function renderBoard(){
 /* 搜索 / 筛选变化时只重绘 #boardGrid，头部、指标条与搜索框保持不动 */
 function refreshBoardGrid(){
   const host=document.getElementById('boardGrid'); if(!host) return;
-  const all=loadP();
+  const all=loadP().filter(p=>!p.assetPack);
   const q=(view.boardQuery||'').trim().toLowerCase();
   const ps=all.filter(p=>matchBoardScope(p,view.boardScope)&&searchHit(p,q));
   host.innerHTML=boardGridHtml(all,ps,todayStr());
@@ -95,22 +95,28 @@ function renderFavorites(){
   let h='<header class="masthead"><div class="brand"><span class="eyebrow">Stillmark · 收藏夹</span><h1>★ 已收藏</h1>'
     +'<span class="tagline">按项目与模块分组 · 共 '+entries.length+' 条</span></div><div class="sp"></div>'
     +'<div class="mast-actions"><button class="btn btn-ghost btn-sm" onclick="view=freshView();renderBoard()">返回看板</button>'
-    +favoritesButton()+'</div></header>';
+    +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'assetImportFile\').click()">导入素材包</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="toggleAllAssets()">全选 / 取消</button>'
+    +'<button class="btn btn-primary btn-sm" onclick="exportSelectedAssets()">导出所选素材</button>'
+    +'<input type="file" id="assetImportFile" accept=".json" hidden onchange="importJSON(event)"></div></header>'
+    +'<p class="muted">选中收藏即可打包，包含引用图片和场景。素材包导入后仅出现在收藏夹，不占项目看板；请勿分享含客户隐私或无授权的素材。</p>';
   if(!entries.length){
     h+='<div class="card" style="text-align:center;padding:56px 24px"><p class="muted">还没有收藏。在情绪板、分镜、日程、清单、预算或协作条目上点 ☆ 即可收藏。</p></div>';
   } else {
     all.forEach(p=>{
       const list=entries.filter(e=>e.pid===p.id); if(!list.length) return;
-      h+='<div class="card"><h2>'+demoBadge(p)+esc(p.name)+' <span class="muted" style="font-weight:400">· '+list.length+' 条</span></h2>';
+      h+='<div class="card"><h2>'+demoBadge(p)+esc(p.name)+' <span class="muted" style="font-weight:400">· '+list.length+' 条'+(p.assetPack?' · 导入素材包':'')+'</span></h2>'
+        +(p.assetPack?'<button class="btn btn-ghost btn-sm" onclick="removeAssetPack('+jstr(p.id)+')">移除素材包</button>':'');
       FAV_KINDS.forEach(type=>{
         const rows=list.filter(e=>e.type===type); if(!rows.length) return;
         h+='<div style="margin-bottom:12px"><div class="muted" style="margin-bottom:4px">'+FAV_ICON[type]+' '+FAV_META[type]+'</div>';
         rows.forEach(e=>{
           h+='<div class="row" style="padding:7px 2px;border-bottom:1px dashed var(--line)">'
+            +'<input type="checkbox" class="asset-select" aria-label="选择收藏" data-entry="'+esc(JSON.stringify({pid:e.pid,type:e.type,id:e.id}))+'">'
             +'<span>'+FAV_ICON[e.type]+'</span>'
             +'<span class="grow">'+esc(e.summary||'（无摘要）')+'</span>'
             +'<span class="muted">'+esc(e.module)+'</span>'
-            +'<button class="btn btn-ghost btn-sm" onclick="jumpToFav('+jstr(e.type)+','+jstr(e.pid)+','+jstr(e.id)+')">定位 ›</button></div>';
+            +(p.assetPack?'':'<button class="btn btn-ghost btn-sm" onclick="jumpToFav('+jstr(e.type)+','+jstr(e.pid)+','+jstr(e.id)+')">定位 ›</button>')+'</div>';
         });
         h+='</div>';
       });
@@ -118,6 +124,16 @@ function renderFavorites(){
     });
   }
   document.getElementById('app').innerHTML=h;
+}
+function toggleAllAssets(){
+  const boxes=[...document.querySelectorAll('.asset-select')],select=boxes.some(x=>!x.checked);
+  boxes.forEach(x=>{x.checked=select;});
+}
+function removeAssetPack(pid){
+  const p=loadP().find(x=>x.id===pid&&x.assetPack);if(!p)return;
+  askConfirm('移除素材包？','只移除收藏包本身，不影响已经引用到项目中的条目及图片。',()=>{
+    saveP(loadP().filter(x=>x.id!==pid||!x.assetPack));renderFavorites();
+  });
 }
 async function jumpToFav(type,pid,id){
   const p=loadP().find(x=>x.id===pid); if(!p) return;
@@ -203,7 +219,8 @@ function referenceFav(type,pid,itemId){
     const clone=shiftTimeFields(JSON.parse(JSON.stringify(it)),COPY_SHIFT_MIN);
     clone.id=uid(); clone.fav=false;
     if('done' in clone) clone.done=false;
-    if(type==='shots'&&!('ord' in clone)) clone.ord=pp.shots.length;
+    copyAssetDependencies(pp,src,type,clone,uid);
+    if(type==='shots') clone.ord=pp.shots.length;
     if((type==='shots'||type==='schedule')&&clone.date) addShootDate(pp,clone.date);
     pp[type].push(clone);
     added=true;

@@ -840,5 +840,16 @@ check('P1 日照计算指定时区且时分有效',vm.runInContext(`(()=>{
     &&sunTimes('2026-06-21',91,0,'UTC')===null&&sunTimes('2026-02-30',30,0,'UTC')===null;
 })()`,ctx));
 check('策划预设只筛选显示字段，自定义始终保留分镜',vm.runInContext("workspaceModules('casual').includes('shots')&&!workspaceModules('casual').includes('budget')&&workspaceModules('professional').includes('budget')&&workspaceModules('custom',['notes','unknown']).join(',')==='shots,notes'",ctx));
+vm.runInContext(fn('buildAssetProjects')+'\n'+fn('copyAssetDependencies'),ctx);
+check('素材包仅选中收藏并包含直接依赖、排除客户信息',vm.runInContext(`(()=>{
+  const p={id:'p',name:'A',client:'private',shots:[{id:'s',fav:true,sceneId:'c',refIds:['img']}],scenes:[{id:'c',name:'场景'},{id:'other'}],refs:[{key:'img'},{key:'unused'}]};
+  const a=buildAssetProjects([p],[{pid:'p',type:'shots',id:'s'}])[0];
+  return a.assetPack&&!a.client&&a.shots.length===1&&a.scenes.length===1&&a.refs.length===1&&a.refs[0].key==='img';
+})()`,ctx));
+check('跨项目引用素材补全场景与参考图、清理完成态',vm.runInContext(`(()=>{
+  const p={id:'b',scenes:[],refs:[]},s={id:'a',scenes:[{id:'c',name:'场景'}],refs:[{key:'img'}]},c={sceneId:'c',refIds:['img'],deferred:true,skipped:true};
+  let i=0;copyAssetDependencies(p,s,'shots',c,()=>String(++i));
+  return c.sceneId===p.scenes[0].id&&p.refs[0].key==='img'&&!c.deferred&&!c.skipped;
+})()`,ctx));
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);
