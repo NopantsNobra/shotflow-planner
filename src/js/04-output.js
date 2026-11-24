@@ -591,7 +591,7 @@ async function runShiseiSync(force){
       const results=await Promise.allSettled(batch.items.map(item=>{
         const entry=remoteByKey.get(item.key)||shiseiItemEntry(item.key,remoteByKey);
         return entry?fetchShiseiImage(entry).then(data=>{
-          const rec={key:item.key,pid:entry.pid,cat:entry.cat,view:entry.view,zh:entry.zh,en:entry.en,ja:entry.ja,data,syncedAt:Date.now()};
+          const rec={key:item.key,pid:entry.pid,cat:entry.cat,view:entry.view,zh:entry.zh,en:entry.en,ja:entry.ja,url:entry.url,data,syncedAt:Date.now()};
           return idb.putShiseiImg(item.key,rec).then(()=>({ok:true,key:item.key,data}));
         }):Promise.reject(new Error('CATALOG_ENTRY_MISSING'));
       }));
@@ -599,7 +599,7 @@ async function runShiseiSync(force){
       for(let i=0;i<results.length;i++){
         const item=batch.items[i], out=results[i];
         if(out.status==='fulfilled'&&out.value&&out.value.data){
-          imgCache[item.key]=out.value.data;
+          // 同步只落盘；缩略图进入可见页时才读取。
         } else {
           failed++;
           const reason=out.reason;

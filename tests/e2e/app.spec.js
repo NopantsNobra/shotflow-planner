@@ -32,7 +32,7 @@ async function createProject(page, name) {
 async function waitProjectPersisted(page, name) {
   await expect.poll(async () => page.evaluate(async (target) => {
     const arr = await new Promise((res) => {
-      const req = indexedDB.open('shotflow', 3);
+      const req = indexedDB.open('shotflow');
       req.onsuccess = () => {
         const db = req.result;
         const g = db.transaction('projects').objectStore('projects').get('all');
@@ -373,7 +373,7 @@ async function setupV108Project(page){
       todos:[{id:'todo-a',title:'收藏的待办',owner:'',due:'',done:false,fav:true}],
       tagVocab:[],shootDates:[date],dayInit:[date]};
     await new Promise((res,rej)=>{
-      const r=indexedDB.open('shotflow',3);
+      const r=indexedDB.open('shotflow');
       r.onsuccess=()=>{const d=r.result,tx=d.transaction('projects','readwrite');tx.objectStore('projects').put([p],'all');tx.oncomplete=()=>{d.close();res();};tx.onerror=()=>rej(tx.error);};
       r.onerror=()=>rej(r.error);
     });
@@ -385,7 +385,7 @@ async function setupV108Project(page){
   await expect(page.locator('#s_name')).toBeVisible();
 }
 const shotData=async(page)=>page.evaluate(async()=>{
-  const arr=await new Promise(res=>{const r=indexedDB.open('shotflow',3);r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
+  const arr=await new Promise(res=>{const r=indexedDB.open('shotflow');r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
   const p=arr.find(x=>x.id==='v108-test'); return p?p.shots:[];
 });
 
@@ -442,11 +442,11 @@ test('v10.8.0 引用收藏：跨来源引用、时间 +10、可连续引用', as
   await page.locator('#favPickerBody button', { hasText:'引用收藏' }).click();
   await expect(page.locator('#favPickerModal')).toHaveClass(/show/);  // 浮窗保持打开可连续引用
   await expect.poll(async()=>page.evaluate(async()=>{
-    const arr=await new Promise(res=>{const r=indexedDB.open('shotflow',3);r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
+    const arr=await new Promise(res=>{const r=indexedDB.open('shotflow');r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
     const p=arr.find(x=>x.id==='v108-test'); return p?p.todos.length:0;
   }), {timeout:5000}).toBe(2);
   const todos=await page.evaluate(async()=>{
-    const arr=await new Promise(res=>{const r=indexedDB.open('shotflow',3);r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
+    const arr=await new Promise(res=>{const r=indexedDB.open('shotflow');r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
     const p=arr.find(x=>x.id==='v108-test'); return p?p.todos:[];
   });
   expect(todos).toHaveLength(2);
@@ -486,7 +486,7 @@ test('v10.8.0 引用时间顺延：带时分字段的收藏条目 +10 分钟', a
     const dst={id:'v108-dst',v3:1,name:'目标案',client:'',studio:'',status:'策划中',shootDate:date,
       location:'',lat:'',lng:'',createdAt:Date.now(),updatedAt:Date.now(),demo:false,
       concept:{},mood:[],shots:[],schedule:[],scenes:[],items:[],budget:[],notes:[],todos:[],tagVocab:[],shootDates:[date],dayInit:[date]};
-    await new Promise((res,rej)=>{const r=indexedDB.open('shotflow',3);r.onsuccess=()=>{const d=r.result,tx=d.transaction('projects','readwrite');tx.objectStore('projects').put([src,dst],'all');tx.oncomplete=()=>{d.close();res();};tx.onerror=()=>rej(tx.error);};r.onerror=()=>rej(r.error);});
+    await new Promise((res,rej)=>{const r=indexedDB.open('shotflow');r.onsuccess=()=>{const d=r.result,tx=d.transaction('projects','readwrite');tx.objectStore('projects').put([src,dst],'all');tx.oncomplete=()=>{d.close();res();};tx.onerror=()=>rej(tx.error);};r.onerror=()=>rej(r.error);});
     localStorage.setItem('wb_sf_seeded','1'); localStorage.setItem('wb_sf_demo_v9','1');
   });
   await page.reload();
@@ -496,11 +496,11 @@ test('v10.8.0 引用时间顺延：带时分字段的收藏条目 +10 分钟', a
   await expect(page.locator('#favPickerBody')).toContainText('被收藏分镜');
   await page.locator('#favPickerBody button', { hasText:'引用收藏' }).click();
   await expect.poll(async()=>page.evaluate(async()=>{
-    const arr=await new Promise(res=>{const r=indexedDB.open('shotflow',3);r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
+    const arr=await new Promise(res=>{const r=indexedDB.open('shotflow');r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
     const p=arr.find(x=>x.id==='v108-dst'); return p?p.shots.length:0;
   }), {timeout:5000}).toBe(1);
   const shots=await page.evaluate(async()=>{
-    const arr=await new Promise(res=>{const r=indexedDB.open('shotflow',3);r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
+    const arr=await new Promise(res=>{const r=indexedDB.open('shotflow');r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
     const p=arr.find(x=>x.id==='v108-dst'); return p?p.shots:[];
   });
   expect(shots).toHaveLength(1);
@@ -790,4 +790,45 @@ test('PWA 首次缓存后离线刷新仍可打开项目',async({page,context})=>
     await page.reload();
     await expect(page.locator('.pcard',{hasText:'离线项目'})).toBeVisible();
   }finally{await context.setOffline(false);}
+});
+
+test('图库 v4 元数据与图片分离，写删事务保持一致',async({page})=>{
+  await openFreshApp(page);
+  const result=await page.evaluate(async()=>{
+    const key='shisei:split-test',data='data:image/png;base64,AAAA';
+    await idb.putShiseiImg(key,{cat:'测试',url:'images/test.png',data});
+    const read=store=>new Promise((res,rej)=>{
+      const r=idb.db.transaction(store).objectStore(store).get(key);
+      r.onsuccess=()=>res(r.result);r.onerror=rej;
+    });
+    const metadata=await read('shisei_index'),image=await read('shisei_images');
+    const count=(await idb.shiseiSnapshot()).rows.filter(r=>r.key===key).length;
+    await idb.delShiseiImg(key);
+    return idb.db.version===4&&metadata.bytes===data.length&&!('data' in metadata)&&image===data&&count===1&&!(await read('shisei_index'))&&!(await read('shisei_images'));
+  });
+  expect(result).toBe(true);
+});
+test('v3 旧图库升级保留图片、项目及同步记录',async({page})=>{
+  await page.goto('/shotflow-manifest.json');
+  await page.evaluate(async()=>{
+    localStorage.setItem('wb_sf_shisei_sync','0');
+    await new Promise((res,rej)=>{
+      const r=indexedDB.open('shotflow',3);
+      r.onupgradeneeded=()=>{
+        const db=r.result;
+        db.createObjectStore('projects').put([{id:'legacy-p',name:'迁移项目',v3:1}],'all');
+        db.createObjectStore('images').put('legacy-own','own');
+        db.createObjectStore('shisei_meta').put({cursor:7},'legacy-meta');
+        db.createObjectStore('shisei_images').put({cat:'旧图库',data:'data:image/png;base64,AAAA'},'shisei:legacy');
+      };
+      r.onsuccess=()=>{r.result.close();res();};r.onerror=rej;
+    });
+  });
+  await page.goto('/shotflow.html');
+  await expect(page.locator('.masthead h1')).toHaveText('瞬刻摄影工作台');
+  const result=await page.evaluate(async()=>{
+    const rec=await idb.getShiseiImg('shisei:legacy'),rows=await idb.shiseiIndex();
+    return !!(idb.db.version===4&&rec.data==='data:image/png;base64,AAAA'&&rows.some(r=>r.key==='shisei:legacy'&&r.cat==='旧图库')&&(await idb.getProjects()).some(p=>p.id==='legacy-p')&&(await idb.get('own'))==='legacy-own'&&(await idb.getShiseiMeta('legacy-meta')).cursor===7);
+  });
+  expect(result).toBe(true);
 });

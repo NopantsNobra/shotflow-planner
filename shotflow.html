@@ -791,22 +791,41 @@ function pickCity(v){
   toast('已切换为 '+c[0]+'，日照按当地坐标计算');
 }
 
-/* IndexedDB：图片 + 项目主存储 + 姿势图库（indexedDB.open('shotflow',3)，即数据结构版本 3；
+/* IndexedDB：图片 + 项目主存储 + 姿势图库（indexedDB.open('shotflow',4)，即数据结构版本 4；
    项目主存储自该 schema 起存于 IndexedDB，不再写 localStorage）。
    A2 降级守卫：db 未就绪时（隐私模式 / 存储被禁 / open 失败）每个方法安全空转——
    读类返回 null/[]、写类静默 resolve，绝不向调用方抛同步异常；可用性判断统一走 idb.ready()。 */
+function shiseiMetadata(key,rec){
+  return {key,pid:rec.pid,cat:rec.cat,view:rec.view,zh:rec.zh,en:rec.en,ja:rec.ja,url:rec.url,syncedAt:rec.syncedAt,bytes:String(rec.data||'').length};
+}
 let shiseiSnapshotCache=null,shiseiSnapshotAt=0;
 function invalidateShiseiSnapshot(){shiseiSnapshotCache=null;shiseiSnapshotAt=0;}
 const idb={db:null,
   ready(){return !!idb.db;},
-  open(){return new Promise((res,rej)=>{const r=indexedDB.open('shotflow',3);
+  open(){return new Promise((res,rej)=>{const r=indexedDB.open('shotflow',4);
     r.onupgradeneeded=e=>{const db=e.target.result;
       if(!db.objectStoreNames.contains('images')) db.createObjectStore('images');
       if(!db.objectStoreNames.contains('projects')) db.createObjectStore('projects');
       if(!db.objectStoreNames.contains('shisei_meta')) db.createObjectStore('shisei_meta');
       if(!db.objectStoreNames.contains('shisei_images')) db.createObjectStore('shisei_images');
+      if(!db.objectStoreNames.contains('shisei_index')){
+        const idx=db.createObjectStore('shisei_index'),imgs=e.target.transaction.objectStore('shisei_images');
+        const cursor=imgs.openCursor();
+        cursor.onsuccess=()=>{
+          const row=cursor.result;if(!row)return;
+          const rec=row.value||{};
+          if(typeof rec.data==='string'&&rec.data){idx.put(shiseiMetadata(row.key,rec),row.key);row.update(rec.data);}
+          else row.delete();
+          row.continue();
+        };
+      }
     };
-    r.onsuccess=e=>{idb.db=e.target.result;res();};r.onerror=rej;});},
+    r.onblocked=()=>{toast('数据库升级等待旧页面关闭，请关闭其他 Stillmark 标签页后重试',8000);};
+    r.onsuccess=e=>{
+      idb.db=e.target.result;
+      idb.db.onversionchange=()=>{idb.db.close();idb.db=null;markPersistConflict();toast('数据版本已更新，请先备份未保存的修改，再刷新页面',8000);};
+      res();
+    };r.onerror=rej;});},
   put(k,v){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('images','readwrite');t.objectStore('images').put(v,k);t.oncomplete=res;t.onerror=rej;});},
   get(k){if(!idb.db) return Promise.resolve(null);return new Promise((res,rej)=>{const r=idb.db.transaction('images').objectStore('images').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
   del(k){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('images','readwrite');t.objectStore('images').delete(k);t.oncomplete=res;t.onerror=rej;});},
@@ -857,22 +876,39 @@ const idb={db:null,
   /* 姿势图库：meta + 缩略图 */
   getShiseiMeta(k){if(!idb.db) return Promise.resolve(null);return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_meta').objectStore('shisei_meta').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
   putShiseiMeta(k,v){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_meta','readwrite');t.objectStore('shisei_meta').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});},
-  putShiseiImg(k,v){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_images','readwrite');t.objectStore('shisei_images').put(v,k);t.oncomplete=()=>{invalidateShiseiSnapshot();res();};t.onerror=()=>rej(t.error);});},
-  getShiseiImg(k){if(!idb.db) return Promise.resolve(null);return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_images').objectStore('shisei_images').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
-  delShiseiImg(k){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_images','readwrite');t.objectStore('shisei_images').delete(k);t.oncomplete=()=>{invalidateShiseiSnapshot();res();};t.onerror=rej;});},
-  shiseiImgKeys(){if(!idb.db) return Promise.resolve([]);return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_images').objectStore('shisei_images').getAllKeys();r.onsuccess=()=>res(r.result);r.onerror=rej;});},
+  putShiseiImg(k,v){
+    if(!idb.db)return Promise.reject(new Error('IDB_UNAVAILABLE'));
+    if(!v||typeof v.data!=='string'||!v.data)return Promise.reject(new Error('INVALID_GALLERY_IMAGE'));
+    return new Promise((res,rej)=>{
+      const t=idb.db.transaction(['shisei_images','shisei_index'],'readwrite');
+      t.objectStore('shisei_images').put(v.data,k);
+      t.objectStore('shisei_index').put(shiseiMetadata(k,v),k);
+      t.oncomplete=()=>{invalidateShiseiSnapshot();delete imgCache[k];res();};
+      t.onabort=t.onerror=()=>rej(t.error||new Error('IDB_WRITE'));
+    });
+  },
+  getShiseiImg(k){if(!idb.db)return Promise.resolve(null);return new Promise((res,rej)=>{
+    const r=idb.db.transaction('shisei_images').objectStore('shisei_images').get(k);
+    r.onsuccess=()=>res(typeof r.result==='string'?{data:r.result}:null);r.onerror=rej;
+  });},
+  delShiseiImg(k){if(!idb.db)return Promise.resolve();return new Promise((res,rej)=>{
+    const t=idb.db.transaction(['shisei_images','shisei_index'],'readwrite');
+    t.objectStore('shisei_images').delete(k);t.objectStore('shisei_index').delete(k);
+    t.oncomplete=()=>{invalidateShiseiSnapshot();delete imgCache[k];res();};t.onabort=t.onerror=()=>rej(t.error);
+  });},
+  shiseiImgKeys(){if(!idb.db)return Promise.resolve([]);return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_index').objectStore('shisei_index').getAllKeys();r.onsuccess=()=>res(r.result);r.onerror=rej;});},
   shiseiSnapshot(){
     if(!idb.db)return Promise.resolve({rows:[],stats:{count:0,bytes:0,avg:0}});
     if(shiseiSnapshotCache&&Date.now()-shiseiSnapshotAt<30000)return shiseiSnapshotCache;
     shiseiSnapshotAt=Date.now();
     const pending=new Promise((res,rej)=>{
       const rows=[];let bytes=0;
-      const r=idb.db.transaction('shisei_images').objectStore('shisei_images').openCursor();
+      const r=idb.db.transaction('shisei_index').objectStore('shisei_index').openCursor();
       r.onsuccess=e=>{const cursor=e.target.result;
         if(!cursor){const count=rows.length;res({rows,stats:{count,bytes,avg:count?Math.round(bytes/count):0}});return;}
         const v=cursor.value||{};
         rows.push({key:cursor.key,pid:v.pid,cat:v.cat,view:v.view,zh:v.zh,en:v.en,ja:v.ja,url:v.url});
-        bytes+=String(v.data||'').length;cursor.continue();
+        bytes+=Number(v.bytes)||0;cursor.continue();
       };r.onerror=rej;
     });
     shiseiSnapshotCache=pending;
@@ -881,7 +917,7 @@ const idb={db:null,
   },
   async shiseiIndex(){return (await idb.shiseiSnapshot()).rows;},
   async shiseiImgStats(){return (await idb.shiseiSnapshot()).stats;},
-  clearShisei(){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction(['shisei_meta','shisei_images'],'readwrite');t.objectStore('shisei_meta').clear();t.objectStore('shisei_images').clear();t.oncomplete=()=>{invalidateShiseiSnapshot();res();};t.onerror=()=>rej(t.error);});}
+  clearShisei(){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction(['shisei_meta','shisei_images','shisei_index'],'readwrite');t.objectStore('shisei_meta').clear();t.objectStore('shisei_images').clear();t.objectStore('shisei_index').clear();t.oncomplete=()=>{invalidateShiseiSnapshot();res();};t.onerror=()=>rej(t.error);});}
 };
 const imgCache={};
 async function cacheProjectImages(p){
@@ -4428,7 +4464,7 @@ async function runShiseiSync(force){
       const results=await Promise.allSettled(batch.items.map(item=>{
         const entry=remoteByKey.get(item.key)||shiseiItemEntry(item.key,remoteByKey);
         return entry?fetchShiseiImage(entry).then(data=>{
-          const rec={key:item.key,pid:entry.pid,cat:entry.cat,view:entry.view,zh:entry.zh,en:entry.en,ja:entry.ja,data,syncedAt:Date.now()};
+          const rec={key:item.key,pid:entry.pid,cat:entry.cat,view:entry.view,zh:entry.zh,en:entry.en,ja:entry.ja,url:entry.url,data,syncedAt:Date.now()};
           return idb.putShiseiImg(item.key,rec).then(()=>({ok:true,key:item.key,data}));
         }):Promise.reject(new Error('CATALOG_ENTRY_MISSING'));
       }));
@@ -4436,7 +4472,7 @@ async function runShiseiSync(force){
       for(let i=0;i<results.length;i++){
         const item=batch.items[i], out=results[i];
         if(out.status==='fulfilled'&&out.value&&out.value.data){
-          imgCache[item.key]=out.value.data;
+          // 同步只落盘；缩略图进入可见页时才读取。
         } else {
           failed++;
           const reason=out.reason;
