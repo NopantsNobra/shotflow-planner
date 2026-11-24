@@ -87,7 +87,7 @@ function settingsVersionHtml(){
   const imgN=Object.keys(imgCache).length;
   const rows=[['shell.html（页面骨架）',MODULE_VERSIONS.shell],['styles.css（样式）',MODULE_VERSIONS.styles],
     ['01-data.js（数据层）',MODULE_VERSIONS.data],['02-core.js（核心纯函数）',MODULE_VERSIONS.core],
-    ['03-app.js（页面与交互）',MODULE_VERSIONS.app],['04-output.js（输出与后台）',MODULE_VERSIONS.output],
+    ['03-*.js（六个业务域）',MODULE_VERSIONS.app],['04-output.js（输出与后台）',MODULE_VERSIONS.output],
     ['05-boot.js（启动）',MODULE_VERSIONS.boot],['06-settings.js（设置与反馈）',MODULE_VERSIONS.settings]];
   return '<div class="card"><h2>版本信息</h2>'
     +'<div class="settings-ver">v'+esc(APP_VERSION)+'</div>'

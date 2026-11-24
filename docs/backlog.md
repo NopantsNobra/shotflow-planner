@@ -1,6 +1,6 @@
 # 工程剩余事项
 
-基线：v10.9.0 后续工程迭代（第 09 批实际 AI 接入冻结）。历史修复见 [fix-backlog.md](fix-backlog.md)，CI 以 Actions 为准。
+基线：v10.9.1（第 09 批实际 AI 接入冻结）。历史修复见 [fix-backlog.md](fix-backlog.md)，CI 以 Actions 为准。
 
 ## P1 · 数据安全与实机
 

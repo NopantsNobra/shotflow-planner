@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="瞬刻摄影工作台">
-<meta name="description" content="瞬刻摄影工作台，给独立摄影师和小团队用的轻量策划小工具。从情绪板上的一缕灵感，到分镜表里的每一格画面，再到提案与拍摄日程，最后走进实拍现场——把一瞬间，刻成永恒画面。零散想法、参考图和执行细节稳稳收在一处；小项目一个接一个，慢慢沉淀成属于你的策划档案。">
+<meta name="description" content="Stillmark 瞬刻摄影工作台：为独立摄影师与小团队设计的轻量、本地优先摄影策划与现场执行工具。分镜中枢、灵感素材、日程、客户文档与拍摄日模式；单文件、零运行时依赖、可离线使用。">
 <link rel="manifest" href="shotflow-manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
@@ -539,7 +539,7 @@ svg{display:inline-block;vertical-align:middle}
         <dt>版权归属</dt>
         <dd>MIT License © 2026 Stillmark-服雲</dd>
         <dt>项目用途</dt>
-        <dd>摄影策划工作台——从概念、情绪板、分镜、日程、清单、预算到提案 / 通告单 / 执行手册的全链路策划工具，数据全部保存在本地浏览器（IndexedDB），离线可用。</dd>
+        <dd>轻量、本地优先的摄影策划与现场执行工作台。以分镜为中枢，连接灵感、日程、清单、客户文档与拍摄日；支持素材包迁移和按需策划模式。项目数据保存在本地浏览器（IndexedDB）。</dd>
       </dl>
       <ol class="deploy-points">
         <li>一句话定位：给独立摄影师和内容创作者用的「拍摄策划 + 现场执行」工作台。</li>
@@ -598,8 +598,8 @@ svg{display:inline-block;vertical-align:middle}
    源码/配置/产物/日志均无明文）。
    注意：注释中不要复现带引号的占位字面量本身，
    否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
-const APP_VERSION="10.9.0";
-const MODULE_VERSIONS={shell:'v10.9.0',styles:'v10.9.0',data:'v10.9.0',core:'v10.9.0',app:'v10.9.0',output:'v10.9.0',boot:'v10.7.1',settings:'v10.7.0',swCache:'shotflow-v10-15',dbSchema:3,since:'v10.5.0'};
+const APP_VERSION="10.9.1";
+const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.0',data:'v10.9.1',core:'v10.9.1',app:'v10.9.1',output:'v10.9.1',boot:'v10.9.1',settings:'v10.9.1',swCache:'shotflow-v10-16',dbSchema:3,since:'v10.5.0'};
 const FB_KEY_A = 'uJrHd8a=U+X9Uh3EUtyyUhdF';
 const FB_KEY_B = 'yRhU1RHdTUVl1XwU9dVu=mJD';
 const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded', LS_DEMO_V9='wb_sf_demo_v9';
@@ -4748,7 +4748,7 @@ function settingsVersionHtml(){
   const imgN=Object.keys(imgCache).length;
   const rows=[['shell.html（页面骨架）',MODULE_VERSIONS.shell],['styles.css（样式）',MODULE_VERSIONS.styles],
     ['01-data.js（数据层）',MODULE_VERSIONS.data],['02-core.js（核心纯函数）',MODULE_VERSIONS.core],
-    ['03-app.js（页面与交互）',MODULE_VERSIONS.app],['04-output.js（输出与后台）',MODULE_VERSIONS.output],
+    ['03-*.js（六个业务域）',MODULE_VERSIONS.app],['04-output.js（输出与后台）',MODULE_VERSIONS.output],
     ['05-boot.js（启动）',MODULE_VERSIONS.boot],['06-settings.js（设置与反馈）',MODULE_VERSIONS.settings]];
   return '<div class="card"><h2>版本信息</h2>'
     +'<div class="settings-ver">v'+esc(APP_VERSION)+'</div>'
