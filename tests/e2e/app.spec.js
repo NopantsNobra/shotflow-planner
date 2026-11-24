@@ -739,3 +739,53 @@ test('弹窗具备可访问对话框语义和 Tab 循环',async({page})=>{
   await page.keyboard.press('Escape');
   await expect(page.locator('#nameModal')).not.toHaveClass(/show/);
 });
+
+test('筛选状态跨日拖拽以实际目标为准，不重置隐藏分镜',async({page})=>{
+  await setupV108Project(page);
+  await page.evaluate(()=>{
+    updateCur(p=>{
+      const first=p.shots[0],d=addDays(first.date,1);
+      addShootDate(p,d);
+      p.shots.push({...first,id:'hidden-a',name:'隐藏分镜',ord:1},
+        {...first,id:'target-b',name:'原始目标',date:d,ord:0},
+        {...first,id:'hidden-b',name:'隐藏目标',date:d,ord:1});
+      applyDay(p,first.date,null);applyDay(p,d,null);
+    });
+    renderProject();
+  });
+  await expect(page.locator('.shot')).toHaveCount(4);
+  await page.locator('#s_filter').fill('原始');
+  await expect(page.locator('.shot')).toHaveCount(2);
+  const source=page.locator('[data-id="shot-a"] .drag-handle'),target=page.locator('[data-id="target-b"]');
+  await source.scrollIntoViewIfNeeded();
+  await target.scrollIntoViewIfNeeded();
+  const start=await source.boundingBox(),end=await target.boundingBox();
+  await page.mouse.move(start.x+start.width/2,start.y+start.height/2);
+  await page.mouse.down();
+  await page.mouse.move(end.x+end.width/2,end.y+end.height*0.75,{steps:8});
+  await page.mouse.up();
+  await expect.poll(()=>page.evaluate(()=>{
+    const p=cur(),a=p.shots.find(s=>s.id==='shot-a'),b=p.shots.find(s=>s.id==='target-b');
+    return a.date===b.date&&a.ord===1&&p.shots.find(s=>s.id==='hidden-b').ord===2&&p.shots.find(s=>s.id==='hidden-a').ord===0;
+  })).toBe(true);
+});
+test('直接打开本地 HTML 时基础 CSP 不阻断核心交互',async({page})=>{
+  await page.goto(new URL('../../shotflow.html',import.meta.url).href);
+  await expect(page.locator('.masthead h1')).toHaveText('瞬刻摄影工作台');
+  await createProject(page,'本地文件测试');
+  await page.locator('#s_name').fill('本地分镜');
+  await page.getByRole('button',{name:'添加分镜'}).click();
+  await expect(page.locator('.shot')).toContainText('本地分镜');
+});
+test('PWA 首次缓存后离线刷新仍可打开项目',async({page,context})=>{
+  await page.addInitScript(()=>{try{localStorage.setItem('wb_sf_shisei_sync','0');}catch{}});
+  await openFreshApp(page);
+  await createProject(page,'离线项目');
+  await waitProjectPersisted(page,'离线项目');
+  await expect.poll(()=>page.evaluate(()=>!!navigator.serviceWorker.controller),{timeout:15000}).toBe(true);
+  await context.setOffline(true);
+  try{
+    await page.reload();
+    await expect(page.locator('.pcard',{hasText:'离线项目'})).toBeVisible();
+  }finally{await context.setOffline(false);}
+});
