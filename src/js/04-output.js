@@ -3,7 +3,7 @@
 function callSheetHtml(p){
   const date=p.shootDate||todayStr();
   const items=dayItems(p,date);
-  const sun=sunTimes(date,p.lat,p.lng);
+  const sun=sunTimes(date,p.lat,p.lng,projectTimeZone(p));
   /* v10：机位 / 光线列仅在有值时才出现（避免空列占版面） */
   const anyPos=items.some(x=>x._t==='shot'&&x.position);
   const anyLight=items.some(x=>x._t==='shot'&&x.light);
@@ -49,7 +49,7 @@ async function openDoc(kind){
   const c=p.concept;
   const moodColors=p.mood.filter(m=>m.type==='color'), moodTexts=p.mood.filter(m=>m.type==='text'), moodImgs=p.mood.filter(m=>m.type==='image');
   const total=p.budget.reduce((s,b)=>s+(+b.amount||0),0);
-  const sun=sunTimes(p.shootDate,p.lat,p.lng);
+  const sun=sunTimes(p.shootDate,p.lat,p.lng,projectTimeZone(p));
   const li=(arr,fn,cols)=>arr.length?arr.map(fn).join(''):'<tr><td colspan="'+(cols||4)+'" style="color:#999">（未填写）</td></tr>';
   /* v10：执行手册分镜表按需追加「机位」「光线」两列 */
   const anyPos=p.shots.some(s=>s.position), anyLight=p.shots.some(s=>s.light);
@@ -125,7 +125,7 @@ async function writeProposalFile(p){
   const c=p.concept;
   const moodImgs=p.mood.filter(m=>m.type==='image'), moodTexts=p.mood.filter(m=>m.type==='text'), moodColors=p.mood.filter(m=>m.type==='color');
   const total=p.budget.reduce((s,b)=>s+(+b.amount||0),0);
-  const sun=sunTimes(p.shootDate,p.lat,p.lng);
+  const sun=sunTimes(p.shootDate,p.lat,p.lng,projectTimeZone(p));
   const html='<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
     +'<meta name="viewport" content="width=device-width,initial-scale=1">'
     +'<title>'+esc(c.theme||p.name)+' · 摄影提案</title>'

@@ -757,12 +757,12 @@ check('v10.7.1 ⑪ sanitizeProject 保留合法 slot、非法 slot 置空', (() 
 })());
 
 // v10.8.0 ① 时间平移：时分字段 +10（默认 COPY_SHIFT_MIN）、跨小时进位、日期字段不动、原对象不变
-check('v10.8.0 ① shiftTimeFields 时分 +10 且日期不动、不改原对象', (() => {
+check('v10.8.0 ① 混合时分字段跨不同日期时保持原值，不改原对象', (() => {
   const src={slot:'10:25',start:'23:58',end:'09:07',date:'2026-11-24',due:'2026-11-25',name:'x'};
   vm.runInContext('globalThis.__t8src='+JSON.stringify(src), ctx);
   const out=vm.runInContext('shiftTimeFields(__t8src)', ctx);
   const after=vm.runInContext('__t8src', ctx);
-  return out.slot==='10:35'&&out.start==='00:08'&&out.end==='09:17'
+  return out.slot==='10:25'&&out.start==='23:58'&&out.end==='09:07'
     &&out.date==='2026-11-24'&&out.due==='2026-11-25'&&out.name==='x'
     &&after.slot==='10:25';
 })());
@@ -829,6 +829,15 @@ check('P0 自动日内排程不改日期，溢出分镜待安排',vm.runInContex
 check('P0 锁定节点不参与级联顺延',vm.runInContext(`(()=>{
   const d='2026-11-24',p={shots:[],schedule:[{id:'a',date:d,start:'10:00',end:'12:00'},{id:'b',date:d,start:'11:00',end:'11:30',timeLocked:true}]};
   const r=planDay(p,d,'a');return r.nodes.find(n=>n.id==='b').start===660&&!r.nodeShifts.some(n=>n.id==='b');
+})()`,ctx));
+check('P1 复制分镜跨年午夜正确迁移日期',vm.runInContext("JSON.stringify(shiftTimeFields({slot:'23:55',date:'2026-12-31'},10))",ctx)==='{"slot":"00:05","date":"2027-01-01"}');
+check('P1 跨午夜区间保持原时间等待拆分',vm.runInContext("shiftTimeFields({start:'23:40',end:'23:55',date:'2026-12-31'},10).end",ctx)==='23:55');
+vm.runInContext(fn('sunTimes'),ctx);
+check('P1 日照计算指定时区且时分有效',vm.runInContext(`(()=>{
+  const a=sunTimes('2026-06-21',35.68,139.69,'Asia/Tokyo'),b=sunTimes('2026-06-21',35.68,139.69,'UTC');
+  const min=x=>+x.slice(0,2)*60+ +x.slice(3);
+  return a&&b&&((min(a.sunrise)-min(b.sunrise)+1440)%1440)===540&&a.sunrise.slice(3)<='59'
+    &&sunTimes('2026-06-21',91,0,'UTC')===null&&sunTimes('2026-02-30',30,0,'UTC')===null;
 })()`,ctx));
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

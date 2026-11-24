@@ -161,16 +161,27 @@ function migrateFav(p){
 const COPY_SHIFT_MIN=10;
 const TIME_FIELDS=['slot','start','end'];
 function shiftTimeFields(src,minutes){
-  const n=(minutes==null?COPY_SHIFT_MIN:minutes);
-  const out=Object.assign({},src);
+  const n=Math.round(minutes==null?COPY_SHIFT_MIN:Number(minutes));
+  const out=JSON.parse(JSON.stringify(src)), times=[];
+  if(!Number.isFinite(n)) return out;
   TIME_FIELDS.forEach(k=>{
-    const v=out[k];
-    if(typeof v==='string'&&/^\d{1,2}:\d{2}$/.test(v)){
-      const p=v.split(':').map(Number);
-      const t=((p[0]*60+p[1]+n)%1440+1440)%1440;
-      out[k]=String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
-    }
+    const m=/^(\d{1,2}):(\d{2})$/.exec(out[k]||'');
+    if(!m||+m[1]>23||+m[2]>59) return;
+    const total=+m[1]*60+ +m[2]+n;
+    times.push({k,day:Math.floor(total/1440),minute:((total%1440)+1440)%1440});
   });
+  if(!times.length) return out;
+  const carry=times[0].day;
+  // 单日环节不能用 23:xx–00:xx 表示；跨越午夜的区间保留原时间，交由用户明确拆分。
+  if(times.some(x=>x.day!==carry)) return out;
+  if(carry){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(out.date||'')) return out;
+    const date=new Date(out.date+'T00:00:00Z');
+    if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==out.date) return out;
+    date.setUTCDate(date.getUTCDate()+carry);
+    out.date=date.toISOString().slice(0,10);
+  }
+  times.forEach(x=>{out[x.k]=String(Math.floor(x.minute/60)).padStart(2,'0')+':'+String(x.minute%60).padStart(2,'0');});
   return out;
 }
 /* 当前页签 → 允许的收藏类型（stuff 覆盖 scenes+items；notes 覆盖 notes+todos；
@@ -396,7 +407,7 @@ function sanitizeProject(raw,mkId){
   const cut=(v,n)=>s(v).slice(0,n);
   const date=v=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s(v));
     return (m&&+m[2]>=1&&+m[2]<=12&&+m[3]>=1&&+m[3]<=31)?m[0]:'';};   // 形状 + 月/日范围双重校验
-  const time=v=>/^\d{1,2}:\d{2}$/.test(s(v))?s(v):'';
+  const time=v=>{const m=/^(\d{1,2}):(\d{2})$/.exec(s(v));return m&&+m[1]<24&&+m[2]<60?String(+m[1]).padStart(2,'0')+':'+m[2]:'';};
   const bool=v=>v===true;
   const objs=arr=>(Array.isArray(arr)?arr:[]).filter(x=>x&&typeof x==='object');
   const strs=arr=>(Array.isArray(arr)?arr:[]).map(x=>cut(x,120)).filter(Boolean);
@@ -410,7 +421,7 @@ function sanitizeProject(raw,mkId){
   p.name=cut(raw.name,120)||'未命名拍摄项目';
   p.client=cut(raw.client,120); p.studio=cut(raw.studio,120);
   p.status=STATUSES.indexOf(raw.status)>=0?raw.status:'灵感期';
-  p.location=cut(raw.location,120);
+  p.location=cut(raw.location,120); p.timeZone=cut(raw.timeZone,80);
   p.lat=cut(raw.lat,32); p.lng=cut(raw.lng,32);
   p.shootDate=date(raw.shootDate);
   p.shootDates=dates(raw.shootDates); p.dayInit=dates(raw.dayInit);
@@ -602,12 +613,22 @@ async function initData(){
 }
 
 /* ================= 太阳时间（NOAA 近似算法） ================= */
-function sunTimes(dateStr,lat,lng){
+function validTimeZone(zone){
+  if(!zone) return false;
+  try{new Intl.DateTimeFormat('en',{timeZone:zone});return true;}catch(e){return false;}
+}
+function projectTimeZone(p){
+  if(p&&p.timeZone&&validTimeZone(p.timeZone)) return p.timeZone;
+  const city=cityMatch(p);
+  return city?(city[0]==='香港'?'Asia/Hong_Kong':city[0]==='澳门'?'Asia/Macau':'Asia/Shanghai'):Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+function sunTimes(dateStr,lat,lng,zone){
   if(!dateStr||lat==null||lng==null||lat===''||lng==='') return null;
   const latN=parseFloat(lat), lngN=parseFloat(lng);
-  if(isNaN(latN)||isNaN(lngN)) return null;
-  const d=new Date(dateStr+'T12:00:00');
-  const N=Math.floor((d-new Date(d.getFullYear(),0,0))/864e5);
+  if(!Number.isFinite(latN)||!Number.isFinite(lngN)||Math.abs(latN)>90||Math.abs(lngN)>180) return null;
+  const d=new Date(dateStr+'T00:00:00Z');
+  if(!Number.isFinite(d.getTime())||d.toISOString().slice(0,10)!==dateStr) return null;
+  const N=Math.floor((d-Date.UTC(d.getUTCFullYear(),0,0))/864e5);
   const g=2*Math.PI/365*(N-1+0.5);
   const eq=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));
   const dec=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g);
@@ -615,10 +636,11 @@ function sunTimes(dateStr,lat,lng){
   const cosHa=Math.cos(90.833*Math.PI/180)/(Math.cos(latR)*Math.cos(dec))-Math.tan(latR)*Math.tan(dec);
   if(cosHa>1||cosHa<-1) return null;
   const ha=Math.acos(cosHa)*180/Math.PI;
-  const tzOff=-new Date().getTimezoneOffset();
-  const fmt=m=>{ m=((m+tzOff)%1440+1440)%1440; return String(Math.floor(m/60)).padStart(2,'0')+':'+String(Math.round(m%60)).padStart(2,'0'); };
+  let format;
+  try{format=new Intl.DateTimeFormat('en-GB',{timeZone:zone||undefined,hour:'2-digit',minute:'2-digit',hourCycle:'h23'});}catch(e){return null;}
+  const fmt=m=>{const parts=format.formatToParts(new Date(d.getTime()+Math.round(m)*60000));return parts.find(x=>x.type==='hour').value+':'+parts.find(x=>x.type==='minute').value;};
   const sunrise=720-4*(lngN+ha)-eq, sunset=720-4*(lngN-ha)-eq, noon=720-4*lngN-eq;
-  return {sunrise:fmt(sunrise),noon:fmt(noon),sunset:fmt(sunset),goldenStart:fmt(sunset-75),goldenEnd:fmt(sunset)};
+  return {sunrise:fmt(sunrise),noon:fmt(noon),sunset:fmt(sunset),goldenStart:fmt(sunset-75),goldenEnd:fmt(sunset),timeZone:format.resolvedOptions().timeZone};
 }
 
 /* ================= 预置示例 ================= */

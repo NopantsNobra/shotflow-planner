@@ -196,15 +196,17 @@ test('设置弹窗：姿势图库同步开关切换写 localStorage', async ({ p
 test('设置弹窗：反馈走 Web3Forms 页面内提交（成功 + 失败降级）', async ({ page }) => {
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
-  const posts = [];
-  await page.route('https://api.web3forms.com/submit', async (route) => {
-    posts.push({ method: route.request().method(), json: route.request().postDataJSON() });
-    if (posts.length === 1) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
-    } else {
-      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ success: false }) });
-    }
+  await page.addInitScript(() => {
+    window.__feedbackPosts = [];
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (url, options) => {
+      if(String(url)!=='https://api.web3forms.com/submit') return originalFetch(url, options);
+      window.__feedbackPosts.push({method:options.method,json:JSON.parse(options.body)});
+      const success=window.__feedbackPosts.length===1;
+      return new Response(JSON.stringify({success}),{status:success?200:500,headers:{'Content-Type':'application/json'}});
+    };
   });
+  const posts = () => page.evaluate(() => window.__feedbackPosts);
   // 各浏览器的 clipboard 权限名不一致；只模拟本测试关注的写入契约。
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'clipboard', {
@@ -220,14 +222,14 @@ test('设置弹窗：反馈走 Web3Forms 页面内提交（成功 + 失败降级
   // 空标题提交被拦截（不发请求）
   await page.getByRole('button', { name: '提交反馈' }).click();
   await expect(page.locator('.toast')).toContainText('请先填写反馈标题');
-  expect(posts.length).toBe(0);
+  expect((await posts()).length).toBe(0);
   // 成功路径：POST 负载语义 + 成功提示 + 页面不跳转 + 表单清空
   await page.locator('#fbTitle').fill('测试反馈标题');
   await page.locator('#fbBody').fill('描述内容');
   await page.getByRole('button', { name: '提交反馈' }).click();
   await expect(page.locator('.toast')).toContainText('反馈已提交，感谢！');
-  expect(posts.length).toBe(1);
-  const first = posts[0];
+  expect((await posts()).length).toBe(1);
+  const first = (await posts())[0];
   expect(first.method).toBe('POST');
   expect(first.json.access_key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
   expect(first.json.subject).toBe('[Bug] 测试反馈标题');
@@ -242,7 +244,7 @@ test('设置弹窗：反馈走 Web3Forms 页面内提交（成功 + 失败降级
   await page.locator('#fbBody').fill('内容');
   await page.getByRole('button', { name: '提交反馈' }).click();
   await expect(page.locator('.toast')).toContainText('提交失败，请使用「复制反馈内容」');
-  expect(posts.length).toBe(2);
+  expect((await posts()).length).toBe(2);
   // 复制兜底 + 隐私文案（提到 Web3Forms，且不再出现 GitHub / 旧邮件方案字样）
   await expect(page.getByRole('button', { name: '复制反馈内容' })).toBeVisible();
   await page.getByRole('button', { name: '复制反馈内容' }).click();

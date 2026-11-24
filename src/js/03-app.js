@@ -204,6 +204,7 @@ function referenceFav(type,pid,itemId){
     clone.id=uid(); clone.fav=false;
     if('done' in clone) clone.done=false;
     if(type==='shots'&&!('ord' in clone)) clone.ord=pp.shots.length;
+    if((type==='shots'||type==='schedule')&&clone.date) addShootDate(pp,clone.date);
     pp[type].push(clone);
     added=true;
   });
@@ -268,6 +269,7 @@ function renderProject(){
     +'<div class="fld"><label>经纬度 · 用于估算日落</label><div class="row" style="gap:8px;flex-wrap:nowrap">'
       +'<input id="p_lat" style="min-width:0;width:0;flex:1" value="'+esc(p.lat==null?'':p.lat)+'" onchange="setP(\'lat\',this.value)" placeholder="纬度 32.06"'+dis+'>'
       +'<input id="p_lng" style="min-width:0;width:0;flex:1" value="'+esc(p.lng==null?'':p.lng)+'" onchange="setP(\'lng\',this.value)" placeholder="经度 118.78"'+dis+'></div></div>'
+    +'<div class="fld"><label>拍摄地点时区 · IANA（可选）</label><input id="p_timezone" value="'+esc(p.timeZone||'')+'" placeholder="'+esc(projectTimeZone(p))+'" onchange="setProjectTimeZone(this.value)"'+dis+'></div>'
     +'</div><div class="cityrow">'
     +CITIES.map(c=>'<button class="chip" title="'+c[0]+'（'+c[1]+', '+c[2]+'）" onclick="setLL(\''+c[1]+'\',\''+c[2]+'\')"'+dis+'>'+c[0]+'</button>').join('')
     /* 城市下拉：全部省会/直辖市/港澳/主要二线（按大区分组）+ 自定义地点；回显当前坐标匹配项 */
@@ -303,7 +305,12 @@ function renderProject(){
   ({concept:renderConcept,mood:renderMood,shots:renderShots,schedule:renderSchedule,stuff:renderStuff,budget:renderBudget,notes:renderNotes})[view.tab](p);
 }
 function setP(k,v){ updateCur(p=>p[k]=v); }
-function setLL(lat,lng){ updateCur(p=>{p.lat=lat;p.lng=lng;}); renderProject(); }
+function setLL(lat,lng){ updateCur(p=>{p.lat=lat;p.lng=lng;p.timeZone='';p.timeZone=projectTimeZone(p);}); renderProject(); }
+function setProjectTimeZone(zone){
+  const z=String(zone||'').trim();
+  if(z&&!validTimeZone(z)){toast('请输入有效 IANA 时区，如 Asia/Tokyo');renderProject();return;}
+  updateCur(p=>{p.timeZone=z;});renderProject();
+}
 function fld(l,id,v,ph){return '<div class="fld"><label>'+l+'</label><input id="'+id+'" value="'+esc(v)+'" placeholder="'+ph+'"></div>';}
 function gv(id){return document.getElementById(id).value;}
 /* v9 行内编辑：同一时刻只开一行 */
@@ -770,6 +777,7 @@ function copyShot(id){
     clone.ord=(+s.ord||0)+1;
     /* 原 ord 之后的兄弟顺移一位，保证新分镜紧随其后且列表顺序稳定 */
     pp.shots.forEach((x,i)=>{ if(i!==idx&&(+x.ord||0)>=(+s.ord||0)+1) x.ord=(+x.ord||0)+1; });
+    if(clone.date) addShootDate(pp,clone.date);
     pp.shots.splice(idx+1,0,clone);
     ok=true;
   });
@@ -1225,7 +1233,7 @@ function dayTabsHtml(p){
 function renderSchedule(p){
   if(!schedDate) schedDate=p.shootDate||shootDatesOf(p)[0]||todayStr();
   autoSyncDay(schedDate);          // 首次进入某日期：补集合/收工 + 重排（有 drift 才写盘）
-  const sun=sunTimes(schedDate,p.lat,p.lng);
+  const sun=sunTimes(schedDate,p.lat,p.lng,projectTimeZone(p));
   let sunHtml='';
   if(sun){
     sunHtml='<div class="sun-bar">'
@@ -1234,7 +1242,7 @@ function renderSchedule(p){
       +'<div class="sun-pill">黄金时刻起<b>'+sun.goldenStart+'</b></div>'
       +'<div class="sun-pill">日落<b>'+sun.sunset+'</b></div>'
       +'<div class="sun-pill" style="background:#fdf3f1;border-color:#ecc;color:#8a3a2e">民用暮光≈<b>'+addMin(sun.sunset,30)+'</b></div>'
-      +'</div><p class="muted" style="margin-top:-8px;margin-bottom:12px">按 NOAA 近似算法 + 项目坐标估算，误差几分钟，仅作排期参考。</p>';
+      +'</div><p class="muted" style="margin-top:-8px;margin-bottom:12px">按 NOAA 近似算法估算 · 时区 '+esc(sun.timeZone)+'（未指定时按城市或设备时区）· 仅作排期参考。</p>';
   } else {
     sunHtml='<p class="muted" style="margin-bottom:12px">填写项目信息卡里的「纬度 / 经度」（或点城市快捷键），这里会显示当日日出、黄金时刻与日落时间。</p>';
   }
@@ -1470,8 +1478,10 @@ function applyPlanWrite(p,date,plan){
     const r=plan.nodes.filter(x=>x.id===n.id)[0];
     if(r&&n.auto!=='call'){                // 只写回位置节点（含被顺延的），集合时间永远是用户输入
       const rs=fmtMin(r.start), re=fmtMin(r.end);
-      if(rs!==n.start) n.start=rs;
-      if(re!==n.end) n.end=re;
+      if(!n.timeLocked&&r.start<1440&&r.end<1440){
+        if(rs!==n.start) n.start=rs;
+        if(re!==n.end) n.end=re;
+      }
     }
   });
 }
@@ -1866,7 +1876,7 @@ async function renderShootDay(){
   const isToday=sdDate===todayStr();
   let currentId=null;
   if(isToday){ items.forEach(x=>{ if(!x.done&&(x._time||'00:00')<=nowT) currentId=x.id; }); if(!currentId){ const nxt=items.find(x=>!x.done); if(nxt) currentId=nxt.id; } }
-  const sun=sunTimes(sdDate,p.lat,p.lng);
+  const sun=sunTimes(sdDate,p.lat,p.lng,projectTimeZone(p));
   let h='<div class="sd-head"><h2>'+esc(p.name)+'</h2>'
     +'<button class="sd-nav" onclick="sdShift(-1)" title="前一天">‹</button>'
     +'<input type="date" value="'+sdDate+'" onchange="sdSetDate(this.value)" style="background:#221e18;color:#f0ebe2;border-color:#3a342b;max-width:150px">'
@@ -1915,7 +1925,7 @@ function sdPostpone(){
   let overflow=false;
   nodes.forEach(n=>{
     const en=toMin(n.end||addMin(n.start,COLLECT_MIN));
-    if(en+60>1440) overflow=true;
+    if(en+60>=1440) overflow=true;
   });
   if(overflow){ toast('顺延后超出当天 24:00，请先改到次日'); return; }
   let ok=false;
