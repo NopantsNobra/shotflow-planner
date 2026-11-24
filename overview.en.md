@@ -2,7 +2,7 @@
 
 [简体中文](overview.md) · [README](README.en.md)
 
-Current: v10.9.2. A local-first photography planning and field-execution workbench for independent photographers and small teams. The shot list is the central data model: existing materials generate schedules, client documents and shoot-day reminders without making creative decisions for the photographer. Self-contained HTML, zero runtime dependencies, static hosting and PWA support.
+Current: v10.9.3. A local-first photography planning and field-execution workbench for independent photographers and small teams. The shot list is the central data model: existing materials generate schedules, client documents and shoot-day reminders without making creative decisions for the photographer. Self-contained HTML, zero runtime dependencies, static hosting and PWA support.
 
 ## Product flow
 
