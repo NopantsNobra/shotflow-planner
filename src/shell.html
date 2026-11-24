@@ -115,6 +115,18 @@
   </div>
 </div>
 
+<!-- 收藏引用浮窗（v10.8.0）：按当前页签只列相关类型的收藏，点「引用」把条目追加到当前项目。
+     DOM 序放在 confirmModal 之后：引用只读无需确认，但保留层级惯例（后覆盖前）。 -->
+<div class="modal-mask" id="favPickerModal" onclick="if(event.target===this)closeFavPicker()">
+  <div class="modal doc-modal" style="max-width:560px">
+    <div class="doc-bar no-print">
+      <span class="doc-bar-title" id="favPickerTitle">打开收藏</span>
+      <div class="row"><button class="btn btn-ghost btn-sm" onclick="closeFavPicker()">关闭</button></div>
+    </div>
+    <div class="settings-body" id="favPickerBody"></div>
+  </div>
+</div>
+
 <!--__JS__-->
 </body>
 </html>

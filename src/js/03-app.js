@@ -155,6 +155,63 @@ function toggleFav(type,id){
   if(view.mode==='favorites') renderFavorites();
   else if(view.mode==='project') renderProject();
 }
+
+/* ================= v10.8.0 收藏引用浮窗 ================= */
+/* 只展示与当前页签相关的收藏类型；concept 页无收藏条目，按钮不显示。
+   跨项目收藏一并列出并标注来源项目，便于把别的案子的精选直接引用过来。 */
+function openFavPicker(){
+  if(view.mode!=='project'){ toast('请先打开一个策划案'); return; }
+  const types=favTypesForTab(view.tab);
+  if(!types.length){ toast('当前页面没有可引用的收藏'); return; }
+  renderFavPicker();
+  document.getElementById('favPickerModal').classList.add('show');
+}
+function closeFavPicker(){ document.getElementById('favPickerModal').classList.remove('show'); }
+function renderFavPicker(){
+  const types=favTypesForTab(view.tab);
+  const entries=collectFavorites(loadP()).filter(e=>types.indexOf(e.type)>=0);
+  const tabName=TABS.filter(t=>t[0]===view.tab).map(t=>t[1])[0]||'当前页面';
+  document.getElementById('favPickerTitle').textContent='打开收藏 · '+tabName+'（'+entries.length+'）';
+  let h='<p class="muted" style="margin:0 0 12px;font-size:12px">仅列出与「'+esc(tabName)+'」相关的收藏；引用后时间顺延 '+COPY_SHIFT_MIN+' 分钟，追加到当前策划案。</p>';
+  if(!entries.length){
+    h+='<div style="text-align:center;padding:32px 12px"><p class="muted">当前页面暂无相关收藏。在条目上点 ☆ 收藏后即可在此引用。</p></div>';
+  } else {
+    const all=loadP();
+    h+='<div style="max-height:52vh;overflow:auto">'+entries.map(e=>{
+      const src=all.find(p=>p.id===e.pid);
+      const same=src&&src.id===view.pid;
+      return '<div class="row" style="padding:9px 2px;border-bottom:1px dashed var(--line)">'
+        +'<span>'+FAV_ICON[e.type]+'</span>'
+        +'<span class="grow" style="min-width:0"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.summary||'（无摘要）')+'</span>'
+          +'<span class="muted" style="font-size:11px">'+esc(e.module)+' · '+esc(src?src.name:'来源已删除')+(same?' · 本案':'')+'</span></span>'
+        +'<button class="btn btn-ghost btn-sm" onclick="referenceFav('+jstr(e.type)+','+jstr(e.pid)+','+jstr(e.id)+')">引用收藏 ›</button></div>';
+    }).join('')+'</div>';
+  }
+  document.getElementById('favPickerBody').innerHTML=h;
+}
+/* 引用收藏：从源项目取原始条目 → 深拷贝（JSON 往返，条目均为纯数据）→ 新 id / fav / done 重置
+   → 时间字段 +5 分钟 → 追加到当前项目同类数组。列表与浮窗即时刷新，浮窗保持打开可连续引用。 */
+function referenceFav(type,pid,itemId){
+  const p=cur(); if(!p){ toast('请先打开一个策划案'); return; }
+  if(favTypesForTab(view.tab).indexOf(type)<0){ toast('该收藏不属于当前页面'); return; }
+  const src=loadP().find(x=>x.id===pid);
+  const it=src&&(Array.isArray(src[type])?src[type]:[]).find(x=>x.id===itemId);
+  if(!it){ toast('收藏条目已不存在'); renderFavPicker(); return; }
+  let added=false;
+  updateCur(pp=>{
+    if(!Array.isArray(pp[type])) pp[type]=[];
+    const clone=shiftTimeFields(JSON.parse(JSON.stringify(it)),COPY_SHIFT_MIN);
+    clone.id=uid(); clone.fav=false;
+    if('done' in clone) clone.done=false;
+    if(type==='shots'&&!('ord' in clone)) clone.ord=pp.shots.length;
+    pp[type].push(clone);
+    added=true;
+  });
+  if(!added) return;
+  toast('已引用「'+favSummary(type,it)+'」，时间顺延 '+COPY_SHIFT_MIN+' 分钟');
+  renderProject();
+  if(document.getElementById('favPickerModal').classList.contains('show')) renderFavPicker();
+}
 function newProject(){
   /* 用应用内弹窗替代原生 prompt：风格统一，Enter 直接创建，Esc 取消 */
   const box=document.getElementById('nameModal');
@@ -237,6 +294,7 @@ function renderProject(){
       +'</div></div>').join('')
     +'</div>'
     +'<div class="subbar">'
+    +(favTypesForTab(view.tab).length?'<button class="btn btn-ghost btn-sm" id="openFavBtn" title="打开与当前页面相关的收藏并引用" onclick="openFavPicker()">☆ 打开收藏</button>':'')
     +'<span class="muted" style="font-size:10px;letter-spacing:.14em">文档输出 ▸</span>'
     +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'proposal\')">客户提案</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'callsheet\')">拍摄通告单</button>'
@@ -682,9 +740,34 @@ function shotListHtml(p,days){
           +'<div class="refs">'+refHtml+'</div>'
           +body
           +'<button class="rowbtn'+(isFav(s)?' on':'')+'" title="收藏/取消收藏" onclick="toggleFav(\'shots\','+jstr(s.id)+')">'+(isFav(s)?'★':'☆')+'</button>'
+          +'<button class="rowbtn" title="复制分镜（时间顺延 '+COPY_SHIFT_MIN+' 分钟）" onclick="copyShot('+jstr(s.id)+')">⧉复制</button>'
           +editBtn('Shot',s.id)
           +'<button class="iconbtn" title="删除分镜" onclick="delShot('+jstr(s.id)+')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
         }).join('')+'</div>'; }).join('')+'</div>' : '<p class="muted">'+(kw?'没有匹配的分镜。':'还没有分镜。添加第一条，把素材挂上来。')+'</p>');
+}
+/* v10.8.0：复制分镜——完整复制原分镜（含参考图 / 场景 / 时长 / 机位 / 光线 / 备注），
+   时间字段统一 +5 分钟；新记录 id 重置、done/fav 清零、ord 紧随原分镜之后。
+   刻意不调用 applyDay：slot 是本条的排程结果，若重排会被 chain 覆盖、失去「+5 分钟」语义；
+   与原分镜的时长重叠属预期（+5 分钟必然落在原时长内），时间轴会按既有规则标「重叠」。 */
+function copyShot(id){
+  const p=cur(); if(!p) return;
+  const s=(p.shots||[]).find(x=>x.id===id); if(!s) return;
+  const newId=uid();
+  let ok=false;
+  updateCur(pp=>{
+    const idx=pp.shots.findIndex(x=>x.id===id);
+    if(idx<0) return;
+    const clone=shiftTimeFields(s,COPY_SHIFT_MIN);
+    clone.id=newId; clone.done=false; clone.fav=false;
+    clone.ord=(+s.ord||0)+1;
+    /* 原 ord 之后的兄弟顺移一位，保证新分镜紧随其后且列表顺序稳定 */
+    pp.shots.forEach((x,i)=>{ if(i!==idx&&(+x.ord||0)>=(+s.ord||0)+1) x.ord=(+x.ord||0)+1; });
+    pp.shots.splice(idx+1,0,clone);
+    ok=true;
+  });
+  if(!ok) return;
+  toast('已复制「'+String(s.name||'分镜').slice(0,12)+'」，时间顺延 '+COPY_SHIFT_MIN+' 分钟');
+  renderProject();
 }
 function setShiseiCat(cat){ view.poseCat=(view.poseCat===cat)?null:String(cat||null); renderShots(cur()); }
 function removeSelRef(i){ if(i>=0&&i<selRefs.length){ selRefs.splice(i,1); renderShots(cur()); } }

@@ -1,6 +1,6 @@
 {
   "name": "stillmark-shotflow-planner",
-  "version": "10.7.2",
+  "version": "10.8.0",
   "private": true,
   "type": "module",
   "description": "瞬刻摄影工作台 · Stillmark —— 本地优先摄影策划 PWA",

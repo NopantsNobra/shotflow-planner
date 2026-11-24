@@ -4,6 +4,22 @@
 
 所有日期为 2026 年。
 
+## [v10.8.0] - 2026-11-24
+
+交互增强三连：复制分镜、收藏引用浮窗、全局 Esc 返回看板。SW 缓存 `v10-11` → `v10-12`（确保线上用户拿到新 UI），数据 schema 不变。
+
+### Added
+- **复制分镜**：分镜列表每条在收藏按钮后新增「⧉复制」——完整复制原分镜（name/date/duration/sceneId/position/light/refIds/note），新 id、`done/fav` 清零、`ord` 紧随原分镜之后（兄弟顺移一位）；时分字段（`slot`）统一 +5 分钟。刻意不触发 `applyDay`：`slot` 是本条排程结果，重排会覆盖 +5 分钟语义；与原分镜的时长重叠是「顺延 5 分钟」的预期结果，时间轴按既有规则标「重叠」。
+- **打开收藏浮窗**：6 个可收藏页签（情绪板/分镜/日程/清单/预算/协作）在 subbar 新增「☆ 打开收藏」；浮窗挂 shell（不随页签重绘销毁），按 `favTypesForTab` 只列当前页相关类型（stuff→scenes+items，notes→notes+todos），标注来源项目与「本案」；每条「引用收藏」把源条目深拷贝进当前项目同类数组，id 重置、`fav/done` 清零、时分字段 +5 分钟，列表与浮窗即时刷新，支持连续引用。点遮罩 / 关闭按钮 / Esc 均可关。
+- **全局 Esc 返回看板**：优先级链扩为 收藏浮窗 → refViewer → confirm → name → deploy → settings → 行内编辑 → 文档 → 拍摄日 → 返回看板；非看板页 `view=freshView(); renderBoard()`（顺带清筛选/草稿/焦点态），看板页无操作。原 `closeDoc(); closeShootDay()` 的无条件调用改为按 show 判断，避免误触。
+
+### Changed
+- `shiftTimeFields(src,minutes)` 纯函数（时分字段 `slot/start/end` +N，跨小时取模 1440，日期字段 `date/due/shootDate/ts` 不动，不改原对象）与 `favTypesForTab(tab)` 在 `02-core.js` 定义，复制与引用共用；MODULE_VERSIONS 的 shell/core/app/output 标 `v10.8.0`。
+
+### Verification
+- 逻辑测试 120 项全绿（新增 4 项：时间平移 +5/跨小时/日期不动/不改原对象、无时分字段原样、自定义分钟、页签映射）；E2E 16 项（新增复制/引用/ESC 5 项，含浮窗关闭与看板边界）；verify:version(10.8.0) / verify:build / sync:check / lint / format:check 全绿。
+- 顺带修三处测试脆弱点：设置弹窗的 SW 版本断言改为读运行期 `MODULE_VERSIONS.swCache`（不再写死，避免每次 bump SW 误报）；A3「seed 标志缺失」的 `waitForFunction(async…)` 自建 IDB 连接与 `saveP` 200ms 防抖写链交错导致本机稳定误报，改用 `expect.poll` 离散重试等待落盘（产品逻辑未动，PUT 序列已验证数据未丢）；`tests/perf.mjs` 的 vm 沙箱补注入 `COPY_SHIFT_MIN`（否则 `shotListHtml` 里新增的复制按钮提示抛 ReferenceError，perf 脚本崩溃）。
+
 ## [v10.7.2] - 2026-11-23
 
 工程化批次：E2E 从单一 Chromium 扩为三引擎矩阵，并统一各文档的版本与门禁口径。**功能行为零变化**，SW 缓存保持 `v10-11`。

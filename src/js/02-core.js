@@ -154,6 +154,30 @@ function migrateFav(p){
   p.demo=(p.demo===true);
   return p;
 }
+/* v10.8.0：复制分镜 / 引用收藏共用的「时间算术」——对条目的时分字段统一 +5 分钟。
+   只动 HH:MM 字段（slot / start / end），日期字段（date / due / shootDate / ts）不动：
+   复制与引用是「同一天再排一条」，顺延的是时刻而非拍摄日；跨日仍由排程引擎决定。
+   纯函数、不依赖 view/document，可被逻辑测试直接抽取。 */
+const COPY_SHIFT_MIN=5;
+const TIME_FIELDS=['slot','start','end'];
+function shiftTimeFields(src,minutes){
+  const n=(minutes==null?COPY_SHIFT_MIN:minutes);
+  const out=Object.assign({},src);
+  TIME_FIELDS.forEach(k=>{
+    const v=out[k];
+    if(typeof v==='string'&&/^\d{1,2}:\d{2}$/.test(v)){
+      const p=v.split(':').map(Number);
+      const t=((p[0]*60+p[1]+n)%1440+1440)%1440;
+      out[k]=String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
+    }
+  });
+  return out;
+}
+/* 当前页签 → 允许的收藏类型（stuff 覆盖 scenes+items；notes 覆盖 notes+todos；
+   concept 无收藏条目）。浮窗只列这些类型，避免「引用到无关页面」。 */
+const FAV_TYPES_BY_TAB={mood:['mood'],shots:['shots'],schedule:['schedule'],
+  stuff:['scenes','items'],budget:['budget'],notes:['notes','todos']};
+function favTypesForTab(tab){ return FAV_TYPES_BY_TAB[tab]||[]; }
 function isFav(it){ return !!(it&&it.fav===true); }
 function favCount(list){
   if(!Array.isArray(list)) return 0;

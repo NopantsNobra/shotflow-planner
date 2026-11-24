@@ -25,28 +25,24 @@ async function createProject(page, name) {
 }
 
 /* 等防抖写入真正落到 IndexedDB，再刷新。否则刷新可能早于 saveP 落盘，
-   测到的就不是「seed 是否覆盖已有项目」，而是「数据还没写进去」。 */
+   测到的就不是「seed 是否覆盖已有项目」，而是「数据还没写进去」。
+   v10.8.0 修法：原 waitForFunction(async...) 自建 IDB 连接，在 raf 轮询里与 saveP 的
+   200ms 防抖 + 串行写链交错（曾稳定误报）；改为 expect.poll 的离散重试，读同一条 IDB
+   记录并确认 name 与来源一致，最终一致性由重试保证。 */
 async function waitProjectPersisted(page, name) {
-  await page.waitForFunction(
-    async (target) => {
-      const arr = await new Promise((res) => {
-        const req = indexedDB.open('shotflow', 3);
-        req.onsuccess = () => {
-          const db = req.result;
-          const g = db.transaction('projects').objectStore('projects').get('all');
-          g.onsuccess = () => {
-            db.close();
-            res(g.result || []);
-          };
-          g.onerror = () => res([]);
-        };
-        req.onerror = () => res([]);
-      });
-      return Array.isArray(arr) && arr.some((p) => p && p.name === target);
-    },
-    name,
-    { timeout: 5000 }
-  );
+  await expect.poll(async () => page.evaluate(async (target) => {
+    const arr = await new Promise((res) => {
+      const req = indexedDB.open('shotflow', 3);
+      req.onsuccess = () => {
+        const db = req.result;
+        const g = db.transaction('projects').objectStore('projects').get('all');
+        g.onsuccess = () => { db.close(); res(g.result || []); };
+        g.onerror = () => res([]);
+      };
+      req.onerror = () => res([]);
+    });
+    return Array.isArray(arr) && arr.some((p) => p && p.name === target) ? arr.length : -1;
+  }, name), { timeout: 8000, message: '项目未落到 IndexedDB' }).not.toBe(-1);
 }
 
 test('核心路径：新建项目 → 加分镜 → 排程 → 导出提案文档', async ({ page }) => {
@@ -158,7 +154,9 @@ test('设置弹窗：打开 / 版本信息 / Esc 与关闭按钮 / 关闭后看�
   await expect(page.locator('#settingsModal')).toHaveClass(/show/);
   // 版本信息区：应用版本（构建注入）/ SW 缓存 / IndexedDB 数据结构 / 模块版本表
   await expect(page.locator('#settingsBody .settings-ver')).toHaveText('v' + APP_VERSION);
-  await expect(page.locator('#settingsBody')).toContainText('shotflow-v10-11');
+  /* SW 缓存版本取运行期真源（MODULE_VERSIONS.swCache），写死版本会在每次 bump 时误报 */
+  const swCache=await page.evaluate(()=>MODULE_VERSIONS.swCache);
+  await expect(page.locator('#settingsBody')).toContainText(swCache);
   await expect(page.locator('#settingsBody')).toContainText('数据结构（IndexedDB）');
   await expect(page.locator('#settingsBody')).toContainText('各代码模块最后实质变更');
   await expect(page.locator('#settingsBody')).toContainText('01-data.js');
@@ -347,4 +345,156 @@ test('稳定性回归：IndexedDB 不可用时优雅降级不白屏（A2）', as
   await expect(page.locator('#app')).toContainText('存储不可用');
   // 降级模式下示例仍可渲染、应用可用
   await expect(page.locator('.pcard').first()).toBeVisible();
+});
+
+/* ===================== v10.8.0 三项交互增强 ===================== */
+/* 数据准备：直接写入一个受控项目（1 条带 slot 的分镜 + 1 条收藏分镜 + 1 条收藏待办），
+   避免依赖示例项目的随机内容与只读限制；writeProjects 经 openProject .reload 后由应用加载。 */
+async function setupV108Project(page){
+  await page.goto('/shotflow.html');
+  await expect(page.locator('.masthead h1')).toHaveText('瞬刻摄影工作台');
+  await page.evaluate(async () => {
+    const pid='v108-test', date='2026-11-24';
+    const p={id:pid,v3:1,name:'V108 测试案',client:'',studio:'',status:'策划中',shootDate:date,
+      location:'',lat:'',lng:'',createdAt:Date.now(),updatedAt:Date.now(),demo:false,
+      concept:{},mood:[],shots:[
+        {id:'shot-a',name:'原始分镜',date:date,duration:20,slot:'10:00',sceneId:'',position:'平视',light:'',refIds:[],note:'原备注',done:false,ord:0,fav:false}],
+      schedule:[],scenes:[],items:[],budget:[],notes:[],
+      todos:[{id:'todo-a',title:'收藏的待办',owner:'',due:'',done:false,fav:true}],
+      tagVocab:[],shootDates:[date],dayInit:[date]};
+    await new Promise((res,rej)=>{
+      const r=indexedDB.open('shotflow',3);
+      r.onsuccess=()=>{const d=r.result,tx=d.transaction('projects','readwrite');tx.objectStore('projects').put([p],'all');tx.oncomplete=()=>{d.close();res();};tx.onerror=()=>rej(tx.error);};
+      r.onerror=()=>rej(r.error);
+    });
+    localStorage.setItem('wb_sf_seeded','1'); localStorage.setItem('wb_sf_demo_v9','1');
+  });
+  await page.reload();
+  await expect(page.locator('.pcard', { hasText:'V108 测试案' })).toBeVisible();
+  await page.locator('.pcard', { hasText:'V108 测试案' }).click();
+  await expect(page.locator('#s_name')).toBeVisible();
+}
+const shotData=async(page)=>page.evaluate(async()=>{
+  const arr=await new Promise(res=>{const r=indexedDB.open('shotflow',3);r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
+  const p=arr.find(x=>x.id==='v108-test'); return p?p.shots:[];
+});
+
+test('v10.8.0 复制分镜：完整复制、时间 +5、列表即时更新', async ({ page }) => {
+  await setupV108Project(page);
+  await expect(page.locator('.shot')).toHaveCount(1);
+  const copyBtn=page.locator('.shot [title^="复制分镜"]');
+  await expect(copyBtn).toHaveCount(1);
+  await copyBtn.click();
+  await expect(page.locator('.shot')).toHaveCount(2);
+  await expect.poll(async()=> (await shotData(page)).length, {timeout:5000}).toBe(2); // 等 200ms 防抖落盘
+  const shots=await shotData(page);
+  expect(shots).toHaveLength(2);
+  const clone=shots.find(s=>s.id!=='shot-a');
+  expect(clone).toBeTruthy();
+  expect(clone.name).toBe('原始分镜');
+  expect(clone.note).toBe('原备注');
+  expect(clone.slot).toBe('10:05');           // 10:00 + 5 分钟
+  expect(clone.done).toBe(false);
+  expect(clone.fav).toBe(false);
+  const orig=shots.find(s=>s.id==='shot-a');
+  expect(orig.slot).toBe('10:00');            // 原件不变
+  await expect(page.locator('.shot').filter({hasText:'原始分镜'})).toHaveCount(2);
+});
+
+test('v10.8.0 收藏浮窗：只列当前页相关类型、concept 页无按钮', async ({ page }) => {
+  await setupV108Project(page);
+  // 分镜页：有打开收藏按钮，浮窗只列 shots 类型（本案无收藏分镜，但待办收藏属于 notes 不应出现）
+  await expect(page.locator('#openFavBtn')).toBeVisible();
+  await page.locator('#openFavBtn').click();
+  await expect(page.locator('#favPickerModal')).toHaveClass(/show/);
+  const body=await page.locator('#favPickerBody').innerText();
+  expect(body).toContain('收藏');
+  expect(body).not.toContain('收藏的待办');   // todos 不属于 shots 页签
+  // concept 页无收藏 → 无按钮
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#favPickerModal')).not.toHaveClass(/show/);
+  await page.locator('.ptab', { hasText:'概念' }).click();
+  await expect(page.locator('#openFavBtn')).toHaveCount(0);
+});
+
+test('v10.8.0 引用收藏：跨来源引用、时间 +5、可连续引用', async ({ page }) => {
+  await setupV108Project(page);
+  // 先给本案分镜加收藏（通过 UI 点 ☆），随后到 notes 页引用 todos 收藏
+  await page.locator('.shot [title="收藏/取消收藏"]').first().click();
+  await expect(page.locator('.shot [title="收藏/取消收藏"]').first()).toContainText('★');
+  await page.locator('.ptab', { hasText:'协作' }).click();
+  await expect(page.locator('#openFavBtn')).toBeVisible();
+  await page.locator('#openFavBtn').click();
+  await expect(page.locator('#favPickerModal')).toHaveClass(/show/);
+  // notes 页签映射 notes+todos → 应看到「收藏的待办」，且不该看到分镜收藏
+  await expect(page.locator('#favPickerBody')).toContainText('收藏的待办');
+  await expect(page.locator('#favPickerBody')).not.toContainText('原始分镜');
+  await page.locator('#favPickerBody button', { hasText:'引用收藏' }).click();
+  await expect(page.locator('#favPickerModal')).toHaveClass(/show/);  // 浮窗保持打开可连续引用
+  await expect.poll(async()=>page.evaluate(async()=>{
+    const arr=await new Promise(res=>{const r=indexedDB.open('shotflow',3);r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
+    const p=arr.find(x=>x.id==='v108-test'); return p?p.todos.length:0;
+  }), {timeout:5000}).toBe(2);
+  const todos=await page.evaluate(async()=>{
+    const arr=await new Promise(res=>{const r=indexedDB.open('shotflow',3);r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
+    const p=arr.find(x=>x.id==='v108-test'); return p?p.todos:[];
+  });
+  expect(todos).toHaveLength(2);
+  const added=todos.find(t=>t.id!=='todo-a');
+  expect(added.title).toBe('收藏的待办');
+  expect(added.fav).toBe(false);
+  expect(added.id).not.toBe('todo-a');
+});
+
+test('v10.8.0 全局 Esc：浮窗优先关闭，其后返回看板，看板无操作', async ({ page }) => {
+  await setupV108Project(page);
+  await page.locator('#openFavBtn').click();
+  await expect(page.locator('#favPickerModal')).toHaveClass(/show/);
+  await page.keyboard.press('Escape');
+  // 第一次 Esc 只关浮窗，仍在项目页
+  await expect(page.locator('#favPickerModal')).not.toHaveClass(/show/);
+  await expect(page.locator('#s_name')).toBeVisible();
+  // 第二次 Esc 返回看板
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.masthead h1')).toHaveText('瞬刻摄影工作台');
+  await expect(page.locator('.pcard').first()).toBeVisible();
+  // 看板页再按 Esc 无副作用
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.masthead h1')).toHaveText('瞬刻摄影工作台');
+});
+
+test('v10.8.0 引用时间顺延：带时分字段的收藏条目 +5 分钟', async ({ page }) => {
+  // 注入一条带 slot 的收藏分镜到源项目，另一空项目作引用目标
+  await page.goto('/shotflow.html');
+  await expect(page.locator('.masthead h1')).toHaveText('瞬刻摄影工作台');
+  await page.evaluate(async () => {
+    const date='2026-11-24';
+    const src={id:'v108-src',v3:1,name:'源案',client:'',studio:'',status:'策划中',shootDate:date,
+      location:'',lat:'',lng:'',createdAt:Date.now(),updatedAt:Date.now(),demo:false,
+      concept:{},mood:[],shots:[{id:'fav-shot',name:'被收藏分镜',date:date,duration:20,slot:'14:55',sceneId:'',position:'',light:'',refIds:[],note:'',done:false,ord:0,fav:true}],
+      schedule:[],scenes:[],items:[],budget:[],notes:[],todos:[],tagVocab:[],shootDates:[date],dayInit:[date]};
+    const dst={id:'v108-dst',v3:1,name:'目标案',client:'',studio:'',status:'策划中',shootDate:date,
+      location:'',lat:'',lng:'',createdAt:Date.now(),updatedAt:Date.now(),demo:false,
+      concept:{},mood:[],shots:[],schedule:[],scenes:[],items:[],budget:[],notes:[],todos:[],tagVocab:[],shootDates:[date],dayInit:[date]};
+    await new Promise((res,rej)=>{const r=indexedDB.open('shotflow',3);r.onsuccess=()=>{const d=r.result,tx=d.transaction('projects','readwrite');tx.objectStore('projects').put([src,dst],'all');tx.oncomplete=()=>{d.close();res();};tx.onerror=()=>rej(tx.error);};r.onerror=()=>rej(r.error);});
+    localStorage.setItem('wb_sf_seeded','1'); localStorage.setItem('wb_sf_demo_v9','1');
+  });
+  await page.reload();
+  await page.locator('.pcard', { hasText:'目标案' }).click();
+  await expect(page.locator('#s_name')).toBeVisible();
+  await page.locator('#openFavBtn').click();
+  await expect(page.locator('#favPickerBody')).toContainText('被收藏分镜');
+  await page.locator('#favPickerBody button', { hasText:'引用收藏' }).click();
+  await expect.poll(async()=>page.evaluate(async()=>{
+    const arr=await new Promise(res=>{const r=indexedDB.open('shotflow',3);r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
+    const p=arr.find(x=>x.id==='v108-dst'); return p?p.shots.length:0;
+  }), {timeout:5000}).toBe(1);
+  const shots=await page.evaluate(async()=>{
+    const arr=await new Promise(res=>{const r=indexedDB.open('shotflow',3);r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
+    const p=arr.find(x=>x.id==='v108-dst'); return p?p.shots:[];
+  });
+  expect(shots).toHaveLength(1);
+  expect(shots[0].slot).toBe('15:00');        // 14:55 + 5 分钟，跨小时进位
+  expect(shots[0].name).toBe('被收藏分镜');
+  expect(shots[0].fav).toBe(false);
 });

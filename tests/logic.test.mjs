@@ -26,6 +26,10 @@ vm.runInContext("globalThis.STATUSES=['灵感期','策划中','待拍摄','后�
   + "globalThis.__uidSeq=0;globalThis.uid=()=>'id'+(++globalThis.__uidSeq);", ctx);
 for (const n of ['addMin', 'toMin', 'fmtMin', 'dayItems', 'cascadeShift', 'tagKey', 'dedupeTags', 'parseTagsInput', 'mergeVocab', 'migrateTags', 'tagsForDisplay', 'matchByTags', 'renameTag', 'removeTag', 'shiseiItemKey', 'shiseiEntrySame', 'parseCatalog', 'diffCatalog', 'nextPendingBatch', 'mergeShiseiMeta', 'migrate']) vm.runInContext(fn(n), ctx);
 for (const n of ['freshView', 'clearInlineEditState', 'migrateFav', 'isFav', 'favCount', 'favSummary', 'summary40', 'collectFavorites', 'backupItemCount', 'matchBoardScope', 'isActiveStatus', 'parseMultiImage', 'slugPreview', 'cloneDemo', 'demoSpecs', 'buildDemoProject']) vm.runInContext(fn(n), ctx);
+/* v10.8.0：复制/引用共用的时间平移 + 页签→收藏类型映射 */
+vm.runInContext('const COPY_SHIFT_MIN=5;const TIME_FIELDS=["slot","start","end"];'
+  + "const FAV_TYPES_BY_TAB={mood:['mood'],shots:['shots'],schedule:['schedule'],stuff:['scenes','items'],budget:['budget'],notes:['notes','todos']};", ctx);
+for (const n of ['shiftTimeFields', 'favTypesForTab']) vm.runInContext(fn(n), ctx);
 vm.runInContext(fn('suggestTags'), ctx);
 vm.runInContext('const AI_TAGGING_ENABLED=false; const TagProviders=Object.create(null);', ctx);
 vm.runInContext('globalThis.__initData = (' + fn('initData') + ')', ctx);
@@ -747,6 +751,35 @@ check('v10.7.1 ⑩ sanitizeProject 缺 id 成员各自生成独立 id', (() => {
 check('v10.7.1 ⑪ sanitizeProject 保留合法 slot、非法 slot 置空', (() => {
   const p = vm.runInContext(`sanitizeProject({name:'x',shots:[{id:'a',slot:'10:00'},{id:'b',slot:'9x:99'}]})`, ctx);
   return p.shots[0].slot === '10:00' && p.shots[1].slot === '';
+})());
+
+// v10.8.0 ① 时间平移：时分字段 +5、跨小时进位、日期字段不动、原对象不变
+check('v10.8.0 ① shiftTimeFields 时分 +5 且日期不动、不改原对象', (() => {
+  const src={slot:'10:25',start:'23:58',end:'09:07',date:'2026-11-24',due:'2026-11-25',name:'x'};
+  vm.runInContext('globalThis.__t8src='+JSON.stringify(src), ctx);
+  const out=vm.runInContext('shiftTimeFields(__t8src)', ctx);
+  const after=vm.runInContext('__t8src', ctx);
+  return out.slot==='10:30'&&out.start==='00:03'&&out.end==='09:12'
+    &&out.date==='2026-11-24'&&out.due==='2026-11-25'&&out.name==='x'
+    &&after.slot==='10:25';
+})());
+// v10.8.0 ② 无时间字段 / 空字段的条目平移后结构不变（ moods / budget 等非时分条目 ）
+check('v10.8.0 ② shiftTimeFields 无时分字段条目原样返回', (() => {
+  const out=vm.runInContext("shiftTimeFields({id:'m',content:'灵感',slot:''})", ctx);
+  return out.id==='m'&&out.content==='灵感'&&out.slot===''&&Object.keys(out).length===3;
+})());
+// v10.8.0 ③ custom minutes 参数（引用可传不同顺延量）
+check('v10.8.0 ③ shiftTimeFields 自定义分钟数', (() => {
+  const out=vm.runInContext("shiftTimeFields({start:'08:00'},15)", ctx);
+  return out.start==='08:15';
+})());
+// v10.8.0 ④ 页签→收藏类型映射：stuff/notes 覆盖两类，concept 与未知页为空
+check('v10.8.0 ④ favTypesForTab 映射正确', (() => {
+  const g=t=>vm.runInContext('favTypesForTab('+JSON.stringify(t)+')', ctx);
+  return JSON.stringify(g('stuff'))==='["scenes","items"]'
+    && JSON.stringify(g('notes'))==='["notes","todos"]'
+    && JSON.stringify(g('shots'))==='["shots"]'
+    && g('concept').length===0&&g('unknown').length===0;
 })());
 
 console.log('RESULT pass=' + pass + ' fail=' + fail);

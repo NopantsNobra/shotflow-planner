@@ -540,7 +540,10 @@ if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
 }
 document.addEventListener('keydown',e=>{
   if(e.key!=='Escape') return;
-  const shown=id=>document.getElementById(id).classList.contains('show');
+  const shown=id=>{ const el=document.getElementById(id); return !!el&&el.classList.contains('show'); };
+  /* v10.8.0 优先级：浮窗 → 各类弹窗 → 行内编辑 → 文档/拍摄日 → 返回看板。
+     新加的收藏浮窗放最前，保证「先关浮窗」不误触返回看板（否则浮窗开着按 Esc 会连页一起退）。 */
+  if(shown('favPickerModal')){ closeFavPicker(); return; }
   if(shown('refViewer')){ closeRefViewer(); return; }
   if(shown('confirmModal')){ closeConfirm(); return; }
   if(shown('nameModal')){ closeNameModal(); return; }
@@ -548,6 +551,10 @@ document.addEventListener('keydown',e=>{
   if(shown('settingsModal')){ closeSettings(); return; }   // v10.6.0：设置弹窗后开先关（位于 confirm/name 之后判断）
   if(cancelInlineEdit()) return;
   if(cancelShotEdit()) return;
-  closeDoc(); closeShootDay();
+  if(shown('docModal')){ closeDoc(); return; }
+  if(shown('sdOverlay')){ closeShootDay(); return; }
+  /* 最后兜底：非看板页（项目 / 收藏）按 Esc 返回看板；看板页本身无操作。
+     用 view=freshView() 而非只改 mode，顺带清空筛选/草稿/焦点态，避免下次进项目残留。 */
+  if(typeof view!=='undefined'&&view.mode!=='board'){ view=freshView(); renderBoard(); }
 });
 
