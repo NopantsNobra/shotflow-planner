@@ -851,5 +851,28 @@ check('跨项目引用素材补全场景与参考图、清理完成态',vm.runIn
   let i=0;copyAssetDependencies(p,s,'shots',c,()=>String(++i));
   return c.sceneId===p.scenes[0].id&&p.refs[0].key==='img'&&!c.deferred&&!c.skipped;
 })()`,ctx));
+for(const n of ['aiTaskRegistry','aiTask','aiValidate','aiContext','aiValidateReferences','aiProjectToken','aiCandidateIsCurrent','createAiService'])vm.runInContext(fn(n),ctx);
+check('AI 十项任务注册、上下文白名单不包含客户和密钥',vm.runInContext(`(()=>{
+  const r=aiContext('generateShots',{project:{client:'secret',apiKey:'key',concept:{theme:'t',note:'private'},scenes:[{id:'s',name:'scene',client:'hidden'}]}});
+  return Object.keys(aiTaskRegistry()).length===10&&!JSON.stringify(r).includes('secret')&&!JSON.stringify(r).includes('private')&&!JSON.stringify(r).includes('hidden');
+})()`,ctx));
+check('AI 禁用零调用、无授权拒绝、能力检查、结构校验与过期候选拒绝',await vm.runInContext(`(async()=>{
+  let calls=0;const provider={id:'mock',capabilities:{text:true},generate:async()=>{calls++;return {data:{tags:['人像']}};}};
+  const off=createAiService({enabled:false});off.register(provider);
+  const reject=async(p,code)=>{try{await p;return false;}catch(e){return e.message===code;}};
+  if(!await reject(off.run('suggestTags',{},{}),'AI_DISABLED')||calls!==0)return false;
+  const on=createAiService({enabled:true});on.register(provider);
+  if(!await reject(on.run('suggestTags',{},{provider:'mock'}),'AI_UPLOAD_NOT_CONFIRMED'))return false;
+  const p={id:'p',name:'旧名'},opts={provider:'mock',confirmUpload:true};
+  const c=await on.run('suggestTags',{project:p,text:'人像'},opts);
+  if(calls!==1||c.data.tags[0]!=='人像'||!aiCandidateIsCurrent(c,p))return false;
+  p.name='新名';if(aiCandidateIsCurrent(c,p))return false;
+  on.register({id:'bad',capabilities:{text:true},generate:async()=>({data:{tags:['x'],extra:'bad'}})});
+  return await reject(on.run('suggestTags',{},{provider:'bad',confirmUpload:true}),'AI_SCHEMA_INVALID');
+})()`,ctx));
+check('AI 禁止虚构场景引用和非图片 URL',vm.runInContext(`(()=>{
+  try{aiValidateReferences('generateShots',{shots:[{sceneId:'fake'}]},{scenes:[]});return false;}catch(e){if(e.message!=='AI_REFERENCE_INVALID')return false;}
+  try{aiContext('analyzeReference',{images:['https://example.com/a.png']});return false;}catch(e){return e.message==='AI_IMAGE_INVALID';}
+})()`,ctx));
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

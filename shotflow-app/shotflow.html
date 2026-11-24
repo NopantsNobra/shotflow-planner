@@ -4068,7 +4068,125 @@ function clearAll(){
   });
 }
 
-/* ===== AI 打标签：接口预留（本期恒关闭，零网络请求） ===== */
+/* ===== AI 契约层 v1：默认停用，无内置网络适配器、无隐式写入 ===== */
+function aiTaskRegistry(){
+  const text=n=>({type:'string',maxLength:n});
+  const arr=(items,maxItems)=>({type:'array',items,maxItems});
+  const obj=properties=>({type:'object',properties,additionalProperties:false,required:Object.keys(properties)});
+  const short=text(200),long=text(2000);
+  const shot=obj({name:short,note:long,sceneId:short});
+  const tasks={
+    analyzeReference:{cap:'vision',fields:[],schema:obj({observations:arr(short,12),uncertainties:arr(short,8)})},
+    suggestTags:{cap:'text',fields:['text','tags'],schema:obj({tags:arr(text(60),20)})},
+    generateShots:{cap:'text',fields:['concept','scenes'],schema:obj({shots:arr(shot,30)})},
+    generateProject:{cap:'text',fields:['concept','scenes'],schema:obj({theme:short,style:short,shots:arr(shot,30)})},
+    suggestEquipment:{cap:'text',fields:['shots','items'],schema:obj({suggestions:arr(short,20),missing:arr(short,20)})},
+    reviewPlan:{cap:'text',fields:['concept','shots','schedule','items'],schema:obj({issues:arr(obj({message:long,referenceId:short}),30)})},
+    generateProposal:{cap:'text',fields:['concept','shots'],schema:obj({draft:text(6000)})},
+    compareImages:{cap:'vision',fields:[],schema:obj({differences:arr(short,12),suggestions:arr(short,12)})},
+    searchAssets:{cap:'embedding',fields:['assets'],schema:obj({matches:arr(obj({id:short,reason:short}),30)})},
+    generateImage:{cap:'imageGeneration',fields:[],schema:obj({images:arr(text(8000000),4)})}
+  };
+  for(const task of Object.values(tasks))task.promptVersion=1;
+  return tasks;
+}
+function aiTask(taskId){
+  const tasks=aiTaskRegistry();
+  if(!Object.prototype.hasOwnProperty.call(tasks,taskId))throw Error('AI_TASK_UNKNOWN');
+  return tasks[taskId];
+}
+function aiValidate(schema,value){
+  if(schema.type==='string'){
+    if(typeof value!=='string'||value.length>schema.maxLength)throw Error('AI_SCHEMA_INVALID');
+    return value;
+  }
+  if(schema.type==='array'){
+    if(!Array.isArray(value)||value.length>schema.maxItems)throw Error('AI_SCHEMA_INVALID');
+    return value.map(v=>aiValidate(schema.items,v));
+  }
+  if(schema.type==='object'){
+    if(!value||typeof value!=='object'||Array.isArray(value))throw Error('AI_SCHEMA_INVALID');
+    const keys=Object.keys(schema.properties);
+    if(Object.keys(value).some(k=>!keys.includes(k))||keys.some(k=>!Object.prototype.hasOwnProperty.call(value,k)))throw Error('AI_SCHEMA_INVALID');
+    return Object.fromEntries(keys.map(k=>[k,aiValidate(schema.properties[k],value[k])]));
+  }
+  throw Error('AI_SCHEMA_UNKNOWN');
+}
+function aiContext(taskId,input){
+  const task=aiTask(taskId),src=input||{},p=src.project||{},ctx={};
+  const str=(v,max=1000)=>typeof v==='string'?v.slice(0,max):'';
+  const pick=(v,keys)=>Object.fromEntries(keys.map(k=>[k,str((v||{})[k])]));
+  const rows=(v,keys)=>(Array.isArray(v)?v:[]).slice(0,200).map(x=>pick(x,keys));
+  for(const field of task.fields){
+    if(field==='concept')ctx.concept=pick(p.concept,['theme','style','usage']);
+    if(field==='scenes')ctx.scenes=rows(p.scenes,['id','name','note']);
+    if(field==='shots')ctx.shots=rows(p.shots,['id','name','sceneId','date','slot','note']);
+    if(field==='schedule')ctx.schedule=rows(p.schedule,['id','title','date','start','end']);
+    if(field==='items')ctx.items=rows(p.items,['name','kind','note']);
+    if(field==='text')ctx.text=str(src.text,4000);
+    if(field==='tags')ctx.tags=(Array.isArray(src.tags)?src.tags:[]).slice(0,100).map(x=>str(x,60));
+    if(field==='assets')ctx.assets=rows(src.assets,['id','name','text']);
+  }
+  const images=(Array.isArray(src.images)?src.images:[]);
+  if(images.length>6||images.some(v=>typeof v!=='string'||v.length>8000000||!/^data:image\/(jpeg|png|webp|gif|avif);base64,[A-Za-z0-9+/]+={0,2}$/.test(v)))throw Error('AI_IMAGE_INVALID');
+  if(taskId==='analyzeReference'&&images.length<1||taskId==='compareImages'&&images.length!==2)throw Error('AI_IMAGE_COUNT');
+  if(images.length&&['suggestEquipment','reviewPlan','searchAssets','generateProposal'].includes(taskId))throw Error('AI_IMAGE_NOT_NEEDED');
+  return {context:ctx,images:images.slice(),instruction:str(src.instruction,4000)};
+}
+function aiValidateReferences(taskId,data,context){
+  const ids=rows=>new Set((rows||[]).map(x=>x.id).filter(Boolean));
+  if(taskId==='generateShots'||taskId==='generateProject'){
+    const allowed=ids(context.scenes);
+    if(data.shots.some(s=>s.sceneId&&!allowed.has(s.sceneId)))throw Error('AI_REFERENCE_INVALID');
+  }
+  if(taskId==='reviewPlan'){
+    const allowed=new Set([...ids(context.shots),...ids(context.schedule)]);
+    if(data.issues.some(x=>x.referenceId&&!allowed.has(x.referenceId)))throw Error('AI_REFERENCE_INVALID');
+  }
+  if(taskId==='searchAssets'){
+    const allowed=ids(context.assets);
+    if(data.matches.some(x=>!allowed.has(x.id)))throw Error('AI_REFERENCE_INVALID');
+  }
+  if(taskId==='generateImage'&&data.images.some(v=>!/^data:image\/(jpeg|png|webp|gif|avif);base64,[A-Za-z0-9+/]+={0,2}$/.test(v)))throw Error('AI_IMAGE_INVALID');
+  return data;
+}
+function aiProjectToken(p){return p?JSON.stringify(p):null;}
+function aiCandidateIsCurrent(candidate,project){
+  return !!candidate&&candidate.projectId===(project&&project.id||null)&&candidate.projectToken===aiProjectToken(project)&&!(project&&project.demo);
+}
+function createAiService(options){
+  const enabled=!!(options&&options.enabled===true),providers=new Map();
+  function register(provider){
+    if(!provider||typeof provider.id!=='string'||!provider.id.trim()||typeof provider.generate!=='function')return false;
+    providers.set(provider.id,provider);return true;
+  }
+  function prepare(taskId,input){
+    const task=aiTask(taskId),payload=aiContext(taskId,input);
+    return {taskId,promptVersion:task.promptVersion,capability:task.cap,requiresVision:payload.images.length>0,context:payload.context,images:payload.images,instruction:payload.instruction,outputSchema:task.schema};
+  }
+  async function run(taskId,input,opts){
+    if(!enabled)throw Error('AI_DISABLED');
+    const o=opts||{},p=input&&input.project;
+    if(p&&p.demo)throw Error('AI_READ_ONLY');
+    if(o.confirmUpload!==true)throw Error('AI_UPLOAD_NOT_CONFIRMED');
+    const req=prepare(taskId,input),provider=providers.get(o.provider);
+    if(!provider)throw Error('AI_PROVIDER_MISSING');
+    const caps=provider.capabilities||{};
+    if(caps[req.capability]!==true||req.requiresVision&&caps.vision!==true)throw Error('AI_CAPABILITY_MISSING');
+    const projectId=p&&p.id||null,projectToken=aiProjectToken(p);
+    const signal=o.signal;
+    if(signal&&signal.aborted)throw Error('AI_CANCELLED');
+    const response=await provider.generate({...req,model:typeof o.model==='string'?o.model.slice(0,200):'',maxOutputTokens:Math.max(64,Math.min(8192,Number(o.maxOutputTokens)||2048))},signal);
+    if(signal&&signal.aborted)throw Error('AI_CANCELLED');
+    const data=aiValidateReferences(taskId,aiValidate(req.outputSchema,response&&response.data),req.context);
+    return {taskId,projectId,projectToken,data,provider:provider.id,promptVersion:req.promptVersion};
+  }
+  return Object.freeze({register,prepare,run});
+}
+/* 生产服务恒关闭；未来接入必须另行实现上传确认、取消/超时及业务白名单应用。 */
+const ai=createAiService({enabled:false});
+
+/* ===== AI 打标签：兼容旧接口（本期恒关闭，零网络请求） ===== */
 function setAiConfig(k,v){
   aiConfig[k]=v;
   try{ sessionStorage.setItem('sf_ai_cfg_v1',JSON.stringify(aiConfig)); }catch(e){}

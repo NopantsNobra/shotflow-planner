@@ -1,0 +1,22 @@
+# AI 任务契约 v1（预留，非可用模型功能）
+
+生产服务 `ai` 默认关闭，不注册远程模型，不产生模型请求。保留旧 `suggestTags` 接口，不改动现有项目。调用链：
+
+1. `ai.prepare(taskId,input)` 构建实际待上传请求，仅包含任务白名单字段、用户选定图片及指令；未来 UI 必须展示真实请求范围。
+2. 业务入口获得用户确认后，`ai.run(taskId,input,{provider,model,confirmUpload:true,signal})` 调用已注册适配器。
+3. `aiValidate` 严格检查对象、字段、类型、数量、长度，`aiValidateReferences` 仅允许已知场景/分镜/素材 ID；结果为候选，不修改任何项目。
+4. `aiCandidateIsCurrent(candidate,project)` 检查项目 ID、完整快照及只读状态。快照仅留在本地候选，不进入请求。未来业务 UI 必须确认、筛选、编辑后经现有 updateCur 等写入守卫应用，提供撤销。
+
+## 适配器契约
+
+`{id, capabilities:{text,vision,structuredOutput,embedding,imageGeneration}, generate(request,signal):Promise<{data,usage?,warnings?}>}`。generate 为统一任务入口；embedding 与图像生成可由适配器内部调用不同协议。适配器负责超时、取消、模型协议、鉴权和结构化结果解析。运行层不接收或存储 API key，不将配置对象传给模型。凭据未来由用户明确配置在适配器内存闭包；无后台重试。
+
+计划支持 OpenAI Responses / Chat Completions 兼容网关、Anthropic Messages、Gemini、Embedding 与图像生成；本期不承诺任一协议已连通。接入前验证 CORS、实际模型能力、费用、数据上传与取消行为。不得内置服务密钥。
+
+## 任务
+
+任务 ID 与 PRODUCT.md 一致，共十项；见 aiTaskRegistry 中的 schema 与上下文字段。所有 schema 只允许有限长度的文本、数组、白名单对象；图片只接受受限的栅格 data URL，禁止远程 URL、任意 SVG 和 HTML 执行。输出展示必须按文本转义。模型返回的文字不视为应用命令。
+
+## 本期验证
+
+使用 mock provider 测试禁用零调用、授权门、上下文最小化、严格 schema、引用合法性、项目变化后的候选失效。没有实际模型调用。具体交互、传输层、业务应用操作、连接测试和撤销留待第 09 批逐项落地。
