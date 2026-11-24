@@ -7,7 +7,7 @@
    注意：注释中不要复现带引号的占位字面量本身，
    否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
 const APP_VERSION='__APP_VERSION__';
-const MODULE_VERSIONS={shell:'v10.8.0',styles:'v10.6.0',data:'v10.7.1',core:'v10.8.0',app:'v10.8.0',output:'v10.8.0',boot:'v10.7.1',settings:'v10.7.0',swCache:'shotflow-v10-12',dbSchema:3,since:'v10.5.0'};
+const MODULE_VERSIONS={shell:'v10.8.0',styles:'v10.6.0',data:'v10.7.1',core:'v10.8.1',app:'v10.8.1',output:'v10.8.0',boot:'v10.7.1',settings:'v10.7.0',swCache:'shotflow-v10-13',dbSchema:3,since:'v10.5.0'};
 const FB_KEY_A = 'uJrHd8a=U+X9Uh3EUtyyUhdF';
 const FB_KEY_B = 'yRhU1RHdTUVl1XwU9dVu=mJD';
 const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded', LS_DEMO_V9='wb_sf_demo_v9';

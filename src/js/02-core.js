@@ -158,7 +158,7 @@ function migrateFav(p){
    只动 HH:MM 字段（slot / start / end），日期字段（date / due / shootDate / ts）不动：
    复制与引用是「同一天再排一条」，顺延的是时刻而非拍摄日；跨日仍由排程引擎决定。
    纯函数、不依赖 view/document，可被逻辑测试直接抽取。 */
-const COPY_SHIFT_MIN=5;
+const COPY_SHIFT_MIN=10;
 const TIME_FIELDS=['slot','start','end'];
 function shiftTimeFields(src,minutes){
   const n=(minutes==null?COPY_SHIFT_MIN:minutes);
@@ -339,7 +339,7 @@ function buildDemoProject(spec,mkId,now){
   shotNames.forEach((name,i)=>{
     /* v10：分镜不再写死时间，slot 由 rescheduleDay 从 10:00 起顺序派生 */
     p.shots.push({id:mkId('sh'+i),name:name,date:days[Math.min(days.length-1,Math.floor(i/perDay))],
-      duration:20,sceneId:sceneIds[i%Math.max(1,sceneIds.length)]||'',
+      duration:10,sceneId:sceneIds[i%Math.max(1,sceneIds.length)]||'',
       position:posPool[i%posPool.length],light:lightPool[i%lightPool.length],
       refIds:[],note:'示例分镜 '+name,done:false,ord:i,fav:false});
   });
@@ -483,7 +483,7 @@ function migrate(p){
   p.shots.forEach(s=>{
     if(s.refId!==undefined&&!s.refIds) s.refIds=s.refId?[s.refId]:[];
     s.refIds=s.refIds||[]; delete s.refId;
-    if(s.duration==null) s.duration=20;                   // 历史数据兜底 20（新分镜默认 10 在表单 / addShot / planDay）
+    if(s.duration==null) s.duration=10;                   // 历史数据兜底与新分镜默认统一 10（表单 / addShot / planDay 同源）
     if(s.ord==null) s.ord=0;
     if(s.position==null) s.position='';                   // v10：机位
     if(s.light==null) s.light='';                         // v10：光线
@@ -617,10 +617,10 @@ function seed(){
     ],
     dayInit:[t],shootDates:[t],
     shots:[
-      {id:uid(),name:'巷口逆光回眸（中景）',date:t,duration:20,sceneId:scene1,position:'平视',light:'侧逆光',refIds:[],note:'等一束侧逆光',done:false,ord:0},
-      {id:uid(),name:'胡同行走背影（远景）',date:t,duration:20,sceneId:scene1,position:'侧背',light:'逆光',refIds:[],note:'',done:true,ord:1},
-      {id:uid(),name:'咖啡馆窗边侧脸（特写）',date:t,duration:30,sceneId:scene2,position:'平视',light:'窗光',refIds:[],note:'85mm 大光圈',done:false,ord:2},
-      {id:uid(),name:'天台黄昏剪影（全景）',date:t,duration:40,sceneId:'',position:'仰拍',light:'剪影',refIds:[],note:'看日落时间调整',done:false,ord:3}
+      {id:uid(),name:'巷口逆光回眸（中景）',date:t,duration:10,sceneId:scene1,position:'平视',light:'侧逆光',refIds:[],note:'等一束侧逆光',done:false,ord:0},
+      {id:uid(),name:'胡同行走背影（远景）',date:t,duration:10,sceneId:scene1,position:'侧背',light:'逆光',refIds:[],note:'',done:true,ord:1},
+      {id:uid(),name:'咖啡馆窗边侧脸（特写）',date:t,duration:10,sceneId:scene2,position:'平视',light:'窗光',refIds:[],note:'85mm 大光圈',done:false,ord:2},
+      {id:uid(),name:'天台黄昏剪影（全景）',date:t,duration:10,sceneId:'',position:'仰拍',light:'剪影',refIds:[],note:'看日落时间调整',done:false,ord:3}
     ],
     schedule:[
       {id:uid(),type:'集合',title:'地铁口集合，检查器材',start:'09:30',end:'10:00',note:'带备用电池 ×2',done:true,auto:'call'},

@@ -294,7 +294,9 @@ function renderProject(){
       +'</div></div>').join('')
     +'</div>'
     +'<div class="subbar">'
-    +(favTypesForTab(view.tab).length?'<button class="btn btn-ghost btn-sm" id="openFavBtn" title="打开与当前页面相关的收藏并引用" onclick="openFavPicker()">☆ 打开收藏</button>':'')
+    /* v10.8.1：分镜页与日程页的入口移到各自的「添加分镜 / 添加环节」按钮旁；
+       其余可收藏页签仍在 subbar 保留入口，避免丢失「所有收藏页可打开」的能力。 */
+    +(favTypesForTab(view.tab).length&&view.tab!=='shots'&&view.tab!=='schedule'?'<button class="btn btn-ghost btn-sm" id="openFavBtn" title="打开与当前页面相关的收藏并引用" onclick="openFavPicker()">☆ 打开收藏</button>':'')
     +'<span class="muted" style="font-size:10px;letter-spacing:.14em">文档输出 ▸</span>'
     +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'proposal\')">客户提案</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'callsheet\')">拍摄通告单</button>'
@@ -646,6 +648,7 @@ async function renderShots(p){
     +'<select id="s_pos" style="max-width:108px" onchange="saveShotDraft(\'position\',this.value)"><option value="">— 机位 —</option>'+POSITION_OPTS.map(o=>'<option value="'+o+'" '+(D.position===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
     +'<select id="s_light" style="max-width:108px" onchange="saveShotDraft(\'light\',this.value)"><option value="">— 光线 —</option>'+LIGHT_OPTS.map(o=>'<option value="'+o+'" '+(D.light===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
     +'<input id="s_note" class="grow" placeholder="补充描述（姿势 / 构图 / 道具…）" value="'+esc(D.note||'')+'" oninput="saveShotDraft(\'note\',this.value)">'
+    +'<button class="btn btn-ghost btn-sm" id="openFavBtn" title="打开与当前页面相关的收藏并引用" onclick="openFavPicker()">☆ 打开收藏</button>'
     +'<button class="btn btn-primary" onclick="addShot()">添加分镜</button></div>'
     +(curDay==='__new'
       ?'<div class="new-scene"><span class="muted">新拍摄日</span>'
@@ -662,7 +665,8 @@ async function renderShots(p){
     +selRefsBar
     +(mineHtml||galleryHtml?'':'<p class="muted" style="margin-bottom:10px">还没有任何参考图来源。上传图片、到情绪板添加，或在下方「素材来源」开启姿势图库同步。</p>')
     +mineHtml+galleryHtml
-    +'<div class="row" style="margin-bottom:12px"><input id="s_filter" class="grow" placeholder="搜索分镜 / 场景 / 备注…" value="'+esc(view.shotFilter)+'" oninput="setShotFilter(this.value)"></div>'
+    +'<div class="row" style="margin-bottom:12px"><input id="s_filter" class="grow" placeholder="搜索分镜 / 场景 / 备注…" value="'+esc(view.shotFilter)+'" oninput="setShotFilter(this.value)">'
+      +'<button class="btn btn-ghost btn-sm" id="reschedAllBtn" title="对所有拍摄日统一重排一次（复制 / 调整完成后点此）" onclick="rescheduleAllDays()">↻ 重新排程</button></div>'
     +'<div id="shotListWrap">'+shotListHtml(p,days)+'</div></div>';
   galleryRows.forEach(r=>ensureShiseiImage(r.key));
   attachDrag();
@@ -747,8 +751,9 @@ function shotListHtml(p,days){
 }
 /* v10.8.0：复制分镜——完整复制原分镜（含参考图 / 场景 / 时长 / 机位 / 光线 / 备注），
    时间字段统一 +5 分钟；新记录 id 重置、done/fav 清零、ord 紧随原分镜之后。
-   刻意不调用 applyDay：slot 是本条的排程结果，若重排会被 chain 覆盖、失去「+5 分钟」语义；
-   与原分镜的时长重叠属预期（+5 分钟必然落在原时长内），时间轴会按既有规则标「重叠」。 */
+   刻意不调用 applyDay：slot 是本条的排程结果，若重排会被 chain 覆盖、失去「+10 分钟」语义，
+   且会在用户调整中途打断编辑；用户调完后点工具区「↻ 重新排程」再一次性整体重排。
+   与原分镜的时长重叠属预期（+10 分钟落在原时长内），时间轴按既有规则标「重叠」。 */
 function copyShot(id){
   const p=cur(); if(!p) return;
   const s=(p.shots||[]).find(x=>x.id===id); if(!s) return;
@@ -766,7 +771,23 @@ function copyShot(id){
     ok=true;
   });
   if(!ok) return;
-  toast('已复制「'+String(s.name||'分镜').slice(0,12)+'」，时间顺延 '+COPY_SHIFT_MIN+' 分钟');
+  toast('已复制「'+String(s.name||'分镜').slice(0,12)+'」，时间顺延 '+COPY_SHIFT_MIN+' 分钟；调整完成后点「↻ 重新排程」',6000);
+  renderProject();
+}
+/* v10.8.1：整体重排——对每个拍摄日各跑一次 applyDay（含自动跨日），把复制 / 手动调整后的
+   slot 交给排程引擎统一派生。只在用户主动点击时执行，绝不自动触发，避免打断编辑。 */
+function rescheduleAllDays(){
+  const p=cur(); if(!p){ return; }
+  if(p.demo&&!view.allowDemoWrite){ toast('示例项目只读，请点「复制为我的项目」后再重排'); return; }
+  const dates=(Array.isArray(p.shootDates)?p.shootDates.slice():[]);
+  (p.shots||[]).forEach(s=>{ if(s.date&&dates.indexOf(s.date)<0) dates.push(s.date); });
+  if(!dates.length){ toast('还没有拍摄日，无需重排'); return; }
+  let plan=null;
+  updateCur(pp=>{
+    dates.forEach(d=>{ const one=applyDay(pp,d,null); if(one){ plan=plan||one; plan.shiftedCount=(plan.shiftedCount||0)+(one.shiftedCount||0); } });
+  });
+  if(!plan) return;
+  toastResched(plan,dates.length);
   renderProject();
 }
 function setShiseiCat(cat){ view.poseCat=(view.poseCat===cat)?null:String(cat||null); renderShots(cur()); }
@@ -1065,14 +1086,14 @@ function autoSyncDay(date){
 }
 
 /* 重排结果统一提示；被顺延的节点记进 view.lastShift，时间轴上临时显示「已顺延」（30 秒或下次重排清除） */
-function toastResched(plan){
+function toastResched(plan,allDays){
   if(!plan) return;
   const ids=(plan.nodeShifts||[]).map(function(x){return x.id;});
   view.lastShift=ids.length?{date:plan.date,ids:ids,ts:Date.now()}:null;
   if(plan.capHit){ toast('排期已跨越 7 天，请检查分镜时长'); return; }
   if(plan.overflow){ toast('排期超出当天 24:00，请缩短时长或改到另一天'); return; }
   const parts=[];
-  parts.push('已重排当天分镜（'+plan.shiftedCount+' 条后移）');
+  parts.push((allDays?'已整体重排 '+allDays+' 个拍摄日':'已重排当天分镜')+'（'+plan.shiftedCount+' 条后移）');
   if(ids.length) parts.push(ids.length+' 项日程已顺延');
   if(plan.movedShots) parts.push('已自动跨日 '+plan.movedShots+' 条分镜');
   if(plan.addedDates&&plan.addedDates.length) parts.push('已自动增加拍摄日 '+plan.addedDates.map(mmdd).join('、'));
@@ -1206,6 +1227,7 @@ function renderSchedule(p){
     +'<input type="time" id="n_start" style="max-width:105px" value="10:00">'
     +'<input type="time" id="n_end" style="max-width:105px" value="10:30">'
     +'<input id="n_note" class="grow" placeholder="备注…">'
+    +'<button class="btn btn-ghost btn-sm" id="openFavBtn" title="打开与当前页面相关的收藏并引用" onclick="openFavPicker()">☆ 打开收藏</button>'
     +'<button class="btn btn-primary" onclick="addNode()">添加环节</button></div>'
     +timelineHtml(p,schedDate)
     +'</div>';

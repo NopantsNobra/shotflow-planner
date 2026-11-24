@@ -27,7 +27,7 @@ vm.runInContext("globalThis.STATUSES=['灵感期','策划中','待拍摄','后�
 for (const n of ['addMin', 'toMin', 'fmtMin', 'dayItems', 'cascadeShift', 'tagKey', 'dedupeTags', 'parseTagsInput', 'mergeVocab', 'migrateTags', 'tagsForDisplay', 'matchByTags', 'renameTag', 'removeTag', 'shiseiItemKey', 'shiseiEntrySame', 'parseCatalog', 'diffCatalog', 'nextPendingBatch', 'mergeShiseiMeta', 'migrate']) vm.runInContext(fn(n), ctx);
 for (const n of ['freshView', 'clearInlineEditState', 'migrateFav', 'isFav', 'favCount', 'favSummary', 'summary40', 'collectFavorites', 'backupItemCount', 'matchBoardScope', 'isActiveStatus', 'parseMultiImage', 'slugPreview', 'cloneDemo', 'demoSpecs', 'buildDemoProject']) vm.runInContext(fn(n), ctx);
 /* v10.8.0：复制/引用共用的时间平移 + 页签→收藏类型映射 */
-vm.runInContext('const COPY_SHIFT_MIN=5;const TIME_FIELDS=["slot","start","end"];'
+vm.runInContext('const COPY_SHIFT_MIN=10;const TIME_FIELDS=["slot","start","end"];'
   + "const FAV_TYPES_BY_TAB={mood:['mood'],shots:['shots'],schedule:['schedule'],stuff:['scenes','items'],budget:['budget'],notes:['notes','todos']};", ctx);
 for (const n of ['shiftTimeFields', 'favTypesForTab']) vm.runInContext(fn(n), ctx);
 vm.runInContext(fn('suggestTags'), ctx);
@@ -77,7 +77,7 @@ check('封面缺省字段不丢内容', vm.runInContext(`coverData({name:'未填
 
 const migrated = vm.runInContext(`migrate({name:'x',shots:[{id:'s',refId:'img1'}],budget:[]})`, ctx);
 check('迁移 refId → refIds', JSON.stringify(migrated.shots[0].refIds) === '["img1"]');
-check('迁移补 duration', migrated.shots[0].duration === 20);
+check('迁移补 duration=10', migrated.shots[0].duration === 10);
 
 // v6 素材标签：归一化 / 去重 / 迁移 / 匹配 / 全局同步
 check('tagKey 全半角大小写空白折叠', vm.runInContext('tagKey("  ＧＯＬＤＥＮ　ＨＯＵＲ  ")', ctx) === 'golden hour');
@@ -333,7 +333,7 @@ check('v10 ⑧ 时长变大后后续后移',
 check('v10 ⑨ dayDefaults 已初始化时返回空',
   vm.runInContext(`dayDefaults(V1,'${D10}').length`, ctx) === 0);
 
-// ⑩ 老数据迁移：position/light 补空串、duration 仍兜底 20；rescheduleDay 后 slot 为 10:00
+// ⑩ 老数据迁移：position/light 补空串、duration 兜底 10（v10.8.1 统一）；rescheduleDay 后 slot 为 10:00
 const mig10 = vm.runInContext(`(()=>{
   const p=migrate({name:'x',shots:[{id:'s',refId:'img1',date:'${D10}'}],budget:[]});
   const f={pos:p.shots[0].position,light:p.shots[0].light,dur:p.shots[0].duration,dayInit:Array.isArray(p.dayInit)};
@@ -341,7 +341,7 @@ const mig10 = vm.runInContext(`(()=>{
   f.slot=p.shots[0].slot;
   return f;
 })()`, ctx);
-check('v10 ⑩ 迁移补 position/light 且不破 duration=20', mig10.pos === '' && mig10.light === '' && mig10.dur === 20 && mig10.dayInit && mig10.slot === '10:00', JSON.stringify(mig10));
+check('v10 ⑩ 迁移补 position/light 且不破 duration=10', mig10.pos === '' && mig10.light === '' && mig10.dur === 10 && mig10.dayInit && mig10.slot === '10:00', JSON.stringify(mig10));
 
 // ⑪ 老项目已有「集合 / 收工」但无 auto → adopt 升级，不新增重复项
 const dd11 = vm.runInContext(`dayDefaults({
@@ -722,11 +722,11 @@ check('v10.7.1 ⑤ sanitizeProject 拒绝非对象输入',
   vm.runInContext('sanitizeProject(null) === null && sanitizeProject("x") === null && sanitizeProject([]) === null', ctx));
 check('v10.7.1 ⑥ sanitizeProject refIds 收敛为字符串且不超 3 张',
   CLEAN.shots[0].refIds.join(',') === 'imgkey1,42' && CLEAN.shots[0].refIds.length <= 3);
-check('v10.7.1 ⑦ 净化后迁移仍可走通（duration 兑底 20 / 字段齐全）', (() => {
+check('v10.7.1 ⑦ 净化后迁移仍可走通（duration 兑底 10 / 字段齐全）', (() => {
   const p = vm.runInContext('sanitizeProject(EVIL)', ctx);
   vm.runInContext('globalThis.__mig=' + JSON.stringify(p), ctx);
   const m = vm.runInContext('migrate(__mig)', ctx);
-  return m.shots[0].duration === 20 && Array.isArray(m.refs) && Array.isArray(m.tagVocab);
+  return m.shots[0].duration === 10 && Array.isArray(m.refs) && Array.isArray(m.tagVocab);
 })());
 
 // ⑧ safeFilename：只剥非法字符，不套 esc（& 不再变 &amp;）；空名回退
@@ -753,13 +753,13 @@ check('v10.7.1 ⑪ sanitizeProject 保留合法 slot、非法 slot 置空', (() 
   return p.shots[0].slot === '10:00' && p.shots[1].slot === '';
 })());
 
-// v10.8.0 ① 时间平移：时分字段 +5、跨小时进位、日期字段不动、原对象不变
-check('v10.8.0 ① shiftTimeFields 时分 +5 且日期不动、不改原对象', (() => {
+// v10.8.0 ① 时间平移：时分字段 +10（默认 COPY_SHIFT_MIN）、跨小时进位、日期字段不动、原对象不变
+check('v10.8.0 ① shiftTimeFields 时分 +10 且日期不动、不改原对象', (() => {
   const src={slot:'10:25',start:'23:58',end:'09:07',date:'2026-11-24',due:'2026-11-25',name:'x'};
   vm.runInContext('globalThis.__t8src='+JSON.stringify(src), ctx);
   const out=vm.runInContext('shiftTimeFields(__t8src)', ctx);
   const after=vm.runInContext('__t8src', ctx);
-  return out.slot==='10:30'&&out.start==='00:03'&&out.end==='09:12'
+  return out.slot==='10:35'&&out.start==='00:08'&&out.end==='09:17'
     &&out.date==='2026-11-24'&&out.due==='2026-11-25'&&out.name==='x'
     &&after.slot==='10:25';
 })());

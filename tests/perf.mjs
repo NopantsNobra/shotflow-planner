@@ -44,7 +44,7 @@ vm.runInContext(
     ";globalThis.jstr=s=>esc(JSON.stringify(String(s==null?'':s)));" +
     ";globalThis.DAY_BASE='10:00';globalThis.COLLECT_START='09:30';globalThis.COLLECT_MIN=30;globalThis.WRAP_MIN=15;globalThis.SHOT_DEFAULT_MIN=10;" +
     // v10.8.0：shotListHtml 的复制按钮提示用到 COPY_SHIFT_MIN（与源码常量同源）
-    ";globalThis.COPY_SHIFT_MIN=5;" +
+    ";globalThis.COPY_SHIFT_MIN=10;" +
     ";globalThis.view={shotFilter:''};globalThis.imgCache={};",
   ctx
 );

@@ -4,6 +4,19 @@
 
 所有日期为 2026 年。
 
+## [v10.8.1] - 2026-11-24
+
+时长与交互微调。SW 缓存 `v10-12` → `v10-13`。
+
+### Changed
+- **默认时长统一 10 分钟**：示例分镜（v9 `buildDemoProject` 与 seed 的 20/30/40）与 migrate 的历史兜底 20 全部改为 10；时长下拉保留 15/20/30/45/60/90 供手动选择。
+- **错开间隔统一 10 分钟**：`COPY_SHIFT_MIN` 5 → 10，复制分镜 / 引用收藏的时分字段 +10（跨小时取模），日期字段仍不动。
+- **复制后延迟重排**：`copyShot` 仍不触发 `applyDay`（避免打断编辑），toast 引导「调整完成后点 ↻ 重新排程」；分镜页工具区新增「↻ 重新排程」按钮 → `rescheduleAllDays()` 对所有拍摄日各跑一次 `applyDay`（含自动跨日），仅在用户主动点击时执行。`toastResched(plan,allDays)` 新增可选参数以显示整体重排文案。
+- **打开收藏按钮位置**：分镜页移到「添加分镜」旁、日程页移到「添加环节」旁（同 `btn-ghost btn-sm` 样式、`.row` gap 10px + align-items:center）；其余可收藏页签仍在 subbar 保留入口，concept 页不显示。
+
+### Verification
+- 逻辑测试 120 项、E2E 18 项（+2：按钮位置与整体重排）、perf、verify:version(10.8.1) / verify:build / sync:check / lint / format:check 全绿。
+
 ## [v10.8.0] - 2026-11-24
 
 交互增强三连：复制分镜、收藏引用浮窗、全局 Esc 返回看板。SW 缓存 `v10-11` → `v10-12`（确保线上用户拿到新 UI），数据 schema 不变。

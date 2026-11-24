@@ -379,7 +379,7 @@ const shotData=async(page)=>page.evaluate(async()=>{
   const p=arr.find(x=>x.id==='v108-test'); return p?p.shots:[];
 });
 
-test('v10.8.0 复制分镜：完整复制、时间 +5、列表即时更新', async ({ page }) => {
+test('v10.8.0 复制分镜：完整复制、时间 +10、列表即时更新', async ({ page }) => {
   await setupV108Project(page);
   await expect(page.locator('.shot')).toHaveCount(1);
   const copyBtn=page.locator('.shot [title^="复制分镜"]');
@@ -393,7 +393,7 @@ test('v10.8.0 复制分镜：完整复制、时间 +5、列表即时更新', asy
   expect(clone).toBeTruthy();
   expect(clone.name).toBe('原始分镜');
   expect(clone.note).toBe('原备注');
-  expect(clone.slot).toBe('10:05');           // 10:00 + 5 分钟
+  expect(clone.slot).toBe('10:10');           // 10:00 + 10 分钟
   expect(clone.done).toBe(false);
   expect(clone.fav).toBe(false);
   const orig=shots.find(s=>s.id==='shot-a');
@@ -417,7 +417,7 @@ test('v10.8.0 收藏浮窗：只列当前页相关类型、concept 页无按钮'
   await expect(page.locator('#openFavBtn')).toHaveCount(0);
 });
 
-test('v10.8.0 引用收藏：跨来源引用、时间 +5、可连续引用', async ({ page }) => {
+test('v10.8.0 引用收藏：跨来源引用、时间 +10、可连续引用', async ({ page }) => {
   await setupV108Project(page);
   // 先给本案分镜加收藏（通过 UI 点 ☆），随后到 notes 页引用 todos 收藏
   await page.locator('.shot [title="收藏/取消收藏"]').first().click();
@@ -463,7 +463,7 @@ test('v10.8.0 全局 Esc：浮窗优先关闭，其后返回看板，看板无�
   await expect(page.locator('.masthead h1')).toHaveText('瞬刻摄影工作台');
 });
 
-test('v10.8.0 引用时间顺延：带时分字段的收藏条目 +5 分钟', async ({ page }) => {
+test('v10.8.0 引用时间顺延：带时分字段的收藏条目 +10 分钟', async ({ page }) => {
   // 注入一条带 slot 的收藏分镜到源项目，另一空项目作引用目标
   await page.goto('/shotflow.html');
   await expect(page.locator('.masthead h1')).toHaveText('瞬刻摄影工作台');
@@ -494,7 +494,62 @@ test('v10.8.0 引用时间顺延：带时分字段的收藏条目 +5 分钟', as
     const p=arr.find(x=>x.id==='v108-dst'); return p?p.shots:[];
   });
   expect(shots).toHaveLength(1);
-  expect(shots[0].slot).toBe('15:00');        // 14:55 + 5 分钟，跨小时进位
+  expect(shots[0].slot).toBe('15:05');        // 14:55 + 10 分钟，跨小时进位
   expect(shots[0].name).toBe('被收藏分镜');
   expect(shots[0].fav).toBe(false);
+});
+
+/* ===================== v10.8.1 时长/按钮位置/延迟重排 ===================== */
+test('v10.8.1 打开收藏按钮位于添加分镜/添加环节按钮旁', async ({ page }) => {
+  await setupV108Project(page);
+  // 分镜页：#openFavBtn 与「添加分镜」同处一个 .row，且紧邻其前
+  const shotCtx=await page.evaluate(()=>{
+    const btn=document.getElementById('openFavBtn');
+    if(!btn) return null;
+    const add=[...btn.parentElement.querySelectorAll('button')].find(b=>b.textContent.trim()==='添加分镜');
+    const sib=[...btn.parentElement.querySelectorAll('button')];
+    return {sameRow:!!add&&btn.parentElement===add.parentElement, nextIsAdd:!!add&&sib.indexOf(btn)+1===sib.indexOf(add),
+      cls:btn.className, addCls:add?add.className:''};
+  });
+  expect(shotCtx).toBeTruthy();
+  expect(shotCtx.sameRow).toBe(true);
+  expect(shotCtx.nextIsAdd).toBe(true);
+  expect(shotCtx.cls).toContain('btn-ghost');
+  expect(shotCtx.cls).toContain('btn-sm');
+  expect(shotCtx.addCls).toContain('btn-primary');
+  // 日程页：同样紧邻「添加环节」之前，样式一致
+  await page.locator('.ptab', { hasText:'日程' }).click();
+  const schedCtx=await page.evaluate(()=>{
+    const btn=document.getElementById('openFavBtn');
+    if(!btn) return null;
+    const all=[...btn.parentElement.querySelectorAll('button')];
+    const add=all.find(b=>b.textContent.trim()==='添加环节');
+    return {sameRow:!!add, nextIsAdd:!!add&&all.indexOf(btn)+1===all.indexOf(add), cls:btn.className};
+  });
+  expect(schedCtx).toBeTruthy();
+  expect(schedCtx.sameRow).toBe(true);
+  expect(schedCtx.nextIsAdd).toBe(true);
+  expect(schedCtx.cls).toContain('btn-ghost');
+});
+
+test('v10.8.1 复制后不立即重排、点重新排程后一次性整体重排', async ({ page }) => {
+  await setupV108Project(page);
+  // 原分镜 10:00 / 20 分钟；复制后新分镜 slot=10:10（字面 +10），不应被 chain 覆盖成 10:20
+  await page.locator('.shot [title^="复制分镜"]').click();
+  await expect.poll(async()=> (await shotData(page)).length,{timeout:5000}).toBe(2);
+  let shots=await shotData(page);
+  const clone=shots.find(s=>s.id!=='shot-a');
+  expect(clone.slot).toBe('10:10');
+  // 重新排程按钮存在
+  await expect(page.locator('#reschedAllBtn')).toBeVisible();
+  await page.locator('#reschedAllBtn').click();
+  // 整体重排后：两条按 ord 链派生，第一条 10:00，第二条 10:20（原时长 20 分钟）
+  await expect.poll(async()=>{
+    const s=await shotData(page);
+    const c=s.find(x=>x.id!=='shot-a');
+    return c?c.slot:'';
+  },{timeout:5000}).toBe('10:20');
+  shots=await shotData(page);
+  expect(shots.find(s=>s.id==='shot-a').slot).toBe('10:00');
+  await expect(page.locator('.shot')).toHaveCount(2);
 });
