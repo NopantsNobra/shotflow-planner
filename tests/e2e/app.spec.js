@@ -778,7 +778,7 @@ test('直接打开本地 HTML 时基础 CSP 不阻断核心交互',async({page})
   await expect(page.locator('.shot')).toContainText('本地分镜');
 });
 test('PWA 首次缓存后离线刷新仍可打开项目',async({page,context})=>{
-  await page.addInitScript(()=>{try{localStorage.setItem('wb_sf_shisei_sync','0');}catch{}});
+  await page.addInitScript(()=>{try{localStorage.setItem('wb_sf_shisei_sync','0');}catch{/* Browser storage may be unavailable. */}});
   await openFreshApp(page);
   await createProject(page,'离线项目');
   await waitProjectPersisted(page,'离线项目');
