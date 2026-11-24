@@ -810,5 +810,16 @@ const conflictCheck=await vm.runInContext(`(async()=>{
 })()`,ctx);
 check('P0 冲突停止写入、保留内存草稿',conflictCheck);
 
+// P0 备份图片依赖：新键、共享引用、拒绝外部 URL/任意 SVG/缺失图。
+for(const n of ['collectImages','validBackupImage','remapBackupImages']) vm.runInContext(fn(n),ctx);
+check('P0 备份依赖重映射并拒绝缺失图片',vm.runInContext(`(()=>{
+  const image='data:image/png;base64,AAAA';
+  const p={mood:[{type:'image',content:'old'}],refs:[{key:'old'}],shots:[{refIds:['old','shisei:pose']}]};
+  const mapped=remapBackupImages([p],{old:image},()=>'new');
+  let rejected=false;try{remapBackupImages([{refs:[{key:'missing'}]}],{},()=>'x');}catch(e){rejected=true;}
+  return mapped.new===image&&p.mood[0].content==='new'&&p.refs[0].key==='new'&&p.shots[0].refIds.join(',')==='new,shisei:pose'
+    &&rejected&&!validBackupImage('https://example.com/a.jpg')&&!validBackupImage('data:image/svg+xml,<svg/>')
+    &&validBackupImage(slugPreview('样片',['#9a6a33','#f3e9da']));
+})()`,ctx));
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

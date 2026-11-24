@@ -619,3 +619,27 @@ test('P0 多标签页冲突：保留先保存的数据和本页草稿', async ({
   expect(after).toContain('先保存的项目');
   await second.close();
 });
+
+test('P0 备份导入：缺失图片拒绝，合法图片独立重映射',async({page})=>{
+  await openFreshApp(page);
+  await createProject(page,'导入前项目');
+  await waitProjectPersisted(page,'导入前项目');
+  await page.keyboard.press('Escape');
+  const pack={app:'stillmark',version:4,type:'project',project:{name:'素材迁移',refs:[{key:'same',name:'样片'}],shots:[{name:'分镜',refIds:['same']}]},images:{}};
+  const importPack=async()=>{
+    await page.locator('#importFile').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(pack))});
+    await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+    await page.locator('#confirmOk').click();
+  };
+  await importPack();
+  await expect(page.locator('.toast')).toContainText('图片依赖缺失');
+  await expect(page.locator('.pcard',{hasText:'导入前项目'})).toBeVisible();
+  pack.images.same='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV7sAAAAASUVORK5CYII=';
+  await importPack();
+  await expect(page.locator('.pcard',{hasText:'素材迁移'})).toBeVisible();
+  const state=await page.evaluate(async()=>{
+    const p=(await idb.getProjects()).find(p=>p.name.includes('素材迁移'));
+    const key=p.refs[0].key;return {key,ref:p.shots[0].refIds[0],image:await idb.get(key)};
+  });
+  expect(state.key).not.toBe('same');expect(state.ref).toBe(state.key);expect(state.image).toBe(pack.images.same);
+});

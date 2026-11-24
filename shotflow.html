@@ -755,17 +755,22 @@ const idb={db:null,
   /* 读比较与写入必须在同一个 readwrite 事务中：跨标签页串行，不能先在独立事务中检查。 */
   putProjects(a,expected){return idb.compareProjects(a,expected,false);},
   clearProjects(expected){return idb.compareProjects(null,expected,true);},
-  compareProjects(a,expected,clear){
+  importProjects(a,expected,images){return idb.compareProjects(a,expected,false,images);},
+  compareProjects(a,expected,clear,images){
     if(!idb.db) return Promise.reject(new Error('IDB_UNAVAILABLE'));
     return new Promise((res,rej)=>{
-      const t=idb.db.transaction(clear?['projects','images']:['projects'],'readwrite');
+      const t=idb.db.transaction(clear||images?['projects','images']:['projects'],'readwrite');
       const store=t.objectStore('projects'), r=store.get('all');
       let matched=false;
       r.onsuccess=()=>{
         if(JSON.stringify(r.result==null?null:r.result)!==expected) return;
         matched=true;
         if(clear){ store.delete('all'); t.objectStore('images').clear(); }
-        else store.put(a,'all');
+        else {
+          store.put(a,'all');
+          // add 而非 put：新图片键碰撞时整个事务回滚，不覆盖现有图片。
+          if(images){ const imgs=t.objectStore('images'); Object.keys(images).forEach(k=>imgs.add(images[k],k)); }
+        }
       };
       t.oncomplete=()=>res(matched);
       t.onabort=()=>rej(t.error||new Error('IDB_ABORT'));
@@ -3600,30 +3605,72 @@ function downloadData(data,filename){
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));
   a.download=filename; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),60000);
 }
 function collectImages(ps){
   const ids=new Set();
   ps.forEach(p=>{
-    (p.mood||[]).filter(m=>m.type==='image').forEach(m=>ids.add(m.content));
+    (p.mood||[]).filter(m=>m.type==='image'&&m.content&&!String(m.content).startsWith('shisei:')).forEach(m=>ids.add(m.content));
     (p.refs||[]).forEach(r=>{ if(r&&r.key&&!String(r.key).startsWith('shisei:')) ids.add(r.key); });  // v10.4：参考图库也随备份导出
     (p.shots||[]).forEach(s=>(s.refIds||[]).forEach(r=>{ if(!String(r||'').startsWith('shisei:')) ids.add(r); }));
   });
   return ids;
 }
 async function imagesFor(ps){
-  const out={};
-  for(const id of collectImages(ps)){ const v=(imgCache[id]||await idb.get(id)); if(v) out[id]=v; }
+  const out=Object.create(null), missing=[];
+  for(const id of collectImages(ps)){
+    const v=(Object.prototype.hasOwnProperty.call(imgCache,id)&&imgCache[id])||await idb.get(id);
+    if(v) out[id]=v; else missing.push(id);
+  }
+  if(missing.length) throw new Error('缺失 '+missing.length+' 张引用图片');
   return out;
 }
 async function exportJSON(){
-  const data={app:'stillmark',version:4,exportedAt:new Date().toISOString(),projects:loadP(),images:await imagesFor(loadP())};
-  downloadData(data,'瞬刻摄影工作台备份_'+todayStr()+'.json');
+  const projects=JSON.parse(JSON.stringify(loadP()));
+  try{
+    const data={app:'stillmark',version:4,exportedAt:new Date().toISOString(),projects,images:await imagesFor(projects)};
+    downloadData(data,'瞬刻摄影工作台备份_'+todayStr()+'.json'); toast('完整备份已导出');
+  }catch(e){ toast('备份未完成：'+String(e.message||e)+'，请勿清空原数据',6000); }
 }
 async function exportProject(pid){
-  const p=loadP().find(x=>x.id===pid); if(!p) return;
-  downloadData({app:'stillmark',version:4,type:'project',exportedAt:new Date().toISOString(),project:p,images:await imagesFor([p])},
-    '策划案_'+safeFilename(p.name)+'_'+todayStr()+'.json');
-  toast('单项目备份已导出');
+  const original=loadP().find(x=>x.id===pid); if(!original) return;
+  const p=JSON.parse(JSON.stringify(original));
+  try{
+    downloadData({app:'stillmark',version:4,type:'project',exportedAt:new Date().toISOString(),project:p,images:await imagesFor([p])},
+      '策划案_'+safeFilename(p.name)+'_'+todayStr()+'.json');
+    toast('单项目备份已导出');
+  }catch(e){ toast('备份未完成：'+String(e.message||e),6000); }
+}
+/* 只接收本应用导出的栅格图片或精确匹配内置示例模板的 SVG；不接收 URL/任意 SVG。 */
+function validBackupImage(v){
+  if(typeof v!=='string') return false;
+  if(/^data:image\/(jpeg|png|webp|gif|avif);base64,[A-Za-z0-9+/]+={0,2}$/.test(v)) return true;
+  const prefix='data:image/svg+xml;charset=utf-8,';
+  if(!v.startsWith(prefix)) return false;
+  try{
+    const svg=decodeURIComponent(v.slice(prefix.length));
+    const m=svg.match(/<rect width="640" height="420" fill="(#[0-9a-fA-F]{3,6})"\/><circle cx="486" cy="106" r="62" fill="(#[0-9a-fA-F]{3,6})"/);
+    const label=svg.match(/<text x="34" y="72" font-size="32" font-family="sans-serif" fill="#[0-9a-fA-F]{3,6}">([^<]*)<\/text><\/svg>$/);
+    return !!(m&&label&&slugPreview(label[1],[m[2],m[1]])===v);
+  }catch(e){ return false; }
+}
+/* 重映射依赖图片键，保留同包内共享关系，绝不引用本机同名键。 */
+function remapBackupImages(projects,images,mkId){
+  const source=images&&typeof images==='object'&&!Array.isArray(images)?images:{};
+  const mapping=Object.create(null), payload=Object.create(null);
+  for(const key of collectImages(projects)){
+    if(!Object.prototype.hasOwnProperty.call(source,key)||!validBackupImage(source[key])) throw new Error('图片依赖缺失或格式不合法');
+    const id=mkId();
+    if(Object.prototype.hasOwnProperty.call(payload,id)) throw new Error('图片键重复');
+    mapping[key]=id; payload[id]=source[key];
+  }
+  const remap=k=>Object.prototype.hasOwnProperty.call(mapping,k)?mapping[k]:k;
+  projects.forEach(p=>{
+    (p.mood||[]).filter(m=>m.type==='image').forEach(m=>{m.content=remap(m.content);});
+    (p.refs||[]).forEach(r=>{r.key=remap(r.key);});
+    (p.shots||[]).forEach(s=>{s.refIds=(s.refIds||[]).map(remap);});
+  });
+  return payload;
 }
 let pendingImport=null;
 function importJSON(e){
@@ -3632,8 +3679,9 @@ function importJSON(e){
   rd.onload=ev=>{
     let d;
     try{ d=JSON.parse(ev.target.result); }catch(err){ toast('文件格式不正确，导入失败'); e.target.value=''; return; }
-    const list=d.projects?d.projects:(d.project?[d.project]:null);
-    if(!list||!list.length){ toast('文件中没有可导入的策划案'); e.target.value=''; return; }
+    const list=d&&typeof d==='object'?(d.project?[d.project]:d.projects):null;
+    if(!Array.isArray(list)||!list.length||list.some(p=>!p||typeof p!=='object'||Array.isArray(p))){ toast('文件中没有合法的策划案'); e.target.value=''; return; }
+    if(d.version!=null&&(!Number.isInteger(d.version)||d.version<1||d.version>4)){ toast('不支持的备份版本'); e.target.value=''; return; }
     pendingImport=d;
     const names=list.slice(0,3).map(p=>p.name||'未命名').join('、')+(list.length>3?' 等':'');
     if(d.type==='project'||d.project){
@@ -3645,26 +3693,34 @@ function importJSON(e){
   rd.readAsText(f); e.target.value='';
 }
 async function applyImport(){
-  const d=pendingImport; if(!d){ return; }
+  const d=pendingImport; pendingImport=null; if(!d) return;
+  if(persistConflict||persistClearing||!idb.ready()){ toast('当前无法安全导入，请先备份并刷新'); return; }
+  let locked=false;
+  const app=document.getElementById('app');
   try{
-    /* A1/C1：导入文件是不可信输入，先经 sanitizeProject 净化（id 全部重写 + status 白名单 +
-       类型收敛）再 migrate；非法条目直接丢弃，不进入内存 */
-    let arr;
-    if(d.type==='project'||d.project){
-      const p=sanitizeProject(d.project);
-      if(!p){ toast('文件数据不合法，导入失败'); return; }
-      migrate(p); p.v3=1; p.name=(p.name||'导入的策划案')+'（导入）';
-      arr=[...loadP(),p];
-    } else {
-      arr=(Array.isArray(d.projects)?d.projects:[]).map(x=>sanitizeProject(x)).filter(Boolean)
-        .map(p=>{ migrate(p); p.v3=1; return p; });
-      if(!arr.length){ toast('文件中没有合法的策划案，导入失败'); return; }
-    }
-    if(d.images){ for(const k of Object.keys(d.images)){ await idb.put(k,d.images[k]); imgCache[k]=d.images[k]; } }
-    saveP(arr);
+    const single=d.type==='project'||!!d.project;
+    const raw=single?[d.project]:d.projects;
+    if(!Array.isArray(raw)||!raw.length) throw new Error('文件中没有合法项目');
+    const imported=raw.map(p=>sanitizeProject(p));
+    if(imported.some(p=>!p)) throw new Error('文件中有非法项目');
+    imported.forEach(p=>{migrate(p);p.v3=1;});
+    if(single) imported[0].name+='（导入）';
+    const images=remapBackupImages(imported,d.images,uid);
+    if(app) app.inert=true;
+    if(persistTimer||pendingPersist) await flushPersist(); else await persistChain;
+    if(persistConflict||persistFailed) throw new Error('现有数据尚未保存');
+    persistClearing=true; locked=true;
+    const generation=persistGeneration;
+    const arr=single?JSON.parse(JSON.stringify(loadP())).concat(imported):imported;
+    const ok=await idb.importProjects(arr,persistExpected,images);
+    if(!ok){markPersistConflict();return;}
+    persistExpected=JSON.stringify(arr);
+    Object.keys(images).forEach(k=>{imgCache[k]=images[k];});
+    if(generation!==persistGeneration){markPersistConflict();return;}
+    projectsCache=arr; pendingPersist=false; persistFailed=false;
     view=freshView(); renderBoard(); toast('导入成功，共 '+arr.length+' 个策划案');
-  }catch(err){ toast('导入失败：数据格式或图片异常'); }
-  finally{ pendingImport=null; }
+  }catch(err){ toast('导入失败：'+String(err.message||err)+'，原项目未被覆盖',6000); }
+  finally{ if(locked) persistClearing=false; if(app) app.inert=false; }
 }
 let confirmCb=null;
 function askConfirm(t,d,cb){ document.getElementById('confirmTitle').textContent=t; document.getElementById('confirmDesc').textContent=d; confirmCb=cb; document.getElementById('confirmModal').classList.add('show'); }

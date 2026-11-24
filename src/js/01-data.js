@@ -221,17 +221,22 @@ const idb={db:null,
   /* 读比较与写入必须在同一个 readwrite 事务中：跨标签页串行，不能先在独立事务中检查。 */
   putProjects(a,expected){return idb.compareProjects(a,expected,false);},
   clearProjects(expected){return idb.compareProjects(null,expected,true);},
-  compareProjects(a,expected,clear){
+  importProjects(a,expected,images){return idb.compareProjects(a,expected,false,images);},
+  compareProjects(a,expected,clear,images){
     if(!idb.db) return Promise.reject(new Error('IDB_UNAVAILABLE'));
     return new Promise((res,rej)=>{
-      const t=idb.db.transaction(clear?['projects','images']:['projects'],'readwrite');
+      const t=idb.db.transaction(clear||images?['projects','images']:['projects'],'readwrite');
       const store=t.objectStore('projects'), r=store.get('all');
       let matched=false;
       r.onsuccess=()=>{
         if(JSON.stringify(r.result==null?null:r.result)!==expected) return;
         matched=true;
         if(clear){ store.delete('all'); t.objectStore('images').clear(); }
-        else store.put(a,'all');
+        else {
+          store.put(a,'all');
+          // add 而非 put：新图片键碰撞时整个事务回滚，不覆盖现有图片。
+          if(images){ const imgs=t.objectStore('images'); Object.keys(images).forEach(k=>imgs.add(images[k],k)); }
+        }
       };
       t.oncomplete=()=>res(matched);
       t.onabort=()=>rej(t.error||new Error('IDB_ABORT'));
