@@ -876,3 +876,12 @@ test('看板支持键盘打开项目，切页保留项目头部',async({page})=>
   await expect(page.locator('[data-project-tab="mood"]')).toHaveAttribute('aria-pressed','true');
   expect(await page.evaluate(()=>window.__meta===document.querySelector('.metacard'))).toBe(true);
 });
+
+test('静态 shell 不依赖内联事件，委托动作仍可键盘创建项目',async({page})=>{
+  await openFreshApp(page);
+  expect(await page.locator('#nameModal [onclick],#nameModal [onkeydown],#settingsModal[onclick],#deployModal[onclick],#favPickerModal[onclick]').count()).toBe(0);
+  await page.getByRole('button',{name:'新建策划案'}).click();
+  await page.locator('#nameInput').fill('CSP 委托测试');
+  await page.locator('#nameInput').press('Enter');
+  await expect(page.locator('.phead h1')).toContainText('CSP 委托测试');
+});

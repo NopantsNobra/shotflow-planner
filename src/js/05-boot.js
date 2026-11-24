@@ -67,3 +67,22 @@ document.addEventListener('keydown',e=>{
     e.preventDefault();el.click();
   }
 });
+
+/* Strict-CSP migration: static shell actions are allowlisted, never evaluated as code. */
+const shellActions=Object.freeze({
+  'export-proposal':()=>exportProposalFile(),'print':()=>window.print(),
+  'close-doc':()=>closeDoc(),'close-settings':()=>closeSettings(),'close-deploy':()=>closeDeployModal(),
+  'close-confirm':()=>closeConfirm(),'close-name':()=>closeNameModal(),'create-project':()=>confirmNewProject(),
+  'close-favorites':()=>closeFavPicker(),
+  'settings-backdrop':(e,el)=>{if(e.target===el)closeSettings();},
+  'deploy-backdrop':(e,el)=>{if(e.target===el)closeDeployModal();},
+  'favorites-backdrop':(e,el)=>{if(e.target===el)closeFavPicker();}
+});
+document.addEventListener('click',e=>{
+  const el=e.target.closest?.('[data-shell-action]');if(!el)return;
+  const action=el.dataset.shellAction;
+  if(Object.prototype.hasOwnProperty.call(shellActions,action))shellActions[action](e,el);
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&e.target.dataset?.shellEnter==='create-project'){e.preventDefault();shellActions['create-project'](e,e.target);}
+});
