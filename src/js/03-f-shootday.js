@@ -46,12 +46,12 @@ async function renderShootDay(){
           +((overdue||x._conflict)?'<button class="sd-btn" style="margin-top:8px" onclick="sdPostpone()" title="当天所有环节与分镜整体后移 1 小时，收工随之重排">⚠ 已'+(overdue?'超时':'重叠')+' · 整日顺延 1 小时</button>':'')
           +(!x.done?'<div class="sd-actions"><button class="sd-btn" onclick="sdDisposition('+jstr(x.id)+',\'deferred\')">'+(x.deferred?'取消补拍':'稍后补拍')+'</button><button class="sd-btn" onclick="sdDisposition('+jstr(x.id)+',\'skipped\')">'+(x.skipped?'恢复':'跳过')+'</button></div>':'')
           +'</div>'
-          +'<button class="sd-chk '+(x.done?'on':'')+'" aria-label="完成或恢复分镜" onclick="sdToggle('+jstr(x.id)+')">✓</button></div>';
+          +'<button class="sd-chk '+(x.done?'on':'')+'" aria-label="完成或恢复分镜" aria-pressed="'+!!x.done+'" onclick="sdToggle('+jstr(x.id)+')">✓</button></div>';
       } else {
         h+='<div class="sd-shot node '+(x.done?'done':'')+' '+(x.id===currentId?'now':'')+'">'
           +'<div style="flex:1;min-width:120px"><div class="sd-name" style="font-size:16px">'+esc(x.title)+cflag+'</div>'
           +'<div class="sd-meta">'+esc(x.type)+(x.end?' · 至 '+esc(x.end):'')+(x.note?' · '+esc(x.note):'')+'</div></div>'
-          +'<button class="sd-chk sm '+(x.done?'on':'')+'" onclick="sdToggleNode('+jstr(x.id)+')">✓</button></div>';
+          +'<button class="sd-chk sm '+(x.done?'on':'')+'" aria-label="完成或恢复流程" aria-pressed="'+!!x.done+'" onclick="sdToggleNode('+jstr(x.id)+')">✓</button></div>';
       }
     });
   }

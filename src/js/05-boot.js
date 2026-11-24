@@ -60,3 +60,10 @@ bindDialogAccessibility();
 
 // 回收冷缩略图，不触碰当前项目引用及持久化数据。
 setInterval(()=>trimImageCache(),60000);
+
+document.addEventListener('keydown',e=>{
+  const el=e.target;
+  if((e.key==='Enter'||e.key===' ')&&el?.matches('[role="button"][tabindex="0"]')){
+    e.preventDefault();el.click();
+  }
+});

@@ -457,3 +457,12 @@ svg{display:inline-block;vertical-align:middle}
 }
 @media(max-width:700px){.wrap{padding-left:12px;padding-right:12px}.card{padding:16px 13px}.metric{padding:12px 10px}.metrics{gap:6px}.bcol{padding:5px}.rowbtn{min-height:38px}.phead h1{font-size:23px}.workspace-control{gap:8px}.workspace-control>.muted{flex:1 0 100%}.batch-bar select{max-width:100%;flex:1}.sd-inner{padding-inline:12px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
+
+/* Keyboard focus stays visible on nonstandard controls; reference actions are independent buttons. */
+.pcard:focus-visible,.ref-open:focus-visible,.ref-opt:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.ref-opt{padding:0;text-align:left}
+.ref-open{display:block;width:100%;height:100%;padding:0;border-radius:inherit;overflow:hidden}
+.ref-open:focus-visible{outline-offset:-3px}
+.ref-thumb:focus-within{overflow:visible}
+.ref-thumb img{border-radius:inherit}
+@media (pointer:coarse){.ref-thumb .ref-del{width:26px;height:26px}.ref-opt{width:64px;height:64px}}

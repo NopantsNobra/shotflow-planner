@@ -25,7 +25,7 @@ function projectCardHtml(p,i,t){
   const openT=p.todos.filter(x=>!x.done).length;
   const overdue=p.todos.filter(x=>!x.done&&x.due&&x.due<t).length;
   const cd=shootCountdown(p,t);
-  return '<article class="pcard st-'+i+'" onclick="openProject('+jstr(p.id)+')">'
+  return '<article class="pcard st-'+i+'" role="button" tabindex="0" aria-label="'+esc('打开项目 '+p.name)+'" onclick="openProject('+jstr(p.id)+')">'
     +'<div class="pname">'+demoBadge(p)+esc(p.name)+'</div>'
     +'<div class="pmeta">'+esc(p.client||'个人项目')+' · '+(p.shootDate?'拍摄 '+esc(p.shootDate)+cd.text:'未定拍摄日')+'</div>'
     +'<div class="pmeta">分镜 '+done+' / '+total+(openT?' · 待办 '+openT:'')+'</div>'

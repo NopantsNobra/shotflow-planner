@@ -86,7 +86,7 @@ function renderProject(){
       '<div class="tab-seg'+(g.tabs.some(t=>t[0]===view.tab)?' on':'')+'">'
       +'<span class="tab-group">'+g.name+'</span>'
       +'<div class="tab-row">'
-      +g.tabs.map(tb=>'<button class="ptab '+(view.tab===tb[0]?'active':'')+'" onclick="view.tab=\''+tb[0]+'\';renderProject()">'+tb[1]+'</button>').join('')
+      +g.tabs.map(tb=>'<button class="ptab '+(view.tab===tb[0]?'active':'')+'" data-project-tab="'+tb[0]+'" aria-pressed="'+(view.tab===tb[0])+'" onclick="switchProjectTab('+jstr(tb[0])+')">'+tb[1]+'</button>').join('')
       +'</div></div>').join('')
     +'</div>'
     +(modules.some(x=>['proposal','callsheet','manual'].includes(x))?'<div class="subbar">'
@@ -95,6 +95,20 @@ function renderProject(){
     +'<div id="tabBody"></div>';
   document.getElementById('app').innerHTML=h;
   ({concept:renderConcept,mood:renderMood,shots:renderShots,schedule:renderSchedule,stuff:renderStuff,budget:renderBudget,notes:renderNotes})[view.tab](p);
+}
+function switchProjectTab(tab){
+  const p=cur();if(!p||view.tab===tab)return;
+  const renderers={concept:renderConcept,mood:renderMood,shots:renderShots,schedule:renderSchedule,stuff:renderStuff,budget:renderBudget,notes:renderNotes};
+  if(!renderers[tab])return;
+  const modules=workspaceModules(p.workspaceMode,p.workspaceCustom),wasHidden=!modules.includes(view.tab);
+  view.tab=tab;clearInlineEditState(view);
+  const body=document.getElementById('tabBody');
+  if(!body||wasHidden||!modules.includes(tab)){renderProject();return;}
+  document.querySelectorAll('[data-project-tab]').forEach(el=>{
+    const on=el.dataset.projectTab===tab;el.classList.toggle('active',on);el.setAttribute('aria-pressed',String(on));
+  });
+  document.querySelectorAll('.tab-seg').forEach(el=>el.classList.toggle('on',!!el.querySelector('.ptab.active')));
+  body.replaceChildren();renderers[tab](p);
 }
 function setP(k,v){ updateCur(p=>p[k]=v); }
 function setLL(lat,lng){ updateCur(p=>{p.lat=lat;p.lng=lng;p.timeZone='';p.timeZone=projectTimeZone(p);}); renderProject(); }
@@ -222,7 +236,7 @@ function renderMoodGrid(p){
       const tags=tagsForDisplay(m);
       const chips=tags.length?tags.map(t=>'<button class="tagchip" title="编辑标签" onclick="openTagEditor('+jstr(m.id)+')">#'+esc(t)+'</button>').join(''):'<span class="muted">无标签</span>';
       const suggest=(m.autoTags&&m.autoTags.length)?'<button class="tagchip" onclick="applyAiSuggestion('+jstr(m.id)+')">采纳建议</button>':'';
-      return '<div class="mood-item" data-fid="'+esc(m.id)+'">'+body+'<button class="del" onclick="delMood('+jstr(m.id)+')">×</button>'
+      return '<div class="mood-item" data-fid="'+esc(m.id)+'">'+body+'<button class="del" aria-label="删除素材" onclick="delMood('+jstr(m.id)+')">×</button>'
         +'<div class="mfoot"><span class="tagchips">'+chips+'</span>'+suggest
         +'<button class="rowbtn'+(isFav(m)?' on':'')+'" title="收藏/取消收藏" onclick="toggleFav(\'mood\','+jstr(m.id)+')">'+(isFav(m)?'★':'☆')+'</button>'
         +'<button class="iconbtn" title="编辑标签" onclick="openTagEditor('+jstr(m.id)+')">✎</button></div></div>';

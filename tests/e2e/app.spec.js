@@ -847,3 +847,32 @@ test('图库冷缓存受数量限制，活动项目引用不被回收',async({pa
   });
   expect(result).toBe(true);
 });
+
+test('参考图键盘选择和勾选分镜保留表单及节点身份',async({page})=>{
+  await setupV108Project(page);
+  await page.evaluate(async()=>{
+    const data='data:image/png;base64,AAAA';
+    await idb.put('keyboard-ref',data);imgCache['keyboard-ref']=data;
+    updateCur(p=>p.refs.push({id:'keyboard-r',key:'keyboard-ref',name:'键盘参考',tags:['参考']}));
+    await renderShots(cur());
+    window.__formNode=document.getElementById('s_name');
+  });
+  await page.locator('#s_name').fill('保留草稿');
+  const ref=page.locator('[data-ref-key="keyboard-ref"]');
+  await ref.focus();await page.keyboard.press('Space');
+  await expect(ref).toHaveAttribute('aria-pressed','true');await expect(ref).toBeFocused();
+  await page.locator('.shot .chk').click();
+  await expect(page.locator('.shot .chk')).toHaveAttribute('aria-pressed','true');
+  await expect(page.locator('#s_name')).toHaveValue('保留草稿');
+  expect(await page.evaluate(()=>window.__formNode===document.getElementById('s_name'))).toBe(true);
+});
+test('看板支持键盘打开项目，切页保留项目头部',async({page})=>{
+  await openFreshApp(page);await createProject(page,'键盘项目');
+  await page.keyboard.press('Escape');
+  const card=page.getByRole('button',{name:'打开项目 键盘项目'});
+  await card.focus();await page.keyboard.press('Enter');await expect(page.locator('#s_name')).toBeVisible();
+  await page.evaluate(()=>window.__meta=document.querySelector('.metacard'));
+  await page.locator('[data-project-tab="mood"]').click();
+  await expect(page.locator('[data-project-tab="mood"]')).toHaveAttribute('aria-pressed','true');
+  expect(await page.evaluate(()=>window.__meta===document.querySelector('.metacard'))).toBe(true);
+});

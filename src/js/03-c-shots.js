@@ -1,8 +1,9 @@
 /* ---- 分镜（中枢） ---- */
-let selRefs=[];
+let selRefs=[],shotRenderSeq=0;
 function shotSortKey(s){ return (s.date||'9999')+'|'+(s.ord!=null?'o'+String(s.ord).padStart(6,'0'):'s'+(s.slot||'99:99')); }
 async function renderShots(p){
   if(!p) return;
+  const ticket=++shotRenderSeq,host=document.getElementById('tabBody');
   const focusSnap=snapshotFocus();          // 异步等待后重绘，恢复输入焦点（如空闲同步触发时正在打字）
   view.shotDraft=view.shotDraft||{}; const D=view.shotDraft;
   /* v10 多日拍摄：日期改为拍摄日下拉（Day N · MM-DD）+「＋ 新日期…」；默认取首个拍摄日或今天 */
@@ -16,17 +17,14 @@ async function renderShots(p){
     .filter(m=>matchByTags(m,view.moodFilter,view.moodFilterMode));
   let gallery=[];
   try{ gallery=await idb.shiseiIndex(); }catch{ gallery=[]; }
-  if(view.mode!=='project'||view.tab!=='shots'||!cur()||cur().id!==p.id)return;
+  if(ticket!==shotRenderSeq||host!==document.getElementById('tabBody')||view.mode!=='project'||view.tab!=='shots'||!cur()||cur().id!==p.id)return;
   const cats=[...new Set(gallery.map(r=>r.cat).filter(Boolean))];
   const categoryRows=view.poseCat?gallery.filter(r=>r.cat===view.poseCat):[];
   const pageSize=48,pageCount=Math.max(1,Math.ceil(categoryRows.length/pageSize));
   view.posePage=Math.max(0,Math.min(pageCount-1,view.posePage||0));
   const galleryRows=categoryRows.slice(view.posePage*pageSize,(view.posePage+1)*pageSize);
   const editing=p.shots.find(x=>x.id===view.editingShotId);
-  const selRefsBar=!editing&&selRefs.length?'<div class="selrefs"><span class="muted">已选参考图（'+selRefs.length+'/3）</span>'
-    +selRefs.map((key,i)=>'<span class="sr"><img src="'+esc(imgCache[key]||'')+'" alt="参考图 '+(i+1)+'"><i>'+(i+1)+'</i>'
-      +'<button title="取消选择" onclick="removeSelRef('+i+')">×</button></span>').join('')
-    +'<button class="btn btn-ghost btn-sm" onclick="clearSelRefs()">清空选择</button></div>':'';
+  const selRefsBar=editing?'':selectedRefsHtml();
   const editBar=editing?'<div class="edit-bar"><span>正在编辑「'+esc(editing.name)+'」的参考图 — '+(view.replaceIdx>=0?'点击下方图片替换第 '+(view.replaceIdx+1)+' 张，点一张即完成。':'可连续点选添加（当前 '+((editing.refIds||[]).length)+'/3 张），再点已选可取消；完成后点「完成」。')+'</span><button class="btn btn-primary btn-sm" onclick="exitShotRefEditor()">完成</button></div>':'';
   const mineHead='<div class="ref-group-head"><span>我的素材</span><div class="chips">'
     +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'s_img\').click()">上传图片</button>'
@@ -35,9 +33,9 @@ async function renderShots(p){
   const mineHtml='<div class="ref-group">'+mineHead+'<div class="image-drop" ondragover="allowImageDrop(event)" ondrop="dropImages(event)">拖入或粘贴图片 · 自动存入参考图库</div>'
     +(moodImgs.length?'<div class="ref-picker">'
       +moodImgs.map(m=>
-        '<div class="ref-opt '+(selRefs.includes(m.content)?'on':'')+'" title="'+esc(tagsForDisplay(m).join(' / '))+'" onclick="toggleRef('+jstr(m.content)+')"><img src="'+esc(imgCache[m.content]||'')+'">'
+        '<button type="button" class="ref-opt '+(selRefs.includes(m.content)?'on':'')+'" data-ref-key="'+esc(m.content)+'" aria-pressed="'+selRefs.includes(m.content)+'" aria-label="'+esc('选择参考图 '+(tagsForDisplay(m).join(' / ')||m.id))+'" title="'+esc(tagsForDisplay(m).join(' / '))+'" onclick="toggleRef('+jstr(m.content)+')"><img alt="" src="'+esc(imgCache[m.content]||'')+'">'
         +(tagsForDisplay(m).length?'<span class="ref-tag">'+tagsForDisplay(m).map(t=>'#'+esc(t)).join(' ')+'</span>':'')
-        +(selRefs.includes(m.content)?'<span class="ord">'+(selRefs.indexOf(m.content)+1)+'</span>':'')+'</div>').join('')
+        +(selRefs.includes(m.content)?'<span class="ord">'+(selRefs.indexOf(m.content)+1)+'</span>':'')+'</button>').join('')
       +'<span class="muted" style="align-self:center">点击选参考图（最多 3 张）</span></div>'
       :'<p class="muted" style="margin:6px 2px">'+(view.moodFilter.length?'没有素材命中所选标签，可清空筛选或直接上传。':'还没有图片素材。可直接「上传图片」，或到情绪板 / 姿势图库获取。')+'</p>')
     +'</div>';
@@ -48,10 +46,10 @@ async function renderShots(p){
     :!view.poseCat?'<div class="ref-group">'+galleryHead+'<p class="muted" style="margin:6px 2px">点击上方分类查看对应姿势参考图，再点一次收起。</p></div>'
     :!galleryRows.length?'<div class="ref-group">'+galleryHead+'<p class="muted" style="margin:6px 2px">该分类暂无图片。</p></div>'
     :'<div class="ref-group">'+galleryHead+'<div class="ref-picker">'+galleryRows.map(r=>
-        '<div class="ref-opt '+(selRefs.includes(r.key)?'on':'')+'" data-shisei-key="'+esc(r.key)+'" title="'+esc(r.zh+' · '+r.cat)+'" onclick="toggleRef('+jstr(r.key)+')">'
+        '<button type="button" class="ref-opt '+(selRefs.includes(r.key)?'on':'')+'" data-ref-key="'+esc(r.key)+'" data-shisei-key="'+esc(r.key)+'" aria-pressed="'+selRefs.includes(r.key)+'" aria-label="'+esc('选择 '+r.zh+' · '+r.cat)+'" title="'+esc(r.zh+' · '+r.cat)+'" onclick="toggleRef('+jstr(r.key)+')">'
         +'<img src="'+esc(imgCache[r.key]||'')+'" alt="'+esc(r.zh)+'">'
         +'<span class="ref-tag">#'+esc(r.cat)+' · '+esc(r.zh)+'</span>'
-        +(selRefs.includes(r.key)?'<span class="ord">'+(selRefs.indexOf(r.key)+1)+'</span>':'')+'</div>').join('')
+        +(selRefs.includes(r.key)?'<span class="ord">'+(selRefs.indexOf(r.key)+1)+'</span>':'')+'</button>').join('')
       +'<span class="muted" style="align-self:center">图库引用同样最多 3 张</span></div>'
       +(pageCount>1?'<div class="row"><button class="btn btn-ghost btn-sm" '+(view.posePage===0?'disabled':'')+' onclick="changePosePage(-1)">上一页</button><span class="muted">'+(view.posePage+1)+' / '+pageCount+' 页 · '+categoryRows.length+' 张</span><button class="btn btn-ghost btn-sm" '+(view.posePage===pageCount-1?'disabled':'')+' onclick="changePosePage(1)">下一页</button></div>':'')+'</div>';
   document.getElementById('tabBody').innerHTML=(editBar?'<div class="card" style="padding:14px 18px">'+editBar+'</div>':'')
@@ -87,7 +85,7 @@ async function renderShots(p){
         +'<button class="btn btn-primary btn-sm" onclick="addSceneInline()">添加并选中</button>'
         +'<button class="btn btn-ghost btn-sm" onclick="cancelSceneInline()">取消</button></div>'
       :'')
-    +selRefsBar
+    +'<div id="selectedRefsBar" aria-live="polite">'+selRefsBar+'</div>'
     +(mineHtml||galleryHtml?'':'<p class="muted" style="margin-bottom:10px">还没有任何参考图来源。上传图片、到情绪板添加，或在下方「素材来源」开启姿势图库同步。</p>')
     +mineHtml+galleryHtml
     +'<div class="row" style="margin-bottom:12px"><input id="s_filter" class="grow" placeholder="搜索分镜 / 场景 / 备注…" value="'+esc(view.shotFilter)+'" oninput="setShotFilter(this.value)">'
@@ -194,8 +192,8 @@ function shotListHtml(p,days){
         const refHtml=refs.length? refs.map((r,ri)=>{
             const img=imgCache[r];
             const inner=img?'<img src="'+esc(img)+'">':'<div class="noref">图库原图已更新</div>';
-            return '<div class="ref-thumb'+(img?'':' ghost')+'" title="点击查看大图" onclick="openRefViewer('+jsid+','+ri+')">'+inner
-              +'<button class="ref-del" title="从本分镜移除该参考图" onclick="event.stopPropagation();removeShotRef('+jsid+','+ri+')">×</button></div>';
+            return '<div class="ref-thumb'+(img?'':' ghost')+'"><button class="ref-open" aria-label="查看参考图 '+(ri+1)+'" title="点击查看大图" onclick="openRefViewer('+jsid+','+ri+')">'+inner+'</button>'
+              +'<button class="ref-del" aria-label="移除参考图 '+(ri+1)+'" title="从本分镜移除该参考图" onclick="removeShotRef('+jsid+','+ri+')">×</button></div>';
           }).join('')
           :'<button class="noref-add" onclick="openShotRefEditor('+jsid+')">+ 添加参考图</button>';
         const editingThis=view.editingShotEditId===s.id;    // v10：行内编辑文字（与参考图选图态 editingShotId 正交）
@@ -294,8 +292,24 @@ async function loadVisiblePoseImages(keys,pid,cat,page){
     await Promise.all(keys.slice(i,i+6).map(ensureShiseiImage));
   }
 }
-function removeSelRef(i){ if(i>=0&&i<selRefs.length){ selRefs.splice(i,1); renderShots(cur()); } }
-function clearSelRefs(){ selRefs=[]; renderShots(cur()); }
+function selectedRefsHtml(){
+  return selRefs.length?'<div class="selrefs"><span class="muted">已选参考图（'+selRefs.length+'/3）</span>'
+    +selRefs.map((key,i)=>'<span class="sr"><img src="'+esc(imgCache[key]||'')+'" alt="参考图 '+(i+1)+'"><i>'+(i+1)+'</i><button aria-label="取消参考图 '+(i+1)+'" onclick="removeSelRef('+i+')">×</button></span>').join('')
+    +'<button class="btn btn-ghost btn-sm" onclick="clearSelRefs()">清空选择</button></div>':'';
+}
+function refreshSelectedRefs(){
+  const bar=document.getElementById('selectedRefsBar');if(!bar)return;
+  bar.innerHTML=selectedRefsHtml();
+  document.querySelectorAll('[data-ref-key]').forEach(el=>{
+    const i=selRefs.indexOf(el.dataset.refKey);el.classList.toggle('on',i>=0);el.setAttribute('aria-pressed',String(i>=0));
+    let marker=el.querySelector('.ord');
+    if(i<0){if(marker)marker.remove();return;}
+    if(!marker){marker=document.createElement('span');marker.className='ord';el.append(marker);}
+    marker.textContent=String(i+1);
+  });
+}
+function removeSelRef(i){if(i>=0&&i<selRefs.length){selRefs.splice(i,1);refreshSelectedRefs();}}
+function clearSelRefs(){selRefs=[];refreshSelectedRefs();}
 function saveShotDraft(k,v){ view.shotDraft=view.shotDraft||{}; view.shotDraft[k]=v; }
 /* v10 多日拍摄：分镜表单的拍摄日下拉 */
 function pickShotDate(v){ saveShotDraft('date',v); renderShots(cur()); }
@@ -396,7 +410,8 @@ function toggleRef(id){
   const i=selRefs.indexOf(id);
   if(i>=0) selRefs.splice(i,1);
   else { if(selRefs.length>=3){toast('每条分镜最多选 3 张参考图');return;} selRefs.push(id); }
-  renderShots(cur());
+  refreshSelectedRefs();
+  if(String(id).startsWith('shisei:')&&!imgCache[id])ensureShiseiImage(id).then(()=>{if(selRefs.includes(id))refreshSelectedRefs();});
 }
 function openShotRefEditor(shotId){
   view.editingShotId=shotId; view.replaceIdx=-1;
@@ -549,7 +564,15 @@ function moveShotBy(id,delta){
   const target=rows[rows.indexOf(s)+delta];
   if(target)moveShotRelative(id,target.id,delta>0);else toast('已到该拍摄日的边界');
 }
-function toggleShot(id){ updateCur(p=>{const s=p.shots.find(x=>x.id===id); if(s){s.done=!s.done;s.skipped=false;s.deferred=false;}}); renderProject(); }
+function toggleShot(id){
+  let shot=null;updateCur(p=>{const s=p.shots.find(x=>x.id===id);if(s){s.done=!s.done;s.skipped=false;s.deferred=false;shot=s;}});
+  const row=[...document.querySelectorAll('#shotList .shot')].find(el=>el.dataset.id===id);
+  if(shot&&row){
+    row.classList.toggle('done',shot.done);
+    const btn=row.querySelector('.chk');if(btn){btn.classList.toggle('on',shot.done);btn.setAttribute('aria-pressed',String(shot.done));btn.textContent=shot.done?'✓':'';}
+    const name=row.querySelector('.grow>div');if(name)name.classList.toggle('done-text',shot.done);
+  }else if(shot)renderProject();
+}
 /* 删除分镜：立即删除（保持单击即删的习惯），toast 提供 6 秒撤销；
    撤销时按原对象放回（ord / 参考图 / 完成态原样保留），并重排当天 */
 function delShot(id){
