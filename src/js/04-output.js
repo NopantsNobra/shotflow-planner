@@ -645,8 +645,8 @@ async function finishShiseiSync(meta){
   await idb.putShiseiMeta(SHISEI_META_KEY,mergeShiseiMeta(meta,{pending:[],cursor:0,checkedAt:Date.now(),paused:false}));
   shiseiState.paused=false;
 }
-async function renderShiseiSyncStatus(){
-  const box=document.getElementById('shiseiSyncBox'); if(!box) return;
+async function renderShiseiStatusInto(boxId){
+  const box=document.getElementById(boxId); if(!box) return;
   let meta=null, stats={count:0,bytes:0,avg:0};
   try{ meta=await idb.getShiseiMeta(SHISEI_META_KEY); stats=await idb.shiseiImgStats(); }catch(e){}
   let stat='未同步';
@@ -657,14 +657,16 @@ async function renderShiseiSyncStatus(){
   else if(meta&&meta.total&&stats.count) stat='已同步 '+stats.count+'/'+meta.total;
   else if(stats.count) stat='已同步 '+stats.count+' 张';
   const mb=(stats.bytes/1024/1024).toFixed(1), kb=(stats.avg/1024).toFixed(1);
+  if(document.getElementById(boxId)!==box)return;
   box.innerHTML='<div class="src-sync"><div><b>姿势图库同步</b> <span class="muted">'+esc(stat)+' · '+stats.count+' 张'
     +(stats.count?' · 约 '+mb+' MB（平均 '+kb+' KB）':'')+'</span></div>'
     +'<div class="row" style="margin-top:6px">'
-    +'<button class="btn btn-ghost btn-sm" onclick="toggleShiseiSync()">'+(shiseiSyncEnabled()?'暂停':'恢复')+'</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="startShiseiSync(true)">立即同步</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="toggleSettingsShiseiSync()">'+(shiseiSyncEnabled()?'暂停':'恢复')+'</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="runSettingsShiseiSync()">立即同步</button>'
     +(stats.count?'<button class="btn btn-danger btn-sm" onclick="clearShiseiGallery()">清除图库</button>':'')
     +'</div></div>';
 }
+function renderShiseiSyncStatus(){return renderShiseiStatusInto('shiseiSyncBox');}
 function toggleShiseiSync(){
   if(shiseiSyncEnabled()){
     try{ localStorage.setItem('wb_sf_shisei_sync','0'); }catch(e){}
@@ -677,12 +679,14 @@ function toggleShiseiSync(){
 }
 function clearShiseiGallery(){
   askConfirm('清除姿势图库？','将删除本机缓存的图库缩略图与同步进度；分镜里已引用的图库图会显示为「图库原图已更新」占位，不会改动分镜数据。',async()=>{
+    if(shiseiState.running){shiseiState.paused=true;toast('正在暂停同步，请稍后再清除');return;}
+    try{ localStorage.setItem('wb_sf_shisei_sync','0'); }catch(e){}
     try{ await idb.clearShisei(); }catch(e){ toast('清除失败'); return; }
     Object.keys(imgCache).forEach(k=>{ if(String(k).startsWith('shisei:')) delete imgCache[k]; });
     shiseiState={running:false,paused:false,total:0,done:0};
-    renderShiseiSyncStatus();
+    renderShiseiSyncStatus(); renderSettingsShisei();
     if(view.mode==='project'&&view.tab==='shots') renderShots(cur());
-    toast('姿势图库已清除');
+    toast('姿势图库已清除，同步已暂停');
   });
 }
 async function ensureShiseiImage(key){

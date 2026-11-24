@@ -203,6 +203,8 @@ function pickCity(v){
    项目主存储自该 schema 起存于 IndexedDB，不再写 localStorage）。
    A2 降级守卫：db 未就绪时（隐私模式 / 存储被禁 / open 失败）每个方法安全空转——
    读类返回 null/[]、写类静默 resolve，绝不向调用方抛同步异常；可用性判断统一走 idb.ready()。 */
+let shiseiSnapshotCache=null,shiseiSnapshotAt=0;
+function invalidateShiseiSnapshot(){shiseiSnapshotCache=null;shiseiSnapshotAt=0;}
 const idb={db:null,
   ready(){return !!idb.db;},
   open(){return new Promise((res,rej)=>{const r=indexedDB.open('shotflow',3);
@@ -263,15 +265,31 @@ const idb={db:null,
   /* 姿势图库：meta + 缩略图 */
   getShiseiMeta(k){if(!idb.db) return Promise.resolve(null);return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_meta').objectStore('shisei_meta').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
   putShiseiMeta(k,v){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_meta','readwrite');t.objectStore('shisei_meta').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});},
-  putShiseiImg(k,v){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_images','readwrite');t.objectStore('shisei_images').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});},
+  putShiseiImg(k,v){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_images','readwrite');t.objectStore('shisei_images').put(v,k);t.oncomplete=()=>{invalidateShiseiSnapshot();res();};t.onerror=()=>rej(t.error);});},
   getShiseiImg(k){if(!idb.db) return Promise.resolve(null);return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_images').objectStore('shisei_images').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
-  delShiseiImg(k){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_images','readwrite');t.objectStore('shisei_images').delete(k);t.oncomplete=res;t.onerror=rej;});},
+  delShiseiImg(k){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('shisei_images','readwrite');t.objectStore('shisei_images').delete(k);t.oncomplete=()=>{invalidateShiseiSnapshot();res();};t.onerror=rej;});},
   shiseiImgKeys(){if(!idb.db) return Promise.resolve([]);return new Promise((res,rej)=>{const r=idb.db.transaction('shisei_images').objectStore('shisei_images').getAllKeys();r.onsuccess=()=>res(r.result);r.onerror=rej;});},
-  shiseiIndex(){if(!idb.db) return Promise.resolve([]);return new Promise((res,rej)=>{const out=[];const r=idb.db.transaction('shisei_images').objectStore('shisei_images').openCursor();
-    r.onsuccess=e=>{const c=e.target.result; if(!c){res(out);return;} const v=c.value||{}; out.push({key:c.key,pid:v.pid,cat:v.cat,view:v.view,zh:v.zh,en:v.en,ja:v.ja}); c.continue();};r.onerror=rej;});},
-  shiseiImgStats(){if(!idb.db) return Promise.resolve({count:0,bytes:0,avg:0});return new Promise((res,rej)=>{let count=0,bytes=0;const r=idb.db.transaction('shisei_images').objectStore('shisei_images').openCursor();
-    r.onsuccess=e=>{const c=e.target.result; if(!c){res({count,bytes,avg:count?Math.round(bytes/count):0});return;} const v=c.value||{}; count++; bytes+=String(v.data||'').length; c.continue();};r.onerror=rej;});},
-  clearShisei(){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction(['shisei_meta','shisei_images'],'readwrite');t.objectStore('shisei_meta').clear();t.objectStore('shisei_images').clear();t.oncomplete=res;t.onerror=()=>rej(t.error);});}
+  shiseiSnapshot(){
+    if(!idb.db)return Promise.resolve({rows:[],stats:{count:0,bytes:0,avg:0}});
+    if(shiseiSnapshotCache&&Date.now()-shiseiSnapshotAt<30000)return shiseiSnapshotCache;
+    shiseiSnapshotAt=Date.now();
+    const pending=new Promise((res,rej)=>{
+      const rows=[];let bytes=0;
+      const r=idb.db.transaction('shisei_images').objectStore('shisei_images').openCursor();
+      r.onsuccess=e=>{const cursor=e.target.result;
+        if(!cursor){const count=rows.length;res({rows,stats:{count,bytes,avg:count?Math.round(bytes/count):0}});return;}
+        const v=cursor.value||{};
+        rows.push({key:cursor.key,pid:v.pid,cat:v.cat,view:v.view,zh:v.zh,en:v.en,ja:v.ja,url:v.url});
+        bytes+=String(v.data||'').length;cursor.continue();
+      };r.onerror=rej;
+    });
+    shiseiSnapshotCache=pending;
+    pending.catch(()=>{if(shiseiSnapshotCache===pending)invalidateShiseiSnapshot();});
+    return pending;
+  },
+  async shiseiIndex(){return (await idb.shiseiSnapshot()).rows;},
+  async shiseiImgStats(){return (await idb.shiseiSnapshot()).stats;},
+  clearShisei(){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction(['shisei_meta','shisei_images'],'readwrite');t.objectStore('shisei_meta').clear();t.objectStore('shisei_images').clear();t.oncomplete=()=>{invalidateShiseiSnapshot();res();};t.onerror=()=>rej(t.error);});}
 };
 const imgCache={};
 async function cacheProjectImages(p){

@@ -117,26 +117,7 @@ function settingsConfigHtml(){
 }
 /* 姿势图库状态行（设置弹窗自备渲染，不共享情绪板的 #shiseiSyncBox，避免重复 id）：
    renderShiseiSyncStatus() 开头对不存在的 box 安全空转，故直接复用既有开关/同步函数后在此自刷新 */
-async function renderSettingsShisei(){
-  const box=document.getElementById('settingsShiseiBox'); if(!box) return;
-  let meta=null, stats={count:0,bytes:0,avg:0};
-  try{ meta=await idb.getShiseiMeta(SHISEI_META_KEY); stats=await idb.shiseiImgStats(); }catch(e){}
-  let stat='未同步';
-  if(!shiseiSyncEnabled()) stat='已暂停';
-  else if(shiseiState.running) stat=(shiseiState.paused?'已暂停':'进行中 ')+Math.min(shiseiState.done,shiseiState.total||0)+'/'+(shiseiState.total||0);
-  else if(meta&&meta.paused) stat='已暂停';
-  else if(meta&&meta.failStreak>=3) stat='连续失败 '+meta.failStreak+' 次';
-  else if(meta&&meta.total&&stats.count) stat='已同步 '+stats.count+'/'+meta.total;
-  else if(stats.count) stat='已同步 '+stats.count+' 张';
-  const mb=(stats.bytes/1024/1024).toFixed(1), kb=(stats.avg/1024).toFixed(1);
-  box.innerHTML='<div class="src-sync"><div><b>姿势图库同步</b> <span class="muted">'+esc(stat)+' · '+stats.count+' 张'
-    +(stats.count?' · 约 '+mb+' MB（平均 '+kb+' KB）':'')+'</span></div>'
-    +'<div class="row" style="margin-top:6px">'
-    +'<button class="btn btn-ghost btn-sm" onclick="toggleSettingsShiseiSync()">'+(shiseiSyncEnabled()?'暂停':'恢复')+'</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="runSettingsShiseiSync()">立即同步</button>'
-    +(stats.count?'<button class="btn btn-danger btn-sm" onclick="clearShiseiGallery()">清除图库</button>':'')
-    +'</div></div>';
-}
+function renderSettingsShisei(){return renderShiseiStatusInto('settingsShiseiBox');}
 function toggleSettingsShiseiSync(){
   toggleShiseiSync();        // 复用既有开关：写 localStorage['wb_sf_shisei_sync'] / 暂停或恢复同步
   renderSettingsShisei();    // 设置弹窗内状态行自刷新

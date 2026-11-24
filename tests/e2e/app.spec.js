@@ -696,3 +696,17 @@ test('素材包追加导入、依赖重映射、引用到项目且不进入看�
   await page.evaluate(()=>{const p=loadP().find(x=>x.assetPack&&x.name==='迁移收藏组');referenceFav('shots',p.id,p.shots[0].id);});
   await expect.poll(async()=>page.evaluate(()=>{const p=cur(),s=p.shots.find(x=>x.name==='迁移分镜');return !!(s&&p.scenes.some(c=>c.id===s.sceneId)&&p.refs.some(r=>r.key===s.refIds[0]));})).toBe(true);
 });
+
+test('图库索引复用并在图片写入删除后失效',async({page})=>{
+  await openFreshApp(page);
+  const result=await page.evaluate(async()=>{
+    localStorage.setItem('wb_sf_shisei_sync','0');
+    const a=await idb.shiseiSnapshot(),b=await idb.shiseiSnapshot();
+    await idb.putShiseiImg('shisei:e2e-cache',{cat:'测试',data:'data:image/png;base64,AAAA'});
+    const c=await idb.shiseiSnapshot();
+    await idb.delShiseiImg('shisei:e2e-cache');
+    const d=await idb.shiseiSnapshot();
+    return a===b&&c.rows.some(r=>r.key==='shisei:e2e-cache')&&!d.rows.some(r=>r.key==='shisei:e2e-cache');
+  });
+  expect(result).toBe(true);
+});

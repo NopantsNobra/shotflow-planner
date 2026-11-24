@@ -675,7 +675,10 @@ async function renderShots(p){
   try{ gallery=await idb.shiseiIndex(); }catch(e){ gallery=[]; }
   if(view.mode!=='project'||view.tab!=='shots'||!cur()||cur().id!==p.id)return;
   const cats=[...new Set(gallery.map(r=>r.cat).filter(Boolean))];
-  const galleryRows=view.poseCat?gallery.filter(r=>r.cat===view.poseCat):[];
+  const categoryRows=view.poseCat?gallery.filter(r=>r.cat===view.poseCat):[];
+  const pageSize=48,pageCount=Math.max(1,Math.ceil(categoryRows.length/pageSize));
+  view.posePage=Math.max(0,Math.min(pageCount-1,view.posePage||0));
+  const galleryRows=categoryRows.slice(view.posePage*pageSize,(view.posePage+1)*pageSize);
   const editing=p.shots.find(x=>x.id===view.editingShotId);
   const selRefsBar=!editing&&selRefs.length?'<div class="selrefs"><span class="muted">已选参考图（'+selRefs.length+'/3）</span>'
     +selRefs.map((key,i)=>'<span class="sr"><img src="'+esc(imgCache[key]||'')+'" alt="参考图 '+(i+1)+'"><i>'+(i+1)+'</i>'
@@ -706,7 +709,8 @@ async function renderShots(p){
         +'<img src="'+esc(imgCache[r.key]||'')+'" alt="'+esc(r.zh)+'">'
         +'<span class="ref-tag">#'+esc(r.cat)+' · '+esc(r.zh)+'</span>'
         +(selRefs.includes(r.key)?'<span class="ord">'+(selRefs.indexOf(r.key)+1)+'</span>':'')+'</div>').join('')
-      +'<span class="muted" style="align-self:center">图库引用同样最多 3 张</span></div></div>';
+      +'<span class="muted" style="align-self:center">图库引用同样最多 3 张</span></div>'
+      +(pageCount>1?'<div class="row"><button class="btn btn-ghost btn-sm" '+(view.posePage===0?'disabled':'')+' onclick="changePosePage(-1)">上一页</button><span class="muted">'+(view.posePage+1)+' / '+pageCount+' 页 · '+categoryRows.length+' 张</span><button class="btn btn-ghost btn-sm" '+(view.posePage===pageCount-1?'disabled':'')+' onclick="changePosePage(1)">下一页</button></div>':'')+'</div>';
   document.getElementById('tabBody').innerHTML=(editBar?'<div class="card" style="padding:14px 18px">'+editBar+'</div>':'')
     +'<div class="card"><h2>分镜表 · 数据中枢</h2>'
     +'<p class="muted" style="margin-bottom:12px">每条分镜可挂 1-3 张参考图（我的素材 + 姿势图库）+ 场景 + 机位 + 光线。分镜按顺序自动排入日程，无需手填时间；拖动左侧手柄排序，拖到另一日期分组会自动改期。</p>'
@@ -748,7 +752,8 @@ async function renderShots(p){
       +'<button class="btn btn-ghost btn-sm" id="reschedAllBtn" title="对所有拍摄日统一重排一次（复制 / 调整完成后点此）" onclick="rescheduleAllDays()">↻ 重新排程</button></div>'
     +(view.batchMode?batchShotControls(p):'')
     +'<div id="shotListWrap">'+shotListHtml(p,days)+'</div></div>';
-  galleryRows.forEach(r=>ensureShiseiImage(r.key));
+  // 仅加载当前页，避免一次性启动整个分类的 IDB 读取。
+  loadVisiblePoseImages(galleryRows.map(r=>r.key),p.id,view.poseCat,view.posePage);
   attachDrag();
   restoreFocus(focusSnap);
 }
@@ -932,7 +937,14 @@ function rescheduleAllDays(){
     }});
   });
 }
-function setShiseiCat(cat){ view.poseCat=(view.poseCat===cat)?null:String(cat||null); renderShots(cur()); }
+function setShiseiCat(cat){view.poseCat=(view.poseCat===cat)?null:String(cat||null);view.posePage=0;renderShots(cur());}
+function changePosePage(delta){view.posePage=Math.max(0,(view.posePage||0)+delta);renderShots(cur());}
+async function loadVisiblePoseImages(keys,pid,cat,page){
+  for(let i=0;i<keys.length;i+=6){
+    if(view.mode!=='project'||view.tab!=='shots'||view.pid!==pid||view.poseCat!==cat||view.posePage!==page)return;
+    await Promise.all(keys.slice(i,i+6).map(ensureShiseiImage));
+  }
+}
 function removeSelRef(i){ if(i>=0&&i<selRefs.length){ selRefs.splice(i,1); renderShots(cur()); } }
 function clearSelRefs(){ selRefs=[]; renderShots(cur()); }
 function saveShotDraft(k,v){ view.shotDraft=view.shotDraft||{}; view.shotDraft[k]=v; }
