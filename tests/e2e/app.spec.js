@@ -884,3 +884,31 @@ test('看板支持键盘打开项目，切页保留项目头部',async({page})=>
   await expect(page.locator('[data-project-tab="mood"]')).toHaveAttribute('aria-pressed','true');
   expect(await page.evaluate(()=>window.__meta===document.querySelector('.metacard'))).toBe(true);
 });
+
+test('持久化连接失效后恢复，修改分镜与日程并刷新仍保留',async({page})=>{
+  await setupV108Project(page);
+  await page.evaluate(()=>{
+    idb.db.close(); // Simulate a stale connection while idb.ready() still reports true.
+    updateCur(p=>{p.shots[0].name='恢复后分镜';p.schedule.push({id:'recover-node',date:p.shootDate,title:'恢复后日程',start:'12:00',end:'12:30'});});
+  });
+  await expect.poll(()=>page.evaluate(async()=>{
+    try{const p=(await idb.getProjects()).find(x=>x.id==='v108-test');return p.shots[0].name==='恢复后分镜'&&p.schedule.some(n=>n.title==='恢复后日程')&&!pendingPersist&&!persistFailed;}catch{return false;}
+  }),{timeout:15000}).toBe(true);
+  await page.reload();await page.locator('.pcard',{hasText:'V108 测试案'}).click();
+  await expect(page.locator('.shot')).toContainText('恢复后分镜');
+  expect(await page.evaluate(()=>cur().schedule.some(n=>n.title==='恢复后日程'))).toBe(true);
+});
+test('配额失败明确显示诊断、保留草稿，手动重试可恢复',async({page})=>{
+  await setupV108Project(page);
+  await page.evaluate(()=>{
+    window.__merge=idb.mergeProjects;
+    idb.mergeProjects=async()=>{throw new DOMException('test quota','QuotaExceededError');};
+    updateCur(p=>{p.shots[0].name='未落盘草稿';});
+  });
+  await expect(page.locator('#persistFailureTip')).toContainText('QuotaExceededError');
+  expect(await page.evaluate(()=>cur().shots[0].name)).toBe('未落盘草稿');
+  await page.evaluate(()=>{idb.mergeProjects=window.__merge;});
+  await page.getByRole('button',{name:'重新尝试保存'}).click();
+  await expect(page.locator('#persistFailureTip')).toHaveCount(0);
+  await expect.poll(()=>page.evaluate(async()=> (await idb.getProjects()).find(p=>p.id==='v108-test').shots[0].name)).toBe('未落盘草稿');
+});

@@ -559,7 +559,7 @@ function startShiseiSync(force){
   });
 }
 async function runShiseiSync(force){
-  if(shiseiState.running||(!force&&!shiseiSyncEnabled())) return;
+  if(shiseiState.running||persistFailed||persistConflict||pendingPersist||(!force&&!shiseiSyncEnabled())) return;
   shiseiState={running:true,paused:false,total:0,done:0};
   renderShiseiSyncStatus();
   try{
@@ -587,7 +587,7 @@ async function runShiseiSync(force){
     if(!pending.length){ await finishShiseiSync(meta); return; }
     shiseiState.total=pending.length; shiseiState.done=cursor;
     while(cursor<pending.length){
-      if(shiseiState.paused||!navigator.onLine||document.visibilityState!=='visible') break;
+      if(shiseiState.paused||persistFailed||persistConflict||!navigator.onLine||document.visibilityState!=='visible'){shiseiState.paused=true;break;}
       const batch=nextPendingBatch({pending,cursor},SHISEI_BATCH);
       const results=await Promise.allSettled(batch.items.map(item=>{
         const entry=remoteByKey.get(item.key)||shiseiItemEntry(item.key,remoteByKey);

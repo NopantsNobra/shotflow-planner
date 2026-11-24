@@ -567,7 +567,7 @@ check('P2 safeColor 空值/数字/超范围 rgb 回退', vm.runInContext('safeCo
 check('P2 safeColor 边界值 255/360/100 保留', vm.runInContext('safeColor("rgb(255,0,255)")+"|"+safeColor("hsl(360,100%,100%)")', ctx) === 'rgb(255,0,255)|hsl(360,100%,100%)');
 
 /* ===== P0 持久化加固：串行写入 / 退避重试 / 隐藏冲刷（saveP 改造） ===== */
-for (const n of ['mergeProjectChanges', 'persistRetryDelay', 'writeProjects', 'flushPersist', 'saveP', 'bindPersistFlush']) vm.runInContext(fn(n), ctx);
+for (const n of ['projectDataEqual', 'mergeProjectChanges', 'persistErrorCode', 'persistRetryDelay', 'writeProjects', 'flushPersist', 'saveP', 'bindPersistFlush']) vm.runInContext(fn(n), ctx);
 // 公共 mock：可控成功/失败的 idb、收集提示的 toast、Promise
 vm.runInContext(`
   globalThis.Promise=Promise;
@@ -576,7 +576,8 @@ vm.runInContext(`
   globalThis.pendingPersist=false; globalThis.persistFailed=false; globalThis.projectsCache=null;
   globalThis.persistExpected=null; globalThis.persistConflict=false; globalThis.persistGeneration=0; globalThis.persistClearing=false;
   globalThis.markPersistConflict=()=>{persistConflict=true;persistFailed=true;pendingPersist=true;};
-  globalThis.notifyProjectChange=()=>{};globalThis.persistChannel=null;
+  globalThis.notifyProjectChange=()=>{};globalThis.persistChannel=null;globalThis.persistLastError='';
+  globalThis.showPersistFailure=()=>{};globalThis.clearPersistFailure=()=>{persistLastError='';};
   globalThis.storageDegraded=false;
   globalThis.__toasts=[]; globalThis.toast=m=>{ globalThis.__toasts.push(String(m)); };
   globalThis.__putCalls=[]; globalThis.__putFail=0;
@@ -882,6 +883,11 @@ check('并发不同项目合并，同项目和删除编辑冲突拒绝',vm.runIn
   const m=mergeProjectChanges(b,l,r);
   return m.map(x=>x.name).join(',')==='A2,B2'&&mergeProjectChanges(b,l,[{id:'a',name:'A3'},b[1]])===null
     &&mergeProjectChanges(b,l,[b[1]])===null&&mergeProjectChanges(b,l.concat({id:'c'}),r).length===3;
+})()`,ctx));
+check('存储比较忽略对象键顺序，保留数组顺序和真实冲突',vm.runInContext(`(()=>{
+  const b=[{id:'p',name:'旧',shots:[{id:'s',name:'旧'}]}],r=[{shots:[{name:'旧',id:'s'}],name:'旧',id:'p'}],l=[{...b[0],name:'新'}];
+  return mergeProjectChanges(b,l,r)[0].name==='新'&&!projectDataEqual([1,2],[2,1])
+    &&mergeProjectChanges(b,l,[{...r[0],name:'远端'}])===null;
 })()`,ctx));
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);
