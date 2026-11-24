@@ -683,6 +683,7 @@ function clearShiseiGallery(){
     try{ localStorage.setItem('wb_sf_shisei_sync','0'); }catch{}
     try{ await idb.clearShisei(); }catch{ toast('清除失败'); return; }
     Object.keys(imgCache).forEach(k=>{ if(String(k).startsWith('shisei:')) delete imgCache[k]; });
+    poseCacheAccess.clear();
     shiseiState={running:false,paused:false,total:0,done:0};
     renderShiseiSyncStatus(); renderSettingsShisei();
     if(view.mode==='project'&&view.tab==='shots') renderShots(cur());
@@ -690,27 +691,27 @@ function clearShiseiGallery(){
   });
 }
 async function ensureShiseiImage(key){
-  if(!String(key||'').startsWith('shisei:')) return imgCache[key]||'';
-  if(imgCache[key]) return imgCache[key];
-  try{
-    const rec=await idb.getShiseiImg(key);
-    if(rec&&rec.data){
-      imgCache[key]=rec.data;
+  if(!String(key||'').startsWith('shisei:'))return imgCache[key]||'';
+  if(imgCache[key]){poseCacheAccess.set(key,Date.now());return imgCache[key];}
+  if(poseReads.has(key))return poseReads.get(key);
+  const pending=(async()=>{
+    try{
+      const rec=await idb.getShiseiImg(key);
+      if(!rec||!rec.data)return '';
+      imgCache[key]=rec.data;poseCacheAccess.set(key,Date.now());
+      // 同一个 key 的并发请求共享读取；只更新仍在当前 DOM 的缩略图。
       document.querySelectorAll('[data-shisei-key]').forEach(el=>{
-        if(el.dataset.shiseiKey===key){ const img=el.querySelector('img'); if(img) img.src=rec.data; }
+        if(el.dataset.shiseiKey===key){const img=el.querySelector('img');if(img)img.src=rec.data;}
       });
-      return rec.data;
-    }
-  }catch{}
-  return '';
+      trimImageCache();return rec.data;
+    }catch{return '';}
+  })();
+  poseReads.set(key,pending);
+  try{return await pending;}finally{if(poseReads.get(key)===pending)poseReads.delete(key);}
 }
 async function ensureShiseiRefs(p){
-  const keys=[...new Set(((p&&p.shots)||[]).flatMap(s=>s.refIds||[]).filter(k=>String(k||'').startsWith('shisei:')))];
-  for(const k of keys){
-    if(imgCache[k]) continue;
-    try{ const rec=await idb.getShiseiImg(k); if(rec&&rec.data) imgCache[k]=rec.data; else if(imgCache[k]) delete imgCache[k]; }
-    catch{}
-  }
+  const keys=[...projectImageKeys(p)].filter(k=>String(k).startsWith('shisei:'));
+  for(let i=0;i<keys.length;i+=6)await Promise.all(keys.slice(i,i+6).map(ensureShiseiImage));
 }
 
 /* ================= Toast ================= */

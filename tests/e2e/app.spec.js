@@ -832,3 +832,18 @@ test('v3 旧图库升级保留图片、项目及同步记录',async({page})=>{
   });
   expect(result).toBe(true);
 });
+
+test('图库冷缓存受数量限制，活动项目引用不被回收',async({page})=>{
+  await setupV108Project(page);
+  const result=await page.evaluate(async()=>{
+    const active='shisei:pinned',data='data:image/png;base64,AAAA';
+    updateCur(p=>{p.shots[0].refIds=[active];});
+    imgCache[active]=data;
+    for(let i=0;i<120;i++){const k='shisei:cold'+i;imgCache[k]=data;poseCacheAccess.set(k,Date.now()+i);}
+    trimImageCache();
+    const bounded=Object.keys(imgCache).filter(k=>k.startsWith('shisei:cold')).length<=POSE_CACHE_MAX;
+    trimImageCache(true);
+    return bounded&&imgCache[active]===data&&!Object.keys(imgCache).some(k=>k.startsWith('shisei:cold'));
+  });
+  expect(result).toBe(true);
+});

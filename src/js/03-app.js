@@ -40,6 +40,7 @@ function shootCountdown(p,t){
   return {diff:diff,text:diff>0?' · '+diff+' 天后':(diff===0?' · 今天':'')};
 }
 function renderBoard(){
+  trimImageCache(true);
   const all=loadP().filter(p=>!p.assetPack);
   const q=(view.boardQuery||'').trim().toLowerCase();
   const ps=all.filter(p=>matchBoardScope(p,view.boardScope)&&searchHit(p,q));
@@ -91,6 +92,7 @@ function statPill(icon,num,lbl,warn){
 /* ================= 已收藏视图（独立 mode，不是第 8 页签） ================= */
 function openFavorites(){ view=freshView({mode:'favorites'}); renderFavorites(); }
 function renderFavorites(){
+  trimImageCache(true);
   const all=loadP(), entries=collectFavorites(all);
   let h='<header class="masthead"><div class="brand"><span class="eyebrow">Stillmark · 收藏夹</span><h1>★ 已收藏</h1>'
     +'<span class="tagline">按项目与模块分组 · 共 '+entries.length+' 条</span></div><div class="sp"></div>'
@@ -207,7 +209,7 @@ function renderFavPicker(){
 }
 /* 引用收藏：从源项目取原始条目 → 深拷贝（JSON 往返，条目均为纯数据）→ 新 id / fav / done 重置
    → 时间字段 +5 分钟 → 追加到当前项目同类数组。列表与浮窗即时刷新，浮窗保持打开可连续引用。 */
-function referenceFav(type,pid,itemId){
+async function referenceFav(type,pid,itemId){
   const p=cur(); if(!p){ toast('请先打开一个策划案'); return; }
   if(favTypesForTab(view.tab).indexOf(type)<0){ toast('该收藏不属于当前页面'); return; }
   const src=loadP().find(x=>x.id===pid);
@@ -227,7 +229,8 @@ function referenceFav(type,pid,itemId){
   });
   if(!added) return;
   toast('已引用「'+favSummary(type,it)+'」，时间顺延 '+COPY_SHIFT_MIN+' 分钟');
-  renderProject();
+  await cacheProjectImages(p);
+  if(cur()&&cur().id===p.id&&view.mode==='project')renderProject();
   if(document.getElementById('favPickerModal').classList.contains('show')) renderFavPicker();
 }
 function newProject(){
@@ -251,5 +254,5 @@ function confirmNewProject(){
   saveP(a); openProject(a[a.length-1].id);
   toast('已创建「'+name+'」');
 }
-async function openProject(pid){ view=freshView({mode:'project',pid:pid,tab:'shots'}); schedDate=null; await cacheProjectImages(cur()); renderProject(); }
+async function openProject(pid){ view=freshView({mode:'project',pid:pid,tab:'shots'}); schedDate=null; trimImageCache(true); await cacheProjectImages(cur()); if(view.mode==='project'&&view.pid===pid)renderProject(); }
 

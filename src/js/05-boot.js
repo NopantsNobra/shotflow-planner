@@ -16,6 +16,7 @@
   }
 })();
 document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible')trimImageCache(true);
   if(document.visibilityState!=='visible'&&shiseiState.running){ shiseiState.paused=true; renderShiseiSyncStatus(); }
   else if(document.visibilityState==='visible'&&!shiseiState.running&&shiseiState.paused){ startShiseiSync(); }
 });
@@ -56,3 +57,6 @@ function bindDialogAccessibility(){
   sync();
 }
 bindDialogAccessibility();
+
+// 回收冷缩略图，不触碰当前项目引用及持久化数据。
+setInterval(()=>trimImageCache(),60000);

@@ -424,6 +424,7 @@ function openRefViewer(shotId,ri){
     +'<button class="btn btn-danger btn-sm" onclick="removeShotRef('+jstr(shotId)+','+idx+')">从分镜移除</button>':'')
     +'<button class="btn btn-ghost btn-sm" onclick="closeRefViewer()">关闭</button></div>';
   document.getElementById('refViewer').classList.add('show');
+  if(!img){const token=view.refViewer;const load=isSh?ensureShiseiImage(r):idb.get(r);Promise.resolve(load).then(data=>{if(data&&view.refViewer===token&&cur()?.id===p.id){imgCache[r]=data;openRefViewer(shotId,idx);}}).catch(()=>{});}
 }
 function refNav(delta){
   const v=view.refViewer; if(!v) return;

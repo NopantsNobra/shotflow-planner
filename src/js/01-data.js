@@ -327,14 +327,47 @@ const idb={db:null,
   async shiseiImgStats(){return (await idb.shiseiSnapshot()).stats;},
   clearShisei(){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction(['shisei_meta','shisei_images','shisei_index'],'readwrite');t.objectStore('shisei_meta').clear();t.objectStore('shisei_images').clear();t.objectStore('shisei_index').clear();t.oncomplete=()=>{invalidateShiseiSnapshot();res();};t.onerror=()=>rej(t.error);});}
 };
-const imgCache={};
+const imgCache=Object.create(null);
+const poseCacheAccess=new Map(),poseReads=new Map();
+const POSE_CACHE_MAX=96,POSE_CACHE_CHARS=8*1024*1024,POSE_CACHE_TTL=5*60*1000;
+function projectImageKeys(p){
+  return new Set(p?[...(p.mood||[]).filter(x=>x.type==='image').map(x=>x.content),...(p.refs||[]).map(x=>x.key),...(p.shots||[]).flatMap(x=>x.refIds||[])].filter(Boolean):[]);
+}
+function activeImageKeys(){
+  const keys=projectImageKeys(view.mode==='project'?cur():null);
+  if(view.mode==='project'&&typeof selRefs!=='undefined')selRefs.forEach(k=>keys.add(k));
+  return keys;
+}
+function trimImageCache(dropInactive=false,now=Date.now()){
+  const keep=activeImageKeys(),rows=[];
+  let size=0;
+  for(const k of Object.keys(imgCache)){
+    if(keep.has(k))continue;
+    if(k.startsWith('shisei:')){
+      const at=poseCacheAccess.get(k)||0;
+      if(dropInactive||now-at>POSE_CACHE_TTL){delete imgCache[k];poseCacheAccess.delete(k);continue;}
+      rows.push({k,at,n:imgCache[k].length});size+=imgCache[k].length;
+    }else if(dropInactive&&idb.ready()&&!storageDegraded&&!persistConflict){
+      // Only evict confirmed disk-backed data. Failed imports/temporary data are retained.
+      const value=imgCache[k];
+      idb.get(k).then(stored=>{if(stored===value&&imgCache[k]===value&&!activeImageKeys().has(k))delete imgCache[k];}).catch(()=>{});
+    }
+  }
+  rows.sort((a,b)=>a.at-b.at);
+  let count=rows.length;
+  for(const row of rows){
+    if(count<=POSE_CACHE_MAX&&size<=POSE_CACHE_CHARS)break;
+    delete imgCache[row.k];poseCacheAccess.delete(row.k);count--;size-=row.n;
+  }
+  for(const k of poseCacheAccess.keys())if(!imgCache[k])poseCacheAccess.delete(k);
+}
 async function cacheProjectImages(p){
   /* v10.4：上传图不再写 mood，预载必须覆盖参考图库与分镜引用，否则打开项目时分镜缩略图会全空 */
-  const ids=[];
-  const add=id=>{ const k=String(id==null?'':id); if(k&&!k.startsWith('shisei:')&&ids.indexOf(k)<0) ids.push(k); };
-  (p.mood||[]).filter(m=>m.type==='image').forEach(m=>add(m.content));
-  (p.refs||[]).forEach(r=>add(r&&r.key));
-  (p.shots||[]).forEach(s=>(s.refIds||[]).forEach(add));
-  for(const id of ids){ if(!imgCache[id]){ const v=await idb.get(id); if(v) imgCache[id]=v; } }
+  const ids=[...projectImageKeys(p)].filter(k=>!String(k).startsWith('shisei:'));
+  for(let i=0;i<ids.length;i+=8)await Promise.all(ids.slice(i,i+8).map(async id=>{
+    if(imgCache[id])return;
+    const v=await idb.get(id);if(v)imgCache[id]=v;
+  }));
+  trimImageCache(false);
 }
 

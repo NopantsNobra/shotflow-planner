@@ -919,15 +919,48 @@ const idb={db:null,
   async shiseiImgStats(){return (await idb.shiseiSnapshot()).stats;},
   clearShisei(){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction(['shisei_meta','shisei_images','shisei_index'],'readwrite');t.objectStore('shisei_meta').clear();t.objectStore('shisei_images').clear();t.objectStore('shisei_index').clear();t.oncomplete=()=>{invalidateShiseiSnapshot();res();};t.onerror=()=>rej(t.error);});}
 };
-const imgCache={};
+const imgCache=Object.create(null);
+const poseCacheAccess=new Map(),poseReads=new Map();
+const POSE_CACHE_MAX=96,POSE_CACHE_CHARS=8*1024*1024,POSE_CACHE_TTL=5*60*1000;
+function projectImageKeys(p){
+  return new Set(p?[...(p.mood||[]).filter(x=>x.type==='image').map(x=>x.content),...(p.refs||[]).map(x=>x.key),...(p.shots||[]).flatMap(x=>x.refIds||[])].filter(Boolean):[]);
+}
+function activeImageKeys(){
+  const keys=projectImageKeys(view.mode==='project'?cur():null);
+  if(view.mode==='project'&&typeof selRefs!=='undefined')selRefs.forEach(k=>keys.add(k));
+  return keys;
+}
+function trimImageCache(dropInactive=false,now=Date.now()){
+  const keep=activeImageKeys(),rows=[];
+  let size=0;
+  for(const k of Object.keys(imgCache)){
+    if(keep.has(k))continue;
+    if(k.startsWith('shisei:')){
+      const at=poseCacheAccess.get(k)||0;
+      if(dropInactive||now-at>POSE_CACHE_TTL){delete imgCache[k];poseCacheAccess.delete(k);continue;}
+      rows.push({k,at,n:imgCache[k].length});size+=imgCache[k].length;
+    }else if(dropInactive&&idb.ready()&&!storageDegraded&&!persistConflict){
+      // Only evict confirmed disk-backed data. Failed imports/temporary data are retained.
+      const value=imgCache[k];
+      idb.get(k).then(stored=>{if(stored===value&&imgCache[k]===value&&!activeImageKeys().has(k))delete imgCache[k];}).catch(()=>{});
+    }
+  }
+  rows.sort((a,b)=>a.at-b.at);
+  let count=rows.length;
+  for(const row of rows){
+    if(count<=POSE_CACHE_MAX&&size<=POSE_CACHE_CHARS)break;
+    delete imgCache[row.k];poseCacheAccess.delete(row.k);count--;size-=row.n;
+  }
+  for(const k of poseCacheAccess.keys())if(!imgCache[k])poseCacheAccess.delete(k);
+}
 async function cacheProjectImages(p){
   /* v10.4：上传图不再写 mood，预载必须覆盖参考图库与分镜引用，否则打开项目时分镜缩略图会全空 */
-  const ids=[];
-  const add=id=>{ const k=String(id==null?'':id); if(k&&!k.startsWith('shisei:')&&ids.indexOf(k)<0) ids.push(k); };
-  (p.mood||[]).filter(m=>m.type==='image').forEach(m=>add(m.content));
-  (p.refs||[]).forEach(r=>add(r&&r.key));
-  (p.shots||[]).forEach(s=>(s.refIds||[]).forEach(add));
-  for(const id of ids){ if(!imgCache[id]){ const v=await idb.get(id); if(v) imgCache[id]=v; } }
+  const ids=[...projectImageKeys(p)].filter(k=>!String(k).startsWith('shisei:'));
+  for(let i=0;i<ids.length;i+=8)await Promise.all(ids.slice(i,i+8).map(async id=>{
+    if(imgCache[id])return;
+    const v=await idb.get(id);if(v)imgCache[id]=v;
+  }));
+  trimImageCache(false);
 }
 
 /* ================= 状态 ================= */
@@ -1829,6 +1862,7 @@ function shootCountdown(p,t){
   return {diff:diff,text:diff>0?' · '+diff+' 天后':(diff===0?' · 今天':'')};
 }
 function renderBoard(){
+  trimImageCache(true);
   const all=loadP().filter(p=>!p.assetPack);
   const q=(view.boardQuery||'').trim().toLowerCase();
   const ps=all.filter(p=>matchBoardScope(p,view.boardScope)&&searchHit(p,q));
@@ -1880,6 +1914,7 @@ function statPill(icon,num,lbl,warn){
 /* ================= 已收藏视图（独立 mode，不是第 8 页签） ================= */
 function openFavorites(){ view=freshView({mode:'favorites'}); renderFavorites(); }
 function renderFavorites(){
+  trimImageCache(true);
   const all=loadP(), entries=collectFavorites(all);
   let h='<header class="masthead"><div class="brand"><span class="eyebrow">Stillmark · 收藏夹</span><h1>★ 已收藏</h1>'
     +'<span class="tagline">按项目与模块分组 · 共 '+entries.length+' 条</span></div><div class="sp"></div>'
@@ -1996,7 +2031,7 @@ function renderFavPicker(){
 }
 /* 引用收藏：从源项目取原始条目 → 深拷贝（JSON 往返，条目均为纯数据）→ 新 id / fav / done 重置
    → 时间字段 +5 分钟 → 追加到当前项目同类数组。列表与浮窗即时刷新，浮窗保持打开可连续引用。 */
-function referenceFav(type,pid,itemId){
+async function referenceFav(type,pid,itemId){
   const p=cur(); if(!p){ toast('请先打开一个策划案'); return; }
   if(favTypesForTab(view.tab).indexOf(type)<0){ toast('该收藏不属于当前页面'); return; }
   const src=loadP().find(x=>x.id===pid);
@@ -2016,7 +2051,8 @@ function referenceFav(type,pid,itemId){
   });
   if(!added) return;
   toast('已引用「'+favSummary(type,it)+'」，时间顺延 '+COPY_SHIFT_MIN+' 分钟');
-  renderProject();
+  await cacheProjectImages(p);
+  if(cur()&&cur().id===p.id&&view.mode==='project')renderProject();
   if(document.getElementById('favPickerModal').classList.contains('show')) renderFavPicker();
 }
 function newProject(){
@@ -2040,7 +2076,7 @@ function confirmNewProject(){
   saveP(a); openProject(a[a.length-1].id);
   toast('已创建「'+name+'」');
 }
-async function openProject(pid){ view=freshView({mode:'project',pid:pid,tab:'shots'}); schedDate=null; await cacheProjectImages(cur()); renderProject(); }
+async function openProject(pid){ view=freshView({mode:'project',pid:pid,tab:'shots'}); schedDate=null; trimImageCache(true); await cacheProjectImages(cur()); if(view.mode==='project'&&view.pid===pid)renderProject(); }
 
 /* ================= 项目页 ================= */
 const TABS=[['concept','概念','策划'],['mood','情绪板','策划'],['shots','分镜','执行'],['schedule','日程','执行'],['stuff','清单','执行'],['budget','预算','落地'],['notes','协作','落地']];
@@ -2870,6 +2906,7 @@ function openRefViewer(shotId,ri){
     +'<button class="btn btn-danger btn-sm" onclick="removeShotRef('+jstr(shotId)+','+idx+')">从分镜移除</button>':'')
     +'<button class="btn btn-ghost btn-sm" onclick="closeRefViewer()">关闭</button></div>';
   document.getElementById('refViewer').classList.add('show');
+  if(!img){const token=view.refViewer;const load=isSh?ensureShiseiImage(r):idb.get(r);Promise.resolve(load).then(data=>{if(data&&view.refViewer===token&&cur()?.id===p.id){imgCache[r]=data;openRefViewer(shotId,idx);}}).catch(()=>{});}
 }
 function refNav(delta){
   const v=view.refViewer; if(!v) return;
@@ -4556,6 +4593,7 @@ function clearShiseiGallery(){
     try{ localStorage.setItem('wb_sf_shisei_sync','0'); }catch{}
     try{ await idb.clearShisei(); }catch{ toast('清除失败'); return; }
     Object.keys(imgCache).forEach(k=>{ if(String(k).startsWith('shisei:')) delete imgCache[k]; });
+    poseCacheAccess.clear();
     shiseiState={running:false,paused:false,total:0,done:0};
     renderShiseiSyncStatus(); renderSettingsShisei();
     if(view.mode==='project'&&view.tab==='shots') renderShots(cur());
@@ -4563,27 +4601,27 @@ function clearShiseiGallery(){
   });
 }
 async function ensureShiseiImage(key){
-  if(!String(key||'').startsWith('shisei:')) return imgCache[key]||'';
-  if(imgCache[key]) return imgCache[key];
-  try{
-    const rec=await idb.getShiseiImg(key);
-    if(rec&&rec.data){
-      imgCache[key]=rec.data;
+  if(!String(key||'').startsWith('shisei:'))return imgCache[key]||'';
+  if(imgCache[key]){poseCacheAccess.set(key,Date.now());return imgCache[key];}
+  if(poseReads.has(key))return poseReads.get(key);
+  const pending=(async()=>{
+    try{
+      const rec=await idb.getShiseiImg(key);
+      if(!rec||!rec.data)return '';
+      imgCache[key]=rec.data;poseCacheAccess.set(key,Date.now());
+      // 同一个 key 的并发请求共享读取；只更新仍在当前 DOM 的缩略图。
       document.querySelectorAll('[data-shisei-key]').forEach(el=>{
-        if(el.dataset.shiseiKey===key){ const img=el.querySelector('img'); if(img) img.src=rec.data; }
+        if(el.dataset.shiseiKey===key){const img=el.querySelector('img');if(img)img.src=rec.data;}
       });
-      return rec.data;
-    }
-  }catch{}
-  return '';
+      trimImageCache();return rec.data;
+    }catch{return '';}
+  })();
+  poseReads.set(key,pending);
+  try{return await pending;}finally{if(poseReads.get(key)===pending)poseReads.delete(key);}
 }
 async function ensureShiseiRefs(p){
-  const keys=[...new Set(((p&&p.shots)||[]).flatMap(s=>s.refIds||[]).filter(k=>String(k||'').startsWith('shisei:')))];
-  for(const k of keys){
-    if(imgCache[k]) continue;
-    try{ const rec=await idb.getShiseiImg(k); if(rec&&rec.data) imgCache[k]=rec.data; else if(imgCache[k]) delete imgCache[k]; }
-    catch{}
-  }
+  const keys=[...projectImageKeys(p)].filter(k=>String(k).startsWith('shisei:'));
+  for(let i=0;i<keys.length;i+=6)await Promise.all(keys.slice(i,i+6).map(ensureShiseiImage));
 }
 
 /* ================= Toast ================= */
@@ -4659,6 +4697,7 @@ document.addEventListener('keydown',e=>{
   }
 })();
 document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible')trimImageCache(true);
   if(document.visibilityState!=='visible'&&shiseiState.running){ shiseiState.paused=true; renderShiseiSyncStatus(); }
   else if(document.visibilityState==='visible'&&!shiseiState.running&&shiseiState.paused){ startShiseiSync(); }
 });
@@ -4699,6 +4738,9 @@ function bindDialogAccessibility(){
   sync();
 }
 bindDialogAccessibility();
+
+// 回收冷缩略图，不触碰当前项目引用及持久化数据。
+setInterval(()=>trimImageCache(),60000);
 /* ================= 设置弹窗（v10.6.0）：版本信息 / 模块配置 / 数据备份 / 反馈 ================= */
 /* 硬约束：本文件顶层只允许 function 声明，禁止顶层 let/const——构建拼接顺序在 05-boot.js 之后，
    boot 段有立即执行的启动代码，顶层 let/const 会因 TDZ 崩溃；所需常量集中在 01-data.js
