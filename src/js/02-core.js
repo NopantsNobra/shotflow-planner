@@ -1,4 +1,12 @@
 /* ================= 状态 ================= */
+/* 工作空间只是显示偏好，所有模式共用同一项目与备份结构。 */
+function workspaceModules(mode,custom){
+  const all=['concept','mood','shots','schedule','stuff','budget','notes','proposal','callsheet','manual','shootday'];
+  if(mode==='casual') return ['concept','mood','shots','stuff','shootday'];
+  if(mode==='portrait') return ['concept','mood','shots','schedule','stuff','proposal','callsheet','manual','shootday'];
+  if(mode==='custom'&&Array.isArray(custom)) return all.filter(x=>x==='shots'||custom.includes(x));
+  return all;
+}
 function freshView(patch){
   const d={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',
     moodFilter:[],moodFilterMode:'any',shotDraft:{},poseCat:null,editingShotId:null,editingShotEditId:null,replaceIdx:-1,
@@ -422,6 +430,8 @@ function sanitizeProject(raw,mkId){
   p.client=cut(raw.client,120); p.studio=cut(raw.studio,120);
   p.status=STATUSES.indexOf(raw.status)>=0?raw.status:'灵感期';
   p.location=cut(raw.location,120); p.timeZone=cut(raw.timeZone,80);
+  p.workspaceMode=['casual','portrait','professional','custom'].includes(raw.workspaceMode)?raw.workspaceMode:'professional';
+  p.workspaceCustom=workspaceModules('custom',raw.workspaceCustom);
   p.lat=cut(raw.lat,32); p.lng=cut(raw.lng,32);
   p.shootDate=date(raw.shootDate);
   p.shootDates=dates(raw.shootDates); p.dayInit=dates(raw.dayInit);

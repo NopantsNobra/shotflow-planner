@@ -219,6 +219,7 @@ function newProject(){
   const input=document.getElementById('nameInput');
   if(!box||!input){ return; }
   input.value='';
+  const preset=document.getElementById('newWorkspace');if(preset)preset.value='professional';
   box.classList.add('show');
   setTimeout(()=>{ input.focus(); },50);
 }
@@ -226,9 +227,10 @@ function closeNameModal(){ document.getElementById('nameModal').classList.remove
 function confirmNewProject(){
   const input=document.getElementById('nameInput');
   const name=(input&&input.value||'').trim()||'未命名拍摄项目';
+  const mode=(document.getElementById('newWorkspace')||{}).value||'professional';
   closeNameModal();
   const a=loadP();
-  a.push(migrate({id:uid(),v3:1,name:name,client:'',status:'灵感期',shootDate:'',location:'',lat:'',lng:'',createdAt:Date.now(),updatedAt:Date.now()}));
+  a.push(migrate({id:uid(),v3:1,name:name,client:'',status:'灵感期',shootDate:'',location:'',lat:'',lng:'',workspaceMode:mode,createdAt:Date.now(),updatedAt:Date.now()}));
   saveP(a); openProject(a[a.length-1].id);
   toast('已创建「'+name+'」');
 }
@@ -236,8 +238,37 @@ async function openProject(pid){ view=freshView({mode:'project',pid:pid,tab:'sho
 
 /* ================= 项目页 ================= */
 const TABS=[['concept','概念','策划'],['mood','情绪板','策划'],['shots','分镜','执行'],['schedule','日程','执行'],['stuff','清单','执行'],['budget','预算','落地'],['notes','协作','落地']];
+function workspaceOptions(mode){
+  return [['casual','随拍模式'],['portrait','写真模式'],['professional','专业模式'],['custom','自定义']].map(x=>'<option value="'+x[0]+'" '+(mode===x[0]?'selected':'')+'>'+x[1]+'</option>').join('');
+}
+function setWorkspaceMode(mode){
+  if(!['casual','portrait','professional','custom'].includes(mode))return;
+  updateCur(p=>{
+    if(mode==='custom'&&!Array.isArray(p.workspaceCustom))p.workspaceCustom=workspaceModules(p.workspaceMode,p.workspaceCustom);
+    p.workspaceMode=mode;
+  });
+  view.tab='shots';renderProject();
+}
+function toggleWorkspaceModule(key,enabled){
+  if(key==='shots')return;
+  updateCur(p=>{
+    const active=workspaceModules('custom',p.workspaceCustom);
+    p.workspaceCustom=workspaceModules('custom',enabled?active.concat(key):active.filter(x=>x!==key));
+  });
+  renderProject();
+}
+function workspacePanel(p,modules){
+  const mode=p.workspaceMode||'professional';
+  const labels=TABS.map(t=>[t[0],t[1]]).concat([['proposal','客户提案'],['callsheet','拍摄通告单'],['manual','执行手册'],['shootday','拍摄日模式']]);
+  return '<div class="workspace-control"><label for="workspaceMode">策划模式</label><select id="workspaceMode" onchange="setWorkspaceMode(this.value)"'+(p.demo?' disabled':'')+'>'+workspaceOptions(mode)+'</select>'
+    +(mode==='custom'?'<details><summary>配置可见模块</summary><div class="workspace-checks">'+labels.map(x=>'<label><input type="checkbox" '+(modules.includes(x[0])?'checked':'')+(x[0]==='shots'||p.demo?' disabled':'')+' onchange="toggleWorkspaceModule('+jstr(x[0])+',this.checked)">'+x[1]+'</label>').join('')+'</div></details>':'')
+    +'<span class="muted">切换仅改变显示，不删除数据。</span></div>';
+}
 function renderProject(){
   const p=cur(); if(!p){view.mode='board';renderBoard();return;}
+  const modules=workspaceModules(p.workspaceMode,p.workspaceCustom);
+  // 从收藏跳转到隐藏页时保留当前页入口；普通切换以预设为准。
+  const visibleTabs=TABS.filter(t=>modules.includes(t[0])||t[0]===view.tab);
   const t=todayStr();
   const cd0=shootCountdown(p,t);          // 与看板卡片同一来源，避免两处文案漂移
   let cd='';
@@ -249,15 +280,16 @@ function renderProject(){
     +'<button class="crumb" onclick="view.mode=\'board\';renderBoard()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 18l-6-6 6-6"/></svg>返回看板</button>'
     +'<div class="phead-row"><div><h1>'+demoBadge(p)+esc(p.name)+'</h1>'
     +'<div class="pchips"><span class="tag '+STATUS_TAG[STATUSES.indexOf(p.status)]+'">'+esc(p.status)+'</span>'+cd
-    +(openTodos?'<button class="tag purple" style="border:none;cursor:pointer;font-family:inherit" onclick="view.tab=\'notes\';renderProject()">待办 '+openTodos+'</button>':'')
+    +(openTodos&&modules.includes('notes')?'<button class="tag purple" style="border:none;cursor:pointer;font-family:inherit" onclick="view.tab=\'notes\';renderProject()">待办 '+openTodos+'</button>':'')
     +(p.shootDate?'<span class="muted" style="font-size:12px">拍摄日 '+esc(p.shootDate)+'</span>':'')
     +'</div></div>'
     +'<div class="pactions">'
     +'<button class="btn btn-ghost btn-sm" onclick="exportProject('+jstr(p.id)+')">导出此案</button>'
     +(p.demo?'<button class="btn btn-primary" onclick="copyDemoToMine('+jstr(p.id)+')">复制为我的项目</button>'
-            :'<button class="btn btn-primary" onclick="openShootDay()">进入拍摄日模式</button>')
+            :(modules.includes('shootday')?'<button class="btn btn-primary" onclick="openShootDay()">进入拍摄日模式</button>':''))
     +favoritesButton()
     +'</div></div></div>'
+    +workspacePanel(p,modules)
     +'<div class="metacard"><div class="mgrid">'
     +'<div class="fld"><label>客户</label><input value="'+esc(p.client)+'" onchange="setP(\'client\',this.value)"'+dis+'></div>'
     +'<div class="fld"><label>工作室署名 · 封面落款</label><input value="'+esc(p.studio||'')+'" onchange="setP(\'studio\',this.value)" placeholder="如：瞬刻摄影工作室"'+dis+'></div>'
@@ -284,7 +316,7 @@ function renderProject(){
     })()
     +'<span class="muted" style="margin-left:4px">常用城市一键填入；更多城市从下拉选择；任意坐标均会按 NOAA 近似算法计算日出日落</span></div></div>'
     +'<div class="ptabs">'
-    +TABS.reduce(function(segs,tb){                 /* 按 TABS 顺序聚成分组段：组词眉题在上，组内页签在下 */
+    +visibleTabs.reduce(function(segs,tb){                 /* 按 TABS 顺序聚成分组段：组词眉题在上，组内页签在下 */
       let g=segs[segs.length-1];
       if(!g||g.name!==tb[2]){ g={name:tb[2],tabs:[]}; segs.push(g); }
       g.tabs.push(tb); return segs;
@@ -295,11 +327,9 @@ function renderProject(){
       +g.tabs.map(tb=>'<button class="ptab '+(view.tab===tb[0]?'active':'')+'" onclick="view.tab=\''+tb[0]+'\';renderProject()">'+tb[1]+'</button>').join('')
       +'</div></div>').join('')
     +'</div>'
-    +'<div class="subbar">'
+    +(modules.some(x=>['proposal','callsheet','manual'].includes(x))?'<div class="subbar">'
     +'<span class="muted" style="font-size:10px;letter-spacing:.14em">文档输出 ▸</span>'
-    +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'proposal\')">客户提案</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'callsheet\')">拍摄通告单</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="openDoc(\'manual\')">执行手册</button></div>'
+    +[['proposal','客户提案'],['callsheet','拍摄通告单'],['manual','执行手册']].filter(x=>modules.includes(x[0])).map(x=>'<button class="btn btn-ghost btn-sm" onclick="openDoc('+jstr(x[0])+')">'+x[1]+'</button>').join('')+'</div>':'')
     +'<div id="tabBody"></div>';
   document.getElementById('app').innerHTML=h;
   ({concept:renderConcept,mood:renderMood,shots:renderShots,schedule:renderSchedule,stuff:renderStuff,budget:renderBudget,notes:renderNotes})[view.tab](p);

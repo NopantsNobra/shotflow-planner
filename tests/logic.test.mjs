@@ -25,7 +25,7 @@ vm.runInContext('const DAY_BASE="10:00",COLLECT_START="09:30",COLLECT_MIN=30,WRA
 vm.runInContext("globalThis.STATUSES=['灵感期','策划中','待拍摄','后期中','已交付','已归档'];"
   + "globalThis.__uidSeq=0;globalThis.uid=()=>'id'+(++globalThis.__uidSeq);", ctx);
 for (const n of ['addMin', 'toMin', 'fmtMin', 'dayItems', 'cascadeShift', 'tagKey', 'dedupeTags', 'parseTagsInput', 'mergeVocab', 'migrateTags', 'tagsForDisplay', 'matchByTags', 'renameTag', 'removeTag', 'shiseiItemKey', 'shiseiEntrySame', 'parseCatalog', 'diffCatalog', 'nextPendingBatch', 'mergeShiseiMeta', 'migrate']) vm.runInContext(fn(n), ctx);
-for (const n of ['freshView', 'clearInlineEditState', 'migrateFav', 'isFav', 'favCount', 'favSummary', 'summary40', 'collectFavorites', 'backupItemCount', 'matchBoardScope', 'isActiveStatus', 'parseMultiImage', 'slugPreview', 'cloneDemo', 'demoSpecs', 'buildDemoProject']) vm.runInContext(fn(n), ctx);
+for (const n of ['workspaceModules', 'freshView', 'clearInlineEditState', 'migrateFav', 'isFav', 'favCount', 'favSummary', 'summary40', 'collectFavorites', 'backupItemCount', 'matchBoardScope', 'isActiveStatus', 'parseMultiImage', 'slugPreview', 'cloneDemo', 'demoSpecs', 'buildDemoProject']) vm.runInContext(fn(n), ctx);
 /* v10.8.0：复制/引用共用的时间平移 + 页签→收藏类型映射 */
 vm.runInContext('const COPY_SHIFT_MIN=10;const TIME_FIELDS=["slot","start","end"];'
   + "const FAV_TYPES_BY_TAB={mood:['mood'],shots:['shots'],schedule:['schedule'],stuff:['scenes','items'],budget:['budget'],notes:['notes','todos']};", ctx);
@@ -839,5 +839,6 @@ check('P1 日照计算指定时区且时分有效',vm.runInContext(`(()=>{
   return a&&b&&((min(a.sunrise)-min(b.sunrise)+1440)%1440)===540&&a.sunrise.slice(3)<='59'
     &&sunTimes('2026-06-21',91,0,'UTC')===null&&sunTimes('2026-02-30',30,0,'UTC')===null;
 })()`,ctx));
+check('策划预设只筛选显示字段，自定义始终保留分镜',vm.runInContext("workspaceModules('casual').includes('shots')&&!workspaceModules('casual').includes('budget')&&workspaceModules('professional').includes('budget')&&workspaceModules('custom',['notes','unknown']).join(',')==='shots,notes'",ctx));
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

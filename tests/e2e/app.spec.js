@@ -647,3 +647,14 @@ test('P0 备份导入：缺失图片拒绝，合法图片独立重映射',async(
   });
   expect(state.key).not.toBe('same');expect(state.ref).toBe(state.key);expect(state.image).toBe(pack.images.same);
 });
+
+test('策划模式切换只隐藏模块，不删除预算或分镜',async({page})=>{
+  await setupV108Project(page);
+  await page.evaluate(()=>{updateCur(p=>p.budget.push({id:'mode-budget',item:'保留的预算',amount:88}));});
+  await page.locator('#workspaceMode').selectOption('casual');
+  await expect(page.locator('.ptab',{hasText:'预算'})).toHaveCount(0);
+  await expect(page.locator('.ptab',{hasText:'分镜'})).toBeVisible();
+  await page.locator('#workspaceMode').selectOption('professional');
+  await page.locator('.ptab',{hasText:'预算'}).click();
+  await expect(page.locator('#tabBody')).toContainText('保留的预算');
+});
