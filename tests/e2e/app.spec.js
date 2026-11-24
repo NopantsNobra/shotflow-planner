@@ -205,7 +205,13 @@ test('设置弹窗：反馈走 Web3Forms 页面内提交（成功 + 失败降级
       await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ success: false }) });
     }
   });
-  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  // 各浏览器的 clipboard 权限名不一致；只模拟本测试关注的写入契约。
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async (value) => { window.__feedbackClipboard = value; } }
+    });
+  });
   await openFreshApp(page);
   await page.getByRole('button', { name: '⚙ 设置' }).click();
   // 环境信息预览在折叠 details 内：先展开再断言内容（构建注入的版本号）
@@ -241,6 +247,7 @@ test('设置弹窗：反馈走 Web3Forms 页面内提交（成功 + 失败降级
   await expect(page.getByRole('button', { name: '复制反馈内容' })).toBeVisible();
   await page.getByRole('button', { name: '复制反馈内容' }).click();
   await expect(page.locator('.toast')).toContainText('已复制反馈内容');
+  expect(await page.evaluate(() => window.__feedbackClipboard)).toContain('失败反馈');
   const fbText = await page.locator('#fbCard').innerText();
   expect(fbText).toContain('Web3Forms');
   expect(fbText).not.toContain('GitHub');
