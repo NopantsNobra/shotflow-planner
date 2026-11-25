@@ -7,7 +7,7 @@
    注意：注释中不要复现带引号的占位字面量本身，
    否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
 const APP_VERSION='__APP_VERSION__';
-const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.2',data:'v10.9.3',core:'v10.9.3',app:'v10.9.2',output:'v10.9.3',boot:'v10.9.2',settings:'v10.9.3',swCache:'shotflow-v10-18',dbSchema:4,since:'v10.5.0'};
+const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.2',data:'v10.9.3',core:'v10.9.3',app:'v10.9.2',output:'v10.9.3',boot:'v10.9.2',settings:'v10.9.3',swCache:'shotflow-v10-19-csp',dbSchema:4,since:'v10.5.0'};
 const FB_KEY_A = 'uJrHd8a=U+X9Uh3EUtyyUhdF';
 const FB_KEY_B = 'yRhU1RHdTUVl1XwU9dVu=mJD';
 const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded', LS_DEMO_V9='wb_sf_demo_v9';
@@ -132,6 +132,7 @@ function coverData(p){
   return {no:cvNo(p),title:(p&&p.name)||'摄影策划案',theme:c.theme||'待定',model:c.model||'待定',date:cvDate(p&&p.shootDate),
     client:(p&&p.client)||'个人委托 · PERSONAL',studio:(p&&p.studio)||'瞬刻摄影工作室 · STUDIO',est:'EST. '+new Date().getFullYear()};
 }
+const PROPOSAL_SCRIPT_HASH='__PROPOSAL_SCRIPT_HASH__';
 function fitCovers(){
   document.querySelectorAll('.cv-fit').forEach(fit=>{
     const sheet=fit.querySelector('.cv-sheet'); if(!sheet) return;

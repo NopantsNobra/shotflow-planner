@@ -5,6 +5,7 @@
         ③ P0 持久化：页面隐藏时冲刷未落盘数据 */
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 
 /* 版本断言取 package.json 真源：写死版本号会在每次发版时误报
    （v10.7.2 的 CI 首跑就因为断言里写死 v10.7.0 而失败）。 */
@@ -1046,4 +1047,34 @@ test('CSP 分镜委托输入与操作保留草稿、筛选及批量选择',async
   await expect(page.locator('#batchCount')).toContainText('1');
   await page.locator('.shot [data-do="toggle-must-shoot"]').click();
   await expect(page.locator('.shot')).toContainText('必拍');
+});
+
+test('严格脚本 CSP：阻止未授权脚本和事件属性，正常动作可用',async({page})=>{
+  await openFreshApp(page);
+  const result=await page.evaluate(()=>{
+    const policy=document.querySelector('meta[http-equiv="Content-Security-Policy"]').content;
+    window.__cspInline=0;window.__cspScript=0;
+    const button=document.createElement('button');button.setAttribute('onclick','window.__cspInline=1');
+    document.body.append(button);button.click();button.remove();
+    const script=document.createElement('script');script.textContent='window.__cspScript=1';document.body.append(script);script.remove();
+    return {policy,inline:window.__cspInline,script:window.__cspScript};
+  });
+  expect(result.policy).toContain("script-src-attr 'none'");
+  expect(result.inline).toBe(0);expect(result.script).toBe(0);
+  await createProject(page,'严格 CSP 项目');
+  await page.locator('#s_name').fill('正常委托分镜');
+  await page.locator('#s_name').press('Enter');
+  await expect(page.locator('.shot')).toContainText('正常委托分镜');
+});
+test('独立提案脚本哈希与实际导出内容一致',async({page})=>{
+  await setupV108Project(page);
+  await page.locator('[data-do="open-doc"]').filter({hasText:'客户提案'}).click();
+  await expect(page.locator('#docExportBtn')).toBeVisible();
+  const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#docExportBtn').click()]);
+  const html=readFileSync(await download.path(),'utf8');
+  const script=html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const hash=createHash('sha256').update(script,'utf8').digest('base64');
+  expect(html).toContain("script-src 'sha256-"+hash+"'");
+  expect(html).toContain("script-src-attr 'none'");
+  expect(html).not.toMatch(/\s(?:on[a-z]+)\s*=\s*["']/);
 });

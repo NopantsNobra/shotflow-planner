@@ -7,6 +7,7 @@
    与 <!--__STYLES__--> / <!--__JS__--> 同一替换层（src → 产物阶段），verify-build 用同一函数
    计算期望产物，天然一致。 */
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -43,5 +44,15 @@ export function assembleHtml(version) {
   // 版本注入：仅替换含引号的完整字面量，函数形式避免 $ 特殊模式
   if (version) out = out.replace("'__APP_VERSION__'", () => JSON.stringify(String(version)));
 
-  return out;
+  // Hash the actual classic-script bytes after all other build substitutions.
+  const hash = (value) => createHash('sha256').update(value, 'utf8').digest('base64');
+  const fit = js.slice(js.indexOf('function fitCovers(){'), js.indexOf('\nfunction coverHtml(')).trimEnd();
+  if (!fit.startsWith('function fitCovers(){')) throw new Error('[assemble] missing proposal script');
+  const proposal = fit + '\nwindow.addEventListener("resize",fitCovers);fitCovers();';
+  out = out.replace("'__PROPOSAL_SCRIPT_HASH__'", () => JSON.stringify(hash(proposal)));
+  const match = out.match(/<script>([\s\S]*?)<\/script>/);
+  if (!match || !out.includes('__APP_SCRIPT_HASH__')) throw new Error('[assemble] missing CSP script or placeholder');
+  if (/\s(?:on[a-z]+)\s*=\s*["']/.test(shell + js))
+    throw new Error('[assemble] inline HTML event attribute is forbidden');
+  return out.replace('__APP_SCRIPT_HASH__', () => hash(match[1]));
 }

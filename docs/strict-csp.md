@@ -47,3 +47,9 @@ Branch: security/strict-csp. Do not merge until all acceptance checks pass. Main
 - Shot-list templates migrated, including scoped drafts and filters, image uploads, drag/drop, batch checkbox changes, and explicit reference replacement action. Phase 2 markup audit and final policy still require validation.
 
 - Performance gate caught repeated per-button JSON escaping in the 2,000-shot template (82.62 ms). Shot rows now encode their string ID once and reuse escaped JSON attributes with literal action IDs and numeric indices; the original 50 ms gate remains unchanged.
+
+## Phase 3 candidate (2026-11-25, branch only)
+
+- Build inserts SHA-256 hashes of the actual app script and standalone proposal cover-fit script. No unsafe-inline/unsafe-eval for scripts; inline styles retained intentionally for current layout. default-src none, narrowly scoped CDN/feedback connections, local PWA resources and data/blob images.
+- Build fails on remaining quoted inline HTML event attributes. New browser tests attempt unauthorized inline code and verify legitimate delegated actions and exported proposal hash.
+- PWA cache bumped only on the isolated branch. Strict policy must pass all CI and actual Safari/PWA/device testing before any main merge.

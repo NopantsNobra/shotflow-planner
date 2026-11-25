@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Ix0dPkvZfJ/7Qy9vD2mOh7tn1faanoId5Lv/IK4LSZ8='; script-src-attr 'none'; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net https://api.web3forms.com; worker-src 'self'; manifest-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>瞬刻摄影工作台 · Stillmark｜灵感·分镜·提案·实拍</title>
 <meta name="theme-color" content="#9c6b30">
@@ -608,7 +608,7 @@ svg{display:inline-block;vertical-align:middle}
    注意：注释中不要复现带引号的占位字面量本身，
    否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
 const APP_VERSION="10.9.3";
-const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.2',data:'v10.9.3',core:'v10.9.3',app:'v10.9.2',output:'v10.9.3',boot:'v10.9.2',settings:'v10.9.3',swCache:'shotflow-v10-18',dbSchema:4,since:'v10.5.0'};
+const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.2',data:'v10.9.3',core:'v10.9.3',app:'v10.9.2',output:'v10.9.3',boot:'v10.9.2',settings:'v10.9.3',swCache:'shotflow-v10-19-csp',dbSchema:4,since:'v10.5.0'};
 const FB_KEY_A = 'uJrHd8a=U+X9Uh3EUtyyUhdF';
 const FB_KEY_B = 'yRhU1RHdTUVl1XwU9dVu=mJD';
 const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded', LS_DEMO_V9='wb_sf_demo_v9';
@@ -733,6 +733,7 @@ function coverData(p){
   return {no:cvNo(p),title:(p&&p.name)||'摄影策划案',theme:c.theme||'待定',model:c.model||'待定',date:cvDate(p&&p.shootDate),
     client:(p&&p.client)||'个人委托 · PERSONAL',studio:(p&&p.studio)||'瞬刻摄影工作室 · STUDIO',est:'EST. '+new Date().getFullYear()};
 }
+const PROPOSAL_SCRIPT_HASH="nM6c+Vvu49b7f2EtjN+R7mbcHaG183iraI+9tHXlX1I=";
 function fitCovers(){
   document.querySelectorAll('.cv-fit').forEach(fit=>{
     const sheet=fit.querySelector('.cv-sheet'); if(!sheet) return;
@@ -4168,6 +4169,7 @@ async function writeProposalFile(p){
   const total=p.budget.reduce((s,b)=>s+(+b.amount||0),0);
   const sun=sunTimes(p.shootDate,p.lat,p.lng,projectTimeZone(p));
   const html='<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
+    +'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'sha256-'+PROPOSAL_SCRIPT_HASH+'\'; script-src-attr \'none\'; style-src \'unsafe-inline\'; img-src data: blob:; object-src \'none\'; base-uri \'none\'; form-action \'none\'">'
     +'<meta name="viewport" content="width=device-width,initial-scale=1">'
     +'<title>'+esc(c.theme||p.name)+' · 摄影提案</title>'
     +'<style>body{margin:0;background:#E9E6E0}'+PUBLIC_STYLE+'</style></head><body><div class="export-page"><div class="doc">'

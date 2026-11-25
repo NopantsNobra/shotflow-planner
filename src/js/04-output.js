@@ -128,6 +128,7 @@ async function writeProposalFile(p){
   const total=p.budget.reduce((s,b)=>s+(+b.amount||0),0);
   const sun=sunTimes(p.shootDate,p.lat,p.lng,projectTimeZone(p));
   const html='<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">'
+    +'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'sha256-'+PROPOSAL_SCRIPT_HASH+'\'; script-src-attr \'none\'; style-src \'unsafe-inline\'; img-src data: blob:; object-src \'none\'; base-uri \'none\'; form-action \'none\'">'
     +'<meta name="viewport" content="width=device-width,initial-scale=1">'
     +'<title>'+esc(c.theme||p.name)+' · 摄影提案</title>'
     +'<style>body{margin:0;background:#E9E6E0}'+PUBLIC_STYLE+'</style></head><body><div class="export-page"><div class="doc">'
