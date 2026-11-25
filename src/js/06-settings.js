@@ -121,11 +121,9 @@ function settingsConfigHtml(){
 function renderSettingsShisei(){return renderShiseiStatusInto('settingsShiseiBox');}
 function toggleSettingsShiseiSync(){
   toggleShiseiSync();        // 复用既有开关：写 localStorage['wb_sf_shisei_sync'] / 暂停或恢复同步
-  renderSettingsShisei();    // 设置弹窗内状态行自刷新
 }
 function runSettingsShiseiSync(){
-  startShiseiSync(true);     // 复用既有立即同步（空闲调度 + 失败退避），零逻辑复制
-  renderSettingsShisei();
+  startShiseiSync(true);     // 手动同步不修改自动同步偏好，共用进度与失败处理
 }
 
 /* ③ 数据与备份：J1 导出（复用 exportJSON）/ J2 导入（独立 id settingsImportFile——看板页 #importFile

@@ -1144,13 +1144,19 @@ test.describe('CSP 正常业务网络与图片链路',()=>{
     });
     await openFreshApp(page);
     await expect.poll(()=>page.evaluate(()=>!pendingPersist&&!persistFailed)).toBe(true);
-    // Exercise the real sync implementation while the automatic background sync is disabled.
-    await page.evaluate(()=>runShiseiSync(true));
+    // Manual one-off sync must work with Settings open and automatic sync paused.
+    await page.getByRole('button',{name:'⚙ 设置'}).click();
+    const status=page.locator('#settingsShiseiBox');
+    await expect(status).toContainText('已暂停');
+    await status.getByRole('button',{name:'立即同步'}).click();
+    await expect.poll(()=>page.evaluate(async()=>!!(await idb.getShiseiImg('shisei:csp-pose:front'))&&!shiseiState.running)).toBe(true);
+    await expect(status).toContainText('1 张');
+    await expect(status).toContainText('已暂停');
+    expect(await page.evaluate(()=>localStorage.getItem('wb_sf_shisei_sync'))).toBe('0');
     const pose=await page.evaluate(()=>idb.getShiseiImg('shisei:csp-pose:front'));
     expect(pose.data).toBe('data:image/png;base64,'+png.toString('base64'));
     expect(requests).toContain('catalog');expect(requests).toContain('image');
 
-    await page.getByRole('button',{name:'⚙ 设置'}).click();
     await page.locator('#fbTitle').fill('仅测试，不实际发送');
     await page.getByRole('button',{name:'提交反馈'}).click();
     await expect(page.locator('.toast')).toContainText('反馈已提交，感谢！');

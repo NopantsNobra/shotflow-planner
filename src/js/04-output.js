@@ -509,9 +509,12 @@ function shiseiSyncEnabled(){
 }
 function shiseiCanStart(force){
   if(!idb.ready()) return false;                 // A2：存储降级时不同步图库（同步了也存不住，只会空转烧流量）
-  if(!shiseiInitReady||!shiseiSyncEnabled()||!navigator.onLine) return false;
-  if(!force&&document.visibilityState!=='visible') return false;
-  if(document.querySelector('.modal-mask.show')||document.getElementById('sdOverlay').classList.contains('show')) return false;
+  if(!shiseiInitReady||(!force&&!shiseiSyncEnabled())||!navigator.onLine) return false;
+  if(document.visibilityState!=='visible'||persistFailed||persistConflict||pendingPersist||persistClearing) return false;
+  if(document.getElementById('sdOverlay').classList.contains('show')) return false;
+  // A deliberate one-off sync may run in Settings, but not under other dialogs.
+  const dialogs=[...document.querySelectorAll('.modal-mask.show')];
+  if(dialogs.some(el=>!force||el.id!=='settingsModal')) return false;
   return true;
 }
 function shiseiCatalogVersion(text){
@@ -547,14 +550,19 @@ async function fetchShiseiImage(entry){
 }
 function startShiseiSync(force){
   if(shiseiState.running) return;
-  const schedule=window.requestIdleCallback?window.requestIdleCallback:cb=>setTimeout(cb,5000);
+  const schedule=force?cb=>setTimeout(cb,0):window.requestIdleCallback?window.requestIdleCallback:cb=>setTimeout(cb,5000);
   schedule(async()=>{
-    if(!shiseiCanStart(!!force)) { renderShiseiSyncStatus(); return; }
+    if(shiseiState.running)return;
+    if(!shiseiCanStart(!!force)) {
+      if(force)toast('暂时无法同步：请检查网络、存储或关闭其他弹窗');
+      renderShiseiSyncStatus();return;
+    }
     try{
       const meta=await idb.getShiseiMeta(SHISEI_META_KEY);
       if(!force&&meta&&meta.failStreak>=3) return;
       const resumable=meta&&Array.isArray(meta.pending)&&meta.pending.length&&meta.cursor>0;
       if(!force&&meta&&meta.checkedAt&&!resumable&&Date.now()-meta.checkedAt<SHISEI_SYNC_INTERVAL) return;
+      if(!shiseiCanStart(!!force))return;
       await runShiseiSync(!!force);
     }catch{ renderShiseiSyncStatus(); }
   });
@@ -652,8 +660,8 @@ async function renderShiseiStatusInto(boxId){
   let meta=null, stats={count:0,bytes:0,avg:0};
   try{ meta=await idb.getShiseiMeta(SHISEI_META_KEY); stats=await idb.shiseiImgStats(); }catch{}
   let stat='未同步';
-  if(!shiseiSyncEnabled()) stat='已暂停';
-  else if(shiseiState.running) stat=(shiseiState.paused?'已暂停':'进行中 ')+Math.min(shiseiState.done,shiseiState.total||0)+'/'+(shiseiState.total||0);
+  if(shiseiState.running) stat=(shiseiState.paused?'已暂停':'进行中 ')+Math.min(shiseiState.done,shiseiState.total||0)+'/'+(shiseiState.total||0);
+  else if(!shiseiSyncEnabled()) stat='已暂停';
   else if(meta&&meta.paused) stat='已暂停';
   else if(meta&&meta.failStreak>=3) stat='连续失败 '+meta.failStreak+' 次';
   else if(meta&&meta.total&&stats.count) stat='已同步 '+stats.count+'/'+meta.total;
@@ -668,7 +676,7 @@ async function renderShiseiStatusInto(boxId){
     +(stats.count?'<button class="btn btn-danger btn-sm" '+doAttrs('clear-gallery')+'>清除图库</button>':'')
     +'</div></div>';
 }
-function renderShiseiSyncStatus(){return renderShiseiStatusInto('shiseiSyncBox');}
+function renderShiseiSyncStatus(){return Promise.all(['shiseiSyncBox','settingsShiseiBox'].map(renderShiseiStatusInto));}
 function toggleShiseiSync(){
   if(shiseiSyncEnabled()){
     try{ localStorage.setItem('wb_sf_shisei_sync','0'); }catch{}
@@ -687,7 +695,7 @@ function clearShiseiGallery(){
     Object.keys(imgCache).forEach(k=>{ if(String(k).startsWith('shisei:')) delete imgCache[k]; });
     poseCacheAccess.clear();
     shiseiState={running:false,paused:false,total:0,done:0};
-    renderShiseiSyncStatus(); renderSettingsShisei();
+    renderShiseiSyncStatus();
     if(view.mode==='project'&&view.tab==='shots') renderShots(cur());
     toast('姿势图库已清除，同步已暂停');
   });

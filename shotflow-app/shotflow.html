@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Ix0dPkvZfJ/7Qy9vD2mOh7tn1faanoId5Lv/IK4LSZ8='; script-src-attr 'none'; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net https://api.web3forms.com; worker-src 'self'; manifest-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-RGImLm0LMPWecof5etS8mdr801jvMuA7rnB/tr99IlE='; script-src-attr 'none'; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net https://api.web3forms.com; worker-src 'self'; manifest-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>瞬刻摄影工作台 · Stillmark｜灵感·分镜·提案·实拍</title>
 <meta name="theme-color" content="#9c6b30">
@@ -608,7 +608,7 @@ svg{display:inline-block;vertical-align:middle}
    注意：注释中不要复现带引号的占位字面量本身，
    否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
 const APP_VERSION="10.9.3";
-const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.2',data:'v10.9.3',core:'v10.9.3',app:'v10.9.2',output:'v10.9.3',boot:'v10.9.2',settings:'v10.9.3',swCache:'shotflow-v10-19-csp',dbSchema:4,since:'v10.5.0'};
+const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.2',data:'v10.9.3',core:'v10.9.3',app:'v10.9.2',output:'v10.9.3',boot:'v10.9.2',settings:'v10.9.3',swCache:'shotflow-v10-20-csp',dbSchema:4,since:'v10.5.0'};
 const FB_KEY_A = 'uJrHd8a=U+X9Uh3EUtyyUhdF';
 const FB_KEY_B = 'yRhU1RHdTUVl1XwU9dVu=mJD';
 const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded', LS_DEMO_V9='wb_sf_demo_v9';
@@ -4550,9 +4550,12 @@ function shiseiSyncEnabled(){
 }
 function shiseiCanStart(force){
   if(!idb.ready()) return false;                 // A2：存储降级时不同步图库（同步了也存不住，只会空转烧流量）
-  if(!shiseiInitReady||!shiseiSyncEnabled()||!navigator.onLine) return false;
-  if(!force&&document.visibilityState!=='visible') return false;
-  if(document.querySelector('.modal-mask.show')||document.getElementById('sdOverlay').classList.contains('show')) return false;
+  if(!shiseiInitReady||(!force&&!shiseiSyncEnabled())||!navigator.onLine) return false;
+  if(document.visibilityState!=='visible'||persistFailed||persistConflict||pendingPersist||persistClearing) return false;
+  if(document.getElementById('sdOverlay').classList.contains('show')) return false;
+  // A deliberate one-off sync may run in Settings, but not under other dialogs.
+  const dialogs=[...document.querySelectorAll('.modal-mask.show')];
+  if(dialogs.some(el=>!force||el.id!=='settingsModal')) return false;
   return true;
 }
 function shiseiCatalogVersion(text){
@@ -4588,14 +4591,19 @@ async function fetchShiseiImage(entry){
 }
 function startShiseiSync(force){
   if(shiseiState.running) return;
-  const schedule=window.requestIdleCallback?window.requestIdleCallback:cb=>setTimeout(cb,5000);
+  const schedule=force?cb=>setTimeout(cb,0):window.requestIdleCallback?window.requestIdleCallback:cb=>setTimeout(cb,5000);
   schedule(async()=>{
-    if(!shiseiCanStart(!!force)) { renderShiseiSyncStatus(); return; }
+    if(shiseiState.running)return;
+    if(!shiseiCanStart(!!force)) {
+      if(force)toast('暂时无法同步：请检查网络、存储或关闭其他弹窗');
+      renderShiseiSyncStatus();return;
+    }
     try{
       const meta=await idb.getShiseiMeta(SHISEI_META_KEY);
       if(!force&&meta&&meta.failStreak>=3) return;
       const resumable=meta&&Array.isArray(meta.pending)&&meta.pending.length&&meta.cursor>0;
       if(!force&&meta&&meta.checkedAt&&!resumable&&Date.now()-meta.checkedAt<SHISEI_SYNC_INTERVAL) return;
+      if(!shiseiCanStart(!!force))return;
       await runShiseiSync(!!force);
     }catch{ renderShiseiSyncStatus(); }
   });
@@ -4693,8 +4701,8 @@ async function renderShiseiStatusInto(boxId){
   let meta=null, stats={count:0,bytes:0,avg:0};
   try{ meta=await idb.getShiseiMeta(SHISEI_META_KEY); stats=await idb.shiseiImgStats(); }catch{}
   let stat='未同步';
-  if(!shiseiSyncEnabled()) stat='已暂停';
-  else if(shiseiState.running) stat=(shiseiState.paused?'已暂停':'进行中 ')+Math.min(shiseiState.done,shiseiState.total||0)+'/'+(shiseiState.total||0);
+  if(shiseiState.running) stat=(shiseiState.paused?'已暂停':'进行中 ')+Math.min(shiseiState.done,shiseiState.total||0)+'/'+(shiseiState.total||0);
+  else if(!shiseiSyncEnabled()) stat='已暂停';
   else if(meta&&meta.paused) stat='已暂停';
   else if(meta&&meta.failStreak>=3) stat='连续失败 '+meta.failStreak+' 次';
   else if(meta&&meta.total&&stats.count) stat='已同步 '+stats.count+'/'+meta.total;
@@ -4709,7 +4717,7 @@ async function renderShiseiStatusInto(boxId){
     +(stats.count?'<button class="btn btn-danger btn-sm" '+doAttrs('clear-gallery')+'>清除图库</button>':'')
     +'</div></div>';
 }
-function renderShiseiSyncStatus(){return renderShiseiStatusInto('shiseiSyncBox');}
+function renderShiseiSyncStatus(){return Promise.all(['shiseiSyncBox','settingsShiseiBox'].map(renderShiseiStatusInto));}
 function toggleShiseiSync(){
   if(shiseiSyncEnabled()){
     try{ localStorage.setItem('wb_sf_shisei_sync','0'); }catch{}
@@ -4728,7 +4736,7 @@ function clearShiseiGallery(){
     Object.keys(imgCache).forEach(k=>{ if(String(k).startsWith('shisei:')) delete imgCache[k]; });
     poseCacheAccess.clear();
     shiseiState={running:false,paused:false,total:0,done:0};
-    renderShiseiSyncStatus(); renderSettingsShisei();
+    renderShiseiSyncStatus();
     if(view.mode==='project'&&view.tab==='shots') renderShots(cur());
     toast('姿势图库已清除，同步已暂停');
   });
@@ -5246,11 +5254,9 @@ function settingsConfigHtml(){
 function renderSettingsShisei(){return renderShiseiStatusInto('settingsShiseiBox');}
 function toggleSettingsShiseiSync(){
   toggleShiseiSync();        // 复用既有开关：写 localStorage['wb_sf_shisei_sync'] / 暂停或恢复同步
-  renderSettingsShisei();    // 设置弹窗内状态行自刷新
 }
 function runSettingsShiseiSync(){
-  startShiseiSync(true);     // 复用既有立即同步（空闲调度 + 失败退避），零逻辑复制
-  renderSettingsShisei();
+  startShiseiSync(true);     // 手动同步不修改自动同步偏好，共用进度与失败处理
 }
 
 /* ③ 数据与备份：J1 导出（复用 exportJSON）/ J2 导入（独立 id settingsImportFile——看板页 #importFile
