@@ -6,6 +6,7 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 
 /* 版本断言取 package.json 真源：写死版本号会在每次发版时误报
    （v10.7.2 的 CI 首跑就因为断言里写死 v10.7.0 而失败）。 */
@@ -1066,15 +1067,38 @@ test('严格脚本 CSP：阻止未授权脚本和事件属性，正常动作可�
   await page.locator('#s_name').press('Enter');
   await expect(page.locator('.shot')).toContainText('正常委托分镜');
 });
-test('独立提案脚本哈希与实际导出内容一致',async({page})=>{
+test('独立提案脚本哈希与实际导出内容一致，离线打开仍可缩放且拒绝注入',async({page},testInfo)=>{
   await setupV108Project(page);
   await page.locator('[data-do="open-doc"]').filter({hasText:'客户提案'}).click();
   await expect(page.locator('#docExportBtn')).toBeVisible();
   const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#docExportBtn').click()]);
-  const html=readFileSync(await download.path(),'utf8');
+  const proposalPath=testInfo.outputPath('proposal.html');
+  await download.saveAs(proposalPath);
+  const html=readFileSync(proposalPath,'utf8');
   const script=html.match(/<script>([\s\S]*?)<\/script>/)[1];
   const hash=createHash('sha256').update(script,'utf8').digest('base64');
   expect(html).toContain("script-src 'sha256-"+hash+"'");
   expect(html).toContain("script-src-attr 'none'");
-  expect(html).not.toMatch(/\s(?:on[a-z]+)\s*=\s*["']/);
+  expect(html).not.toMatch(/\s(?:on[a-z]+)\s*=\s*["']/i);
+
+  // Opening the actual download checks the browser's enforcement, not only a string hash.
+  await page.setViewportSize({width:900,height:1000});
+  await page.goto(pathToFileURL(proposalPath).href);
+  const sheet=page.locator('.cv-sheet');
+  await expect(sheet).toBeVisible();
+  await expect.poll(()=>sheet.evaluate(el=>el.style.transform)).toMatch(/^scale\(/);
+  const wide=await sheet.evaluate(el=>el.style.transform);
+  await page.setViewportSize({width:390,height:844});
+  await expect.poll(()=>sheet.evaluate(el=>el.style.transform)).not.toBe(wide);
+  const result=await page.evaluate(()=>{
+    window.__proposalInjected=0;
+    const button=document.createElement('button');
+    button.setAttribute('onclick','window.__proposalInjected=1');
+    document.body.append(button);button.click();button.remove();
+    const script=document.createElement('script');
+    script.textContent='window.__proposalInjected=2';
+    document.body.append(script);script.remove();
+    return window.__proposalInjected;
+  });
+  expect(result).toBe(0);
 });
