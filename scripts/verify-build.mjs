@@ -34,7 +34,10 @@ function verifyStrictCsp(file) {
   if (!policy || !script) throw new Error(file + ': missing CSP meta or app script');
 
   const directives = new Map();
-  for (const entry of policy.split(';').map((s) => s.trim()).filter(Boolean)) {
+  for (const entry of policy
+    .split(';')
+    .map((s) => s.trim())
+    .filter(Boolean)) {
     const [name, ...values] = entry.split(/\s+/);
     if (directives.has(name.toLowerCase())) throw new Error(file + ': duplicate CSP directive ' + name);
     directives.set(name.toLowerCase(), values.join(' '));
