@@ -61,12 +61,42 @@ async function probe(externalFixture){
       modelMatches:JSON.stringify(model)===JSON.stringify(restored),unique:stats.uniqueImages,saved:stats.savedImageBytes,
       sizeMatches:stats.archiveBytes===new Blob(output).size};
   }finally{await archive.close();}
+  const opened=await openAssetArchive(new Blob(output),z),delivered=[];
+  const before=delivered.length;
+  await opened.consumeImages(async(keys,blob,descriptor)=>{
+    delivered.push({keys,size:blob.size,sha:await archiveSha256(new Uint8Array(await blob.arrayBuffer())),expected:descriptor.sha256});
+  });
+  let reused=false;try{await opened.consumeImages(()=>{});}catch{reused=true;}
+  const readerOK=before===0&&opened.stats.uniqueImages===2&&delivered.length===2&&delivered[0].keys.join(',')==='a,alias'
+    &&delivered[1].keys.join(',')==='b'&&delivered.every(x=>x.size===79&&x.sha===x.expected)&&reused;
+  // Generate hostile but syntactically valid archives with the third-party codec.
+  const makeBad=async(mut)=>{
+    const manifest=JSON.parse(JSON.stringify(stats.manifest)),parts=[];
+    const changes=mut(manifest)||{};
+    const writer=new z.ZipWriter(new WritableStream({write(chunk){parts.push(new Uint8Array(chunk));}}),options);
+    await writer.add('data.json',new z.TextReader(JSON.stringify(model)),{...options,level:6});
+    for(const im of [...new Map(manifest.images.map(x=>[x.path,x])).values()]){
+      const bytes=changes.corrupt&&im.key!=='b'?b:(im.key==='b'?b:a);
+      await writer.add(im.path,new z.Uint8ArrayReader(bytes),{...options,level:0});
+    }
+    await writer.add('manifest.json',new z.TextReader(JSON.stringify(manifest)),{...options,level:6});
+    if(changes.extra)await writer.add('unlisted.txt',new z.TextReader('unexpected'),options);
+    await writer.close();
+    return new Blob(parts);
+  };
+  const rejectPreflight=async(blob,opts)=>{try{const r=await openAssetArchive(blob,z,opts);await r.close();return false;}catch{return true;}};
+  const badExtra=await rejectPreflight(await makeBad(()=>({extra:true})));
+  const badData=await rejectPreflight(await makeBad(m=>{m.data.sha256='f'.repeat(64);}));
+  const badLimit=await rejectPreflight(new Blob(output),{limits:{...assetArchiveLimits(),maxImageBytes:78}});
+  let imageRejected=false,deliveredBad=0;
+  try{const r=await openAssetArchive(await makeBad(()=>({corrupt:true})),z);await r.consumeImages(()=>{deliveredBad++;});}catch{imageRejected=true;}
+  const readerRejects=badExtra&&badData&&badLimit&&imageRejected&&deliveredBad===0;
   let aborted=false,rejected=false;
   try{
     await writeAssetArchive(model,async()=>new Blob([a],{type:'image/png'}),new WritableStream({abort(){aborted=true;}}),z,
       {limits:{...assetArchiveLimits(),maxImageBytes:78}});
   }catch{rejected=true;}
-  return {generated,external,sha,chunks:sink.length,size:resultBlob.size,secureContext:isSecureContext,dedup,budgetRejected:rejected&&aborted};
+  return {generated,external,sha,chunks:sink.length,size:resultBlob.size,secureContext:isSecureContext,dedup,budgetRejected:rejected&&aborted,readerOK,readerRejects};
 }
 const script=bundle+'\n'+contracts+'\n'+archiveWriter+'\n('+probe.toString()+')('+JSON.stringify(externalFixture)+').then(result=>{document.getElementById("result").textContent=JSON.stringify(result);},error=>{document.getElementById("result").textContent=JSON.stringify({error:String(error),stack:error.stack});});';
 const hash=createHash('sha256').update(script).digest('base64');
@@ -100,6 +130,7 @@ for(const mode of ['local-file','localhost']){
     expect(result.secureContext).toBe(true);
     expect(result.dedup).toEqual({reads:['a','alias','b'],progress:{processed:3,total:3,unique:2},count:4,alias:true,sameSizeDistinct:true,validHashes:true,modelMatches:true,unique:2,saved:79,sizeMatches:true});
     expect(result.budgetRejected).toBe(true);
+    expect(result.readerOK).toBe(true);expect(result.readerRejects).toBe(true);
     violations.push(...await page.evaluate(()=>window.__zipCsp||[]));
     expect(violations).toEqual([]);expect(errors).toEqual([]);expect(requests).toEqual([]);
   });
