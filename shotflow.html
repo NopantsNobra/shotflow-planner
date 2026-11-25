@@ -1889,7 +1889,7 @@ function searchHit(p,q){
 }
 function favoritesButton(){
   const n=collectFavorites(loadP()).length;
-  return '<button class="btn btn-ghost btn-sm" onclick="openFavorites()">★ 已收藏 '+n+'</button>';
+  return '<button class="btn btn-ghost btn-sm" '+doAttrs('open-favorites')+'>★ 已收藏 '+n+'</button>';
 }
 function demoBadge(p){ return p&&p.demo===true?'<span class="badge demo">示例</span>':''; }
 
@@ -1920,7 +1920,7 @@ function projectCardHtml(p,i,t){
   const openT=p.todos.filter(x=>!x.done).length;
   const overdue=p.todos.filter(x=>!x.done&&x.due&&x.due<t).length;
   const cd=shootCountdown(p,t);
-  return '<article class="pcard st-'+i+'" role="button" tabindex="0" aria-label="'+esc('打开项目 '+p.name)+'" onclick="openProject('+jstr(p.id)+')">'
+  return '<article class="pcard st-'+i+'" role="button" tabindex="0" aria-label="'+esc('打开项目 '+p.name)+'" '+doAttrs('open-project',[p.id])+'>'
     +'<div class="pname">'+demoBadge(p)+esc(p.name)+'</div>'
     +'<div class="pmeta">'+esc(p.client||'个人项目')+' · '+(p.shootDate?'拍摄 '+esc(p.shootDate)+cd.text:'未定拍摄日')+'</div>'
     +'<div class="pmeta">分镜 '+done+' / '+total+(openT?' · 待办 '+openT:'')+'</div>'
@@ -1941,13 +1941,13 @@ function renderBoard(){
   const ps=all.filter(p=>matchBoardScope(p,view.boardScope)&&searchHit(p,q));
   let h='<header class="masthead"><div class="brand"><span class="eyebrow">Stillmark · 摄影策划</span><h1>瞬刻摄影工作台</h1><span class="tagline">定格一瞬，刻下永恒。</span></div><div class="sp"></div>'
     +'<div class="mast-actions">'
-    +'<button class="btn btn-ghost btn-sm" id="installBtn" style="display:none" onclick="installApp()">安装到桌面</button>'
+    +'<button class="btn btn-ghost btn-sm" id="installBtn" style="display:none" '+doAttrs('install-app')+'>安装到桌面</button>'
     +favoritesButton()
-    +'<button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙ 设置</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'importFile\').click()">导入</button>'
-    +'<button class="btn btn-danger btn-sm" onclick="clearAll()">清空</button>'
-    +'<button class="btn btn-primary" onclick="newProject()">新建策划案</button>'
-    +'<input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)"></div></header>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('open-settings')+'>⚙ 设置</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('pick-backup',['importFile'])+'>导入</button>'
+    +'<button class="btn btn-danger btn-sm" '+doAttrs('clear-all')+'>清空</button>'
+    +'<button class="btn btn-primary" '+doAttrs('new-project')+'>新建策划案</button>'
+    +'<input type="file" id="importFile" accept=".json" style="display:none" data-change="import-backup"></div></header>'
     +'<div class="backup-tip" id="backupTip"><span>数据较多，建议在「⚙ 设置」中定期导出备份留档。</span></div>'
     +(storageDegraded?'<div class="backup-tip show"><span>⚠ 存储不可用（IndexedDB 未能打开）：本次会话的数据不会被保存，请及时「导出备份」，并检查浏览器隐私模式 / 存储设置。</span></div>':'');
   const t=todayStr();
@@ -1965,8 +1965,8 @@ function renderBoard(){
     +'</div>'
     +'<div class="toolbar"><div class="searchbox">'
     +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/></svg>'
-    +'<input id="boardSearch" placeholder="搜索策划案、客户、主题、分镜或沟通记录…" value="'+esc(view.boardQuery)+'" oninput="setBoardQuery(this.value)">'
-    +'</div><div class="seg">'+['全部','进行中','已归档'].map(s=>'<button class="'+(view.boardScope===s?'on':'')+'" onclick="view.boardScope=\''+s+'\';renderBoard()">'+s+'</button>').join('')+'</div></div>'
+    +'<input id="boardSearch" placeholder="搜索策划案、客户、主题、分镜或沟通记录…" value="'+esc(view.boardQuery)+'" data-input="board-query">'
+    +'</div><div class="seg">'+['全部','进行中','已归档'].map(s=>'<button class="'+(view.boardScope===s?'on':'')+'" '+doAttrs('board-scope',[s])+'>'+s+'</button>').join('')+'</div></div>'
     +'<div id="boardGrid">'+boardGridHtml(all,ps,t)+'</div>';
   document.getElementById('app').innerHTML=h;
   const count=backupItemCount(all);
@@ -1991,11 +1991,11 @@ function renderFavorites(){
   const all=loadP(), entries=collectFavorites(all);
   let h='<header class="masthead"><div class="brand"><span class="eyebrow">Stillmark · 收藏夹</span><h1>★ 已收藏</h1>'
     +'<span class="tagline">按项目与模块分组 · 共 '+entries.length+' 条</span></div><div class="sp"></div>'
-    +'<div class="mast-actions"><button class="btn btn-ghost btn-sm" onclick="view=freshView();renderBoard()">返回看板</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'assetImportFile\').click()">导入素材包</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="toggleAllAssets()">全选 / 取消</button>'
-    +'<button class="btn btn-primary btn-sm" onclick="exportSelectedAssets()">导出所选素材</button>'
-    +'<input type="file" id="assetImportFile" accept=".json" hidden onchange="importJSON(event)"></div></header>'
+    +'<div class="mast-actions"><button class="btn btn-ghost btn-sm" '+doAttrs('return-board')+'>返回看板</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('pick-backup',['assetImportFile'])+'>导入素材包</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('toggle-all-assets')+'>全选 / 取消</button>'
+    +'<button class="btn btn-primary btn-sm" '+doAttrs('export-selected-assets')+'>导出所选素材</button>'
+    +'<input type="file" id="assetImportFile" accept=".json" hidden data-change="import-backup"></div></header>'
     +'<p class="muted">选中收藏即可打包，包含引用图片和场景。素材包导入后仅出现在收藏夹，不占项目看板；请勿分享含客户隐私或无授权的素材。</p>';
   if(!entries.length){
     h+='<div class="card" style="text-align:center;padding:56px 24px"><p class="muted">还没有收藏。在情绪板、分镜、日程、清单、预算或协作条目上点 ☆ 即可收藏。</p></div>';
@@ -2003,7 +2003,7 @@ function renderFavorites(){
     all.forEach(p=>{
       const list=entries.filter(e=>e.pid===p.id); if(!list.length) return;
       h+='<div class="card"><h2>'+demoBadge(p)+esc(p.name)+' <span class="muted" style="font-weight:400">· '+list.length+' 条'+(p.assetPack?' · 导入素材包':'')+'</span></h2>'
-        +(p.assetPack?'<button class="btn btn-ghost btn-sm" onclick="removeAssetPack('+jstr(p.id)+')">移除素材包</button>':'');
+        +(p.assetPack?'<button class="btn btn-ghost btn-sm" '+doAttrs('remove-asset-pack',[p.id])+'>移除素材包</button>':'');
       FAV_KINDS.forEach(type=>{
         const rows=list.filter(e=>e.type===type); if(!rows.length) return;
         h+='<div style="margin-bottom:12px"><div class="muted" style="margin-bottom:4px">'+FAV_ICON[type]+' '+FAV_META[type]+'</div>';
@@ -2013,7 +2013,7 @@ function renderFavorites(){
             +'<span>'+FAV_ICON[e.type]+'</span>'
             +'<span class="grow">'+esc(e.summary||'（无摘要）')+'</span>'
             +'<span class="muted">'+esc(e.module)+'</span>'
-            +(p.assetPack?'':'<button class="btn btn-ghost btn-sm" onclick="jumpToFav('+jstr(e.type)+','+jstr(e.pid)+','+jstr(e.id)+')">定位 ›</button>')+'</div>';
+            +(p.assetPack?'':'<button class="btn btn-ghost btn-sm" '+doAttrs('jump-to-fav',[e.type,e.pid,e.id])+'>定位 ›</button>')+'</div>';
         });
         h+='</div>';
       });
@@ -2099,7 +2099,7 @@ function renderFavPicker(){
         +'<span>'+FAV_ICON[e.type]+'</span>'
         +'<span class="grow" style="min-width:0"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.summary||'（无摘要）')+'</span>'
           +'<span class="muted" style="font-size:11px">'+esc(e.module)+' · '+esc(src?src.name:'来源已删除')+(same?' · 本案':'')+'</span></span>'
-        +'<button class="btn btn-ghost btn-sm" onclick="referenceFav('+jstr(e.type)+','+jstr(e.pid)+','+jstr(e.id)+')">引用收藏 ›</button></div>';
+        +'<button class="btn btn-ghost btn-sm" '+doAttrs('reference-fav',[e.type,e.pid,e.id])+'>引用收藏 ›</button></div>';
     }).join('')+'</div>';
   }
   document.getElementById('favPickerBody').innerHTML=h;
@@ -4702,9 +4702,9 @@ async function renderShiseiStatusInto(boxId){
   box.innerHTML='<div class="src-sync"><div><b>姿势图库同步</b> <span class="muted">'+esc(stat)+' · '+stats.count+' 张'
     +(stats.count?' · 约 '+mb+' MB（平均 '+kb+' KB）':'')+'</span></div>'
     +'<div class="row" style="margin-top:6px">'
-    +'<button class="btn btn-ghost btn-sm" onclick="toggleSettingsShiseiSync()">'+(shiseiSyncEnabled()?'暂停':'恢复')+'</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="runSettingsShiseiSync()">立即同步</button>'
-    +(stats.count?'<button class="btn btn-danger btn-sm" onclick="clearShiseiGallery()">清除图库</button>':'')
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('toggle-gallery-sync')+'>'+(shiseiSyncEnabled()?'暂停':'恢复')+'</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('run-gallery-sync')+'>立即同步</button>'
+    +(stats.count?'<button class="btn btn-danger btn-sm" '+doAttrs('clear-gallery')+'>清除图库</button>':'')
     +'</div></div>';
 }
 function renderShiseiSyncStatus(){return renderShiseiStatusInto('shiseiSyncBox');}
@@ -4762,8 +4762,8 @@ function toast(msg,ms,action){
   if(!t){ t=document.createElement('div'); t.id='toast'; t.className='toast'; document.body.appendChild(t); }
   /* action: {label, fn} —— toast 内联操作按钮（撤销 / 刷新等），toast 关闭即失效 */
   t.innerHTML=esc(msg)
-    +(action?'<button onclick="runToastAction()">'+esc(action.label)+'</button>':'')
-    +(msg==='发现新版本'&&!action?'<button onclick="location.reload()">刷新</button>':'');
+    +(action?'<button '+doAttrs('run-toast-action')+'>'+esc(action.label)+'</button>':'')
+    +(msg==='发现新版本'&&!action?'<button '+doAttrs('reload-page')+'>刷新</button>':'');
   toastAction=action&&typeof action.fn==='function'?action.fn:null;
   requestAnimationFrame(()=>t.classList.add('show'));
   clearTimeout(toastTimer);
@@ -4824,7 +4824,7 @@ document.addEventListener('keydown',e=>{
     if(app) app.innerHTML='<header class="masthead"><div class="brand"><span class="eyebrow">Stillmark · 摄影策划</span><h1>瞬刻摄影工作台</h1></div></header>'
       +'<div class="card" style="text-align:center;padding:56px 24px"><p>初始化时出了问题（'+esc(String((e&&e.message)||e))+'）。</p>'
       +'<p class="muted">可以先刷新重试；若反复出现，检查浏览器隐私模式 / 存储设置，或换一个浏览器打开。</p>'
-      +'<button class="btn btn-primary" onclick="location.reload()">刷新重试</button></div>';
+      +'<button class="btn btn-primary" '+doAttrs('reload-page')+'>刷新重试</button></div>';
   }
 })();
 document.addEventListener('visibilitychange',()=>{
@@ -4939,7 +4939,31 @@ const ACTIONS=Object.freeze({
   'sd-postpone':{fn:()=>sdPostpone(),argc:0,types:[]},
   'sd-disposition':{fn:(id,kind)=>sdDisposition(id,kind),argc:2,types:["s","s"]},
   'sd-toggle':{fn:(id)=>sdToggle(id),argc:1,types:["s"]},
-  'sd-toggle-node':{fn:(id)=>sdToggleNode(id),argc:1,types:["s"]}
+  'sd-toggle-node':{fn:(id)=>sdToggleNode(id),argc:1,types:["s"]},
+  'open-project':{fn:(id)=>openProject(id),argc:1,types:["s"]},
+  'install-app':{fn:()=>installApp(),argc:0,types:[]},
+  'open-settings':{fn:()=>openSettings(),argc:0,types:[]},
+  'pick-backup':{fn:(id)=>(['importFile','assetImportFile','settingsImportFile'].includes(id)&&document.getElementById(id)?.click()),argc:1,types:["s"]},
+  'clear-all':{fn:()=>clearAll(),argc:0,types:[]},
+  'new-project':{fn:()=>newProject(),argc:0,types:[]},
+  'board-scope':{fn:(scope)=>setDelegatedBoardScope(scope),argc:1,types:["s"]},
+  'return-board':{fn:()=>returnDelegatedBoard(),argc:0,types:[]},
+  'toggle-all-assets':{fn:()=>toggleAllAssets(),argc:0,types:[]},
+  'export-selected-assets':{fn:()=>exportSelectedAssets(),argc:0,types:[]},
+  'remove-asset-pack':{fn:(id)=>removeAssetPack(id),argc:1,types:["s"]},
+  'jump-to-fav':{fn:(type,pid,id)=>(FAV_KINDS.includes(type)&&jumpToFav(type,pid,id)),argc:3,types:["s","s","s"]},
+  'reference-fav':{fn:(type,pid,id)=>(FAV_KINDS.includes(type)&&referenceFav(type,pid,id)),argc:3,types:["s","s","s"]},
+  'open-favorites':{fn:()=>openFavorites(),argc:0,types:[]},
+  'toggle-gallery-sync':{fn:()=>toggleSettingsShiseiSync(),argc:0,types:[]},
+  'run-gallery-sync':{fn:()=>runSettingsShiseiSync(),argc:0,types:[]},
+  'clear-gallery':{fn:()=>clearShiseiGallery(),argc:0,types:[]},
+  'run-toast-action':{fn:()=>runToastAction(),argc:0,types:[]},
+  'reload-page':{fn:()=>location.reload(),argc:0,types:[]},
+  'export-backup':{fn:()=>exportJSON(),argc:0,types:[]},
+  'open-deploy':{fn:()=>openDeployModal(),argc:0,types:[]},
+  'feedback-type':{fn:(type)=>setFeedbackType(type),argc:1,types:["s"]},
+  'submit-feedback':{fn:()=>submitFeedback(),argc:0,types:[]},
+  'copy-feedback':{fn:()=>copyFeedbackText(),argc:0,types:[]}
 });
 /* 参数必须能 JSON.parse 成声明类型；实体 id / key 额外限长，避免超长垃圾进入业务层 */
 function readActionArgs(el,spec){
@@ -4980,6 +5004,20 @@ document.addEventListener('change',e=>{
   const value=el.value;
   if(!/^\d{4}-\d{2}-\d{2}$/.test(value)||!el.validity.valid)return;
   DATE_CHANGE_ACTIONS[key](value);
+});
+
+function setDelegatedBoardScope(scope){
+  if(!['全部','进行中','已归档'].includes(scope))return;
+  view.boardScope=scope;renderBoard();
+}
+function returnDelegatedBoard(){view=freshView();renderBoard();}
+document.addEventListener('input',e=>{
+  const el=e.target;
+  if(el.id==='boardSearch'&&el.dataset.input==='board-query')setBoardQuery(el.value);
+});
+document.addEventListener('change',e=>{
+  const el=e.target;
+  if(el.matches?.('input[type="file"][data-change="import-backup"]')&&['importFile','assetImportFile','settingsImportFile'].includes(el.id))importJSON(e);
 });
 /* ================= 设置弹窗（v10.6.0）：版本信息 / 模块配置 / 数据备份 / 反馈 ================= */
 /* 硬约束：本文件顶层只允许 function 声明，禁止顶层 let/const——构建拼接顺序在 05-boot.js 之后，
@@ -5094,7 +5132,7 @@ function settingsConfigHtml(){
     +'<div class="src-sync"><div><b>安装到桌面</b> <span class="muted">把工作台作为应用安装，离线也能打开</span></div>'
     +'<div class="row" style="margin-top:6px">'
     +(deferredPrompt
-      ?'<button class="btn btn-ghost btn-sm" onclick="installApp()">安装到桌面</button>'
+      ?'<button class="btn btn-ghost btn-sm" '+doAttrs('install-app')+'>安装到桌面</button>'
       :'<span class="muted">已安装或当前浏览器不支持安装</span>')
     +'</div></div>'
     +'</div>';
@@ -5118,10 +5156,10 @@ function settingsDataHtml(){
   return '<div class="card"><h2>数据与备份</h2>'
     +(needBackup?'<p class="src-note">数据较多，建议定期「导出备份」留档。</p>':'')
     +'<div class="row">'
-    +'<button class="btn btn-ghost btn-sm" onclick="exportJSON()">导出备份</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'settingsImportFile\').click()">导入备份</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('export-backup')+'>导出备份</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('pick-backup',['settingsImportFile'])+'>导入备份</button>'
     +'</div>'
-    +'<input type="file" id="settingsImportFile" accept=".json" style="display:none" onchange="importJSON(event)">'
+    +'<input type="file" id="settingsImportFile" accept=".json" style="display:none" data-change="import-backup">'
     +'<p class="src-note" style="margin-top:10px">标签词表为项目级数据：在各策划案的「情绪板」页编辑（改词 / 删词入口在标签云上），不设全局词表。</p>'
     +'</div>';
 }
@@ -5131,7 +5169,7 @@ function settingsDeployHtml(){
   return '<div class="card" id="deployCard"><h2>关于与部署</h2>'
     +'<p class="src-note">本应用是纯静态单文件 PWA：<code>shotflow.html</code> 由 <code>src/</code> 构建产出，'
     +'可部署到任意静态托管（GitHub Pages / Cloudflare Pages / Vercel / 自有服务器），无需后端与数据库。</p>'
-    +'<div class="row"><button class="btn btn-primary btn-sm" onclick="openDeployModal()">为自己部署</button>'
+    +'<div class="row"><button class="btn btn-primary btn-sm" '+doAttrs('open-deploy')+'>为自己部署</button>'
     +'<span class="muted" style="font-size:11.5px">MIT License © 2026 Stillmark-服雲</span></div></div>';
 }
 /* 部署说明弹窗：只切换 class；Esc / 点遮罩 / 关闭按钮三种退出方式 */
@@ -5144,15 +5182,15 @@ function settingsFeedbackHtml(){
   return '<div class="card" id="fbCard"><h2>反馈</h2>'
     +'<div class="settings-form">'
     +'<div class="seg" id="fbTypeSeg" style="align-self:flex-start">'
-    +types.map((t,i)=>'<button class="'+(i===0?'on':'')+'" data-fb-type="'+t+'" onclick="setFeedbackType(\''+t+'\')">'+feedbackTypeLabel(t)+'</button>').join('')
+    +types.map((t,i)=>'<button class="'+(i===0?'on':'')+'" data-fb-type="'+t+'" '+doAttrs('feedback-type',[t])+'>'+feedbackTypeLabel(t)+'</button>').join('')
     +'</div>'
     +'<input id="fbTitle" maxlength="80" placeholder="标题（必填，80 字内）">'
     +'<textarea id="fbBody" maxlength="4000" placeholder="描述：做了什么、期望什么、实际发生什么（选填，4000 字内）"></textarea>'
     +'<details class="src-panel"><summary>环境信息（自动生成，随反馈一并发送）</summary>'
     +'<div class="settings-env" id="fbEnvPreview"></div></details>'
     +'<div class="row">'
-    +'<button class="btn btn-primary btn-sm" id="fbSubmitBtn" onclick="submitFeedback()">提交反馈</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="copyFeedbackText()">复制反馈内容</button>'
+    +'<button class="btn btn-primary btn-sm" id="fbSubmitBtn" '+doAttrs('submit-feedback')+'>提交反馈</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('copy-feedback')+'>复制反馈内容</button>'
     +'</div>'
     +'<p class="muted">反馈内容（类型 / 标题 / 描述 + 应用版本与浏览器环境信息）通过第三方表单服务 Web3Forms 发送给维护者，不包含任何项目数据、图片或个人信息。</p>'
     +'</div></div>';

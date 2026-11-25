@@ -662,9 +662,9 @@ async function renderShiseiStatusInto(boxId){
   box.innerHTML='<div class="src-sync"><div><b>姿势图库同步</b> <span class="muted">'+esc(stat)+' · '+stats.count+' 张'
     +(stats.count?' · 约 '+mb+' MB（平均 '+kb+' KB）':'')+'</span></div>'
     +'<div class="row" style="margin-top:6px">'
-    +'<button class="btn btn-ghost btn-sm" onclick="toggleSettingsShiseiSync()">'+(shiseiSyncEnabled()?'暂停':'恢复')+'</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="runSettingsShiseiSync()">立即同步</button>'
-    +(stats.count?'<button class="btn btn-danger btn-sm" onclick="clearShiseiGallery()">清除图库</button>':'')
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('toggle-gallery-sync')+'>'+(shiseiSyncEnabled()?'暂停':'恢复')+'</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('run-gallery-sync')+'>立即同步</button>'
+    +(stats.count?'<button class="btn btn-danger btn-sm" '+doAttrs('clear-gallery')+'>清除图库</button>':'')
     +'</div></div>';
 }
 function renderShiseiSyncStatus(){return renderShiseiStatusInto('shiseiSyncBox');}
@@ -722,8 +722,8 @@ function toast(msg,ms,action){
   if(!t){ t=document.createElement('div'); t.id='toast'; t.className='toast'; document.body.appendChild(t); }
   /* action: {label, fn} —— toast 内联操作按钮（撤销 / 刷新等），toast 关闭即失效 */
   t.innerHTML=esc(msg)
-    +(action?'<button onclick="runToastAction()">'+esc(action.label)+'</button>':'')
-    +(msg==='发现新版本'&&!action?'<button onclick="location.reload()">刷新</button>':'');
+    +(action?'<button '+doAttrs('run-toast-action')+'>'+esc(action.label)+'</button>':'')
+    +(msg==='发现新版本'&&!action?'<button '+doAttrs('reload-page')+'>刷新</button>':'');
   toastAction=action&&typeof action.fn==='function'?action.fn:null;
   requestAnimationFrame(()=>t.classList.add('show'));
   clearTimeout(toastTimer);

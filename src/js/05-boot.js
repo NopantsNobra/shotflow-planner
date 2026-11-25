@@ -12,7 +12,7 @@
     if(app) app.innerHTML='<header class="masthead"><div class="brand"><span class="eyebrow">Stillmark · 摄影策划</span><h1>瞬刻摄影工作台</h1></div></header>'
       +'<div class="card" style="text-align:center;padding:56px 24px"><p>初始化时出了问题（'+esc(String((e&&e.message)||e))+'）。</p>'
       +'<p class="muted">可以先刷新重试；若反复出现，检查浏览器隐私模式 / 存储设置，或换一个浏览器打开。</p>'
-      +'<button class="btn btn-primary" onclick="location.reload()">刷新重试</button></div>';
+      +'<button class="btn btn-primary" '+doAttrs('reload-page')+'>刷新重试</button></div>';
   }
 })();
 document.addEventListener('visibilitychange',()=>{
@@ -127,7 +127,31 @@ const ACTIONS=Object.freeze({
   'sd-postpone':{fn:()=>sdPostpone(),argc:0,types:[]},
   'sd-disposition':{fn:(id,kind)=>sdDisposition(id,kind),argc:2,types:["s","s"]},
   'sd-toggle':{fn:(id)=>sdToggle(id),argc:1,types:["s"]},
-  'sd-toggle-node':{fn:(id)=>sdToggleNode(id),argc:1,types:["s"]}
+  'sd-toggle-node':{fn:(id)=>sdToggleNode(id),argc:1,types:["s"]},
+  'open-project':{fn:(id)=>openProject(id),argc:1,types:["s"]},
+  'install-app':{fn:()=>installApp(),argc:0,types:[]},
+  'open-settings':{fn:()=>openSettings(),argc:0,types:[]},
+  'pick-backup':{fn:(id)=>(['importFile','assetImportFile','settingsImportFile'].includes(id)&&document.getElementById(id)?.click()),argc:1,types:["s"]},
+  'clear-all':{fn:()=>clearAll(),argc:0,types:[]},
+  'new-project':{fn:()=>newProject(),argc:0,types:[]},
+  'board-scope':{fn:(scope)=>setDelegatedBoardScope(scope),argc:1,types:["s"]},
+  'return-board':{fn:()=>returnDelegatedBoard(),argc:0,types:[]},
+  'toggle-all-assets':{fn:()=>toggleAllAssets(),argc:0,types:[]},
+  'export-selected-assets':{fn:()=>exportSelectedAssets(),argc:0,types:[]},
+  'remove-asset-pack':{fn:(id)=>removeAssetPack(id),argc:1,types:["s"]},
+  'jump-to-fav':{fn:(type,pid,id)=>(FAV_KINDS.includes(type)&&jumpToFav(type,pid,id)),argc:3,types:["s","s","s"]},
+  'reference-fav':{fn:(type,pid,id)=>(FAV_KINDS.includes(type)&&referenceFav(type,pid,id)),argc:3,types:["s","s","s"]},
+  'open-favorites':{fn:()=>openFavorites(),argc:0,types:[]},
+  'toggle-gallery-sync':{fn:()=>toggleSettingsShiseiSync(),argc:0,types:[]},
+  'run-gallery-sync':{fn:()=>runSettingsShiseiSync(),argc:0,types:[]},
+  'clear-gallery':{fn:()=>clearShiseiGallery(),argc:0,types:[]},
+  'run-toast-action':{fn:()=>runToastAction(),argc:0,types:[]},
+  'reload-page':{fn:()=>location.reload(),argc:0,types:[]},
+  'export-backup':{fn:()=>exportJSON(),argc:0,types:[]},
+  'open-deploy':{fn:()=>openDeployModal(),argc:0,types:[]},
+  'feedback-type':{fn:(type)=>setFeedbackType(type),argc:1,types:["s"]},
+  'submit-feedback':{fn:()=>submitFeedback(),argc:0,types:[]},
+  'copy-feedback':{fn:()=>copyFeedbackText(),argc:0,types:[]}
 });
 /* 参数必须能 JSON.parse 成声明类型；实体 id / key 额外限长，避免超长垃圾进入业务层 */
 function readActionArgs(el,spec){
@@ -168,4 +192,18 @@ document.addEventListener('change',e=>{
   const value=el.value;
   if(!/^\d{4}-\d{2}-\d{2}$/.test(value)||!el.validity.valid)return;
   DATE_CHANGE_ACTIONS[key](value);
+});
+
+function setDelegatedBoardScope(scope){
+  if(!['全部','进行中','已归档'].includes(scope))return;
+  view.boardScope=scope;renderBoard();
+}
+function returnDelegatedBoard(){view=freshView();renderBoard();}
+document.addEventListener('input',e=>{
+  const el=e.target;
+  if(el.id==='boardSearch'&&el.dataset.input==='board-query')setBoardQuery(el.value);
+});
+document.addEventListener('change',e=>{
+  const el=e.target;
+  if(el.matches?.('input[type="file"][data-change="import-backup"]')&&['importFile','assetImportFile','settingsImportFile'].includes(el.id))importJSON(e);
 });

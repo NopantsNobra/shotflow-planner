@@ -994,3 +994,25 @@ test('CSP 日程与拍摄日无内联事件，键盘添加、锁时及现场状�
   await page.locator('[data-do="close-shoot-day"]').click();
   await expect(page.locator('#sdOverlay')).not.toHaveClass(/show/);
 });
+
+test('CSP 看板、收藏与设置动作不依赖内联事件',async({page})=>{
+  await openFreshApp(page);
+  await expect(page.locator('#app [onclick],#app [oninput],#app [onchange]')).toHaveCount(0);
+  await createProject(page,'委托看板回归');
+  await page.keyboard.press('Escape');
+  await page.locator('#boardSearch').fill('委托看板回归');
+  await expect(page.locator('.pcard')).toHaveCount(1);
+  await page.locator('.pcard').click();
+  await expect(page.locator('#s_name')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:'设置',exact:false}).click();
+  await expect(page.locator('#settingsModal')).toHaveClass(/show/);
+  await expect(page.locator('#settingsModal [onclick],#settingsModal [onchange]')).toHaveCount(0);
+  await page.getByRole('button',{name:'为自己部署'}).click();
+  await expect(page.locator('#deployModal')).toHaveClass(/show/);
+  await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+  await page.locator('[data-do="open-favorites"]').click();
+  await expect(page.locator('#app [onclick],#app [onchange]')).toHaveCount(0);
+  await page.getByRole('button',{name:'返回看板'}).click();
+  await expect(page.locator('.masthead h1')).toHaveText('瞬刻摄影工作台');
+});

@@ -111,7 +111,7 @@ function settingsConfigHtml(){
     +'<div class="src-sync"><div><b>安装到桌面</b> <span class="muted">把工作台作为应用安装，离线也能打开</span></div>'
     +'<div class="row" style="margin-top:6px">'
     +(deferredPrompt
-      ?'<button class="btn btn-ghost btn-sm" onclick="installApp()">安装到桌面</button>'
+      ?'<button class="btn btn-ghost btn-sm" '+doAttrs('install-app')+'>安装到桌面</button>'
       :'<span class="muted">已安装或当前浏览器不支持安装</span>')
     +'</div></div>'
     +'</div>';
@@ -135,10 +135,10 @@ function settingsDataHtml(){
   return '<div class="card"><h2>数据与备份</h2>'
     +(needBackup?'<p class="src-note">数据较多，建议定期「导出备份」留档。</p>':'')
     +'<div class="row">'
-    +'<button class="btn btn-ghost btn-sm" onclick="exportJSON()">导出备份</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'settingsImportFile\').click()">导入备份</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('export-backup')+'>导出备份</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('pick-backup',['settingsImportFile'])+'>导入备份</button>'
     +'</div>'
-    +'<input type="file" id="settingsImportFile" accept=".json" style="display:none" onchange="importJSON(event)">'
+    +'<input type="file" id="settingsImportFile" accept=".json" style="display:none" data-change="import-backup">'
     +'<p class="src-note" style="margin-top:10px">标签词表为项目级数据：在各策划案的「情绪板」页编辑（改词 / 删词入口在标签云上），不设全局词表。</p>'
     +'</div>';
 }
@@ -148,7 +148,7 @@ function settingsDeployHtml(){
   return '<div class="card" id="deployCard"><h2>关于与部署</h2>'
     +'<p class="src-note">本应用是纯静态单文件 PWA：<code>shotflow.html</code> 由 <code>src/</code> 构建产出，'
     +'可部署到任意静态托管（GitHub Pages / Cloudflare Pages / Vercel / 自有服务器），无需后端与数据库。</p>'
-    +'<div class="row"><button class="btn btn-primary btn-sm" onclick="openDeployModal()">为自己部署</button>'
+    +'<div class="row"><button class="btn btn-primary btn-sm" '+doAttrs('open-deploy')+'>为自己部署</button>'
     +'<span class="muted" style="font-size:11.5px">MIT License © 2026 Stillmark-服雲</span></div></div>';
 }
 /* 部署说明弹窗：只切换 class；Esc / 点遮罩 / 关闭按钮三种退出方式 */
@@ -161,15 +161,15 @@ function settingsFeedbackHtml(){
   return '<div class="card" id="fbCard"><h2>反馈</h2>'
     +'<div class="settings-form">'
     +'<div class="seg" id="fbTypeSeg" style="align-self:flex-start">'
-    +types.map((t,i)=>'<button class="'+(i===0?'on':'')+'" data-fb-type="'+t+'" onclick="setFeedbackType(\''+t+'\')">'+feedbackTypeLabel(t)+'</button>').join('')
+    +types.map((t,i)=>'<button class="'+(i===0?'on':'')+'" data-fb-type="'+t+'" '+doAttrs('feedback-type',[t])+'>'+feedbackTypeLabel(t)+'</button>').join('')
     +'</div>'
     +'<input id="fbTitle" maxlength="80" placeholder="标题（必填，80 字内）">'
     +'<textarea id="fbBody" maxlength="4000" placeholder="描述：做了什么、期望什么、实际发生什么（选填，4000 字内）"></textarea>'
     +'<details class="src-panel"><summary>环境信息（自动生成，随反馈一并发送）</summary>'
     +'<div class="settings-env" id="fbEnvPreview"></div></details>'
     +'<div class="row">'
-    +'<button class="btn btn-primary btn-sm" id="fbSubmitBtn" onclick="submitFeedback()">提交反馈</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="copyFeedbackText()">复制反馈内容</button>'
+    +'<button class="btn btn-primary btn-sm" id="fbSubmitBtn" '+doAttrs('submit-feedback')+'>提交反馈</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('copy-feedback')+'>复制反馈内容</button>'
     +'</div>'
     +'<p class="muted">反馈内容（类型 / 标题 / 描述 + 应用版本与浏览器环境信息）通过第三方表单服务 Web3Forms 发送给维护者，不包含任何项目数据、图片或个人信息。</p>'
     +'</div></div>';

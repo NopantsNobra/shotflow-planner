@@ -39,3 +39,5 @@ Branch: security/strict-csp. Do not merge until all acceptance checks pass. Main
 - Fixed optional empty third argument in the shared edit action (required IDs still reject empty values); added a browser regression. Performance harness now extracts the actual doAttrs helper rather than mocking it or weakening the threshold.
 - Schedule and shoot-day domains migrated to explicit click/Enter and date-change allowlists. Their source templates have no remaining inline event attributes; the regression covers date/schedule controls, time lock, defer/restore and closing the field view.
 - The policy is still baseline. Other dynamic domains and exported documents remain to be migrated; main is unchanged.
+
+- Board/favorites, settings, output status/notifications and boot error UI migrated to the same declared actions; import uses specific file controls and the board search uses a scoped input listener. Remaining live template migration is concentrated in project/mood and shots. DOM event properties assigned in trusted JS (e.g. IndexedDB request callbacks) are not inline HTML attributes and do not violate strict CSP.
