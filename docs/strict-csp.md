@@ -53,3 +53,11 @@ Branch: security/strict-csp. Do not merge until all acceptance checks pass. Main
 - Build inserts SHA-256 hashes of the actual app script and standalone proposal cover-fit script. No unsafe-inline/unsafe-eval for scripts; inline styles retained intentionally for current layout. default-src none, narrowly scoped CDN/feedback connections, local PWA resources and data/blob images.
 - Build fails on remaining quoted inline HTML event attributes. New browser tests attempt unauthorized inline code and verify legitimate delegated actions and exported proposal hash.
 - PWA cache bumped only on the isolated branch. Strict policy must pass all CI and actual Safari/PWA/device testing before any main merge.
+
+## Phase 3 acceptance hardening (2026-11-25, branch only)
+
+- `0c90fa7`: require unique hash placeholders and valid proposal function boundaries. The source guard now checks case-insensitive quoted event attributes and unquoted event attributes in literal HTML tags. This is a conservative source check, not a complete HTML parser; browser CSP and E2E remain authoritative.
+- `5e6517e`: independently recompute SHA-256 from both committed HTML artifacts in `verify:build`; reject missing or duplicate directives, unexpected script sources, event attributes permitted by policy, and unresolved hash placeholders.
+- `fe71e88`: extend the proposal export E2E to reopen the downloaded HTML via file://, verify responsive cover resizing and reject injected script and event code.
+- Independent remote artifact audit: both generated HTML files match the reconstruction from current source byte-for-byte. The embedded app and proposal hashes match independently recomputed SHA-256 values. No quoted or literal-tag unquoted event attributes matched the expanded source guard. No runtime code or generated artifact changes were needed for these commits.
+- Pending: GitHub Actions push-run results, all three real browser engines, and actual iOS Safari / installed PWA / Android Chrome acceptance. Do not merge to main or declare full CSP acceptance until these are verified. Inline CSS remains an intentional exception and does not relax the script policy.
