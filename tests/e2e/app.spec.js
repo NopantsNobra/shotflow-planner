@@ -956,8 +956,12 @@ test('看板选择两个完整项目打包，保留各自执行状态',async({pa
   await page.getByRole('button',{name:'选择项目 第二策划'}).click();
   await expect(page.locator('#boardPackCount')).toHaveText('已选 2 个项目');
   const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'导出所选项目'}).click()]);
-  const data=JSON.parse(readFileSync(await download.path(),'utf8'));
-  expect(data.type).toBe('project-pack');
+  const bytes=Array.from(readFileSync(await download.path()));
+  const data=await page.evaluate(async bytes=>{
+    const archive=await openAssetArchive(new Blob([Uint8Array.from(bytes)]),globalThis.zip);
+    try{return archive.data;}finally{await archive.close();}
+  },bytes);
+  expect(data.kind).toBe('projects');
   expect(data.entries.map(p=>p.name).sort()).toEqual(['V108 测试案','第二策划'].sort());
   expect(data.entries.find(p=>p.name==='V108 测试案').shots[0].done).toBe(true);
 });
@@ -983,7 +987,13 @@ test('非收藏分镜精确导出并导入新项目，保留原始项目和图�
     await page.getByRole('button',{name:'导出所选分镜'}).click();
     await expect(page.locator('.toast')).toContainText('已导出');
   })()]);
-  const pack=JSON.parse(readFileSync(await download.path(),'utf8'));
+  const zipBytes=readFileSync(await download.path());
+  const pack=await page.evaluate(async bytes=>{
+    const a=await openAssetArchive(new Blob([Uint8Array.from(bytes)]),globalThis.zip);
+    const images={};await a.consumeImages(async(keys,b)=>{const v=await archiveDataURL(b);keys.forEach(k=>images[k]=v);});
+    return {...a.data,images};
+  },Array.from(zipBytes));
+  expect(pack.kind).toBe('shots');
   expect(pack.entries).toHaveLength(1);
   const entry=pack.entries[0];
   expect(entry.shots.map(s=>s.name)).toEqual(['原始分镜']);
@@ -992,7 +1002,7 @@ test('非收藏分镜精确导出并导入新项目，保留原始项目和图�
   expect(entry.scenes).toHaveLength(1);
   expect(pack.images['portable-ref']).toBe(image);
   await page.keyboard.press('Escape');
-  await page.locator('#importFile').setInputFiles({name:'shots.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(pack))});
+  await page.locator('#importFile').setInputFiles({name:'shots.stillmark.zip',mimeType:'application/zip',buffer:zipBytes});
   await expect(page.locator('#confirmModal')).toHaveClass(/show/);
   await page.locator('#confirmOk').click();
   await expect(page.locator('.pcard',{hasText:'分镜选集'})).toBeVisible();

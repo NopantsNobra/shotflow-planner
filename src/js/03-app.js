@@ -58,7 +58,7 @@ function renderBoard(){
     +'<button class="btn btn-ghost btn-sm" onclick="toggleBoardPackMode()">'+(view.boardPackMode?'退出打包':'打包项目')+'</button>'
     +'<button class="btn btn-danger btn-sm" onclick="clearAll()">清空</button>'
     +'<button class="btn btn-primary" onclick="newProject()">新建策划案</button>'
-    +'<input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)"></div></header>'
+    +'<input type="file" id="importFile" accept=".json,.zip,application/zip" style="display:none" onchange="importJSON(event)"></div></header>'
     +'<div class="backup-tip" id="backupTip"><span>数据较多，建议在「⚙ 设置」中定期导出备份留档。</span></div>'
     +(storageDegraded?'<div class="backup-tip show"><span>⚠ 存储不可用（IndexedDB 未能打开）：本次会话的数据不会被保存，请及时「导出备份」，并检查浏览器隐私模式 / 存储设置。</span></div>':'');
   const t=todayStr();

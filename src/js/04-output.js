@@ -159,12 +159,13 @@ async function writeProposalFile(p){
 /* ================= 备份 / 恢复 / 清空 ================= */
 /* 导出文件名清洗（A5）：只剥跨平台非法字符，不再套 esc()（esc 会把 & 变成 &amp; 混进文件名） */
 function safeFilename(s){ return String(s==null?'':s).replace(/[\\/:*?"<>|\r\n]/g,'').trim().slice(0,80)||'未命名'; }
-function downloadData(data,filename){
+function downloadBlob(blob,filename){
   const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));
+  a.href=URL.createObjectURL(blob);
   a.download=filename; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),60000);
 }
+function downloadData(data,filename){downloadBlob(new Blob([JSON.stringify(data)],{type:'application/json'}),filename);}
 function collectImages(ps){
   const ids=new Set();
   ps.forEach(p=>{
@@ -183,38 +184,9 @@ async function imagesFor(ps){
   if(missing.length) throw new Error('缺失 '+missing.length+' 张引用图片');
   return out;
 }
-/* Strictly portable: materialize every referenced pose image, with one mapping per
-   source key. Do not silently export a reference that requires the original device. */
-async function portableImagesFor(projects){
-  const images=await imagesFor(projects),mapping=new Map();
-  const remap=async key=>{
-    if(!String(key||'').startsWith('shisei:'))return key;
-    if(mapping.has(key))return mapping.get(key);
-    const data=await ensureShiseiImage(key);
-    if(!validBackupImage(data))throw Error('姿势参考未缓存，请先加载后重试');
-    const next=uid();images[next]=data;mapping.set(key,next);return next;
-  };
-  for(const p of projects){
-    for(const r of p.refs||[])r.key=await remap(r.key);
-    for(const m of p.mood||[])if(m.type==='image')m.content=await remap(m.content);
-    for(const s of p.shots||[]){
-      const refs=[];for(const key of s.refIds||[])refs.push(await remap(key));s.refIds=refs;
-    }
-  }
-  for(const key of collectImages(projects))if(!validBackupImage(images[key]))throw Error('引用图片缺失或格式不合法');
-  return images;
-}
 async function exportPortableProjects(entries,scope='projects'){
   if(!entries.length){toast('请先选择要导出的项目或分镜');return;}
-  try{
-    // Optional fields may be undefined on old projects. Validate the actual JSON shape.
-    entries=JSON.parse(JSON.stringify(entries));
-    const images=await portableImagesFor(entries);
-    const pack={app:'stillmark',version:5,type:'project-pack',packVersion:1,scope,exportedAt:new Date().toISOString(),entries,images};
-    validatePortablePack(pack);
-    downloadData(pack,'Stillmark_项目包_'+todayStr()+'.json');
-    toast('已导出 '+entries.length+' 个策划案');
-  }catch(e){toast('项目包未完成：'+String(e.message||e),6000);}
+  await exportArchiveProjects(entries,scope);
 }
 async function exportSelectedAssets(){
   try{
@@ -286,8 +258,13 @@ function remapBackupImages(projects,images,mkId){
   return payload;
 }
 let pendingImport=null;
-function importJSON(e){
-  const f=e.target.files[0]; if(!f) return;
+async function importJSON(e){
+  const f=e.target.files[0]; e.target.value=''; if(!f)return;
+  if(archiveOperation||persistClearing){toast('已有资产操作正在进行');return;}
+  if(/\.zip$/i.test(f.name)){await previewArchiveImport(f);return;}
+  // A ZIP signature is authoritative even if the file has been renamed.
+  try{const h=new Uint8Array(await f.slice(0,4).arrayBuffer());if(h[0]===80&&h[1]===75){await previewArchiveImport(f);return;}}catch{toast('文件读取失败');return;}
+  if(archiveOperation||persistClearing)return;
   const rd=new FileReader();
   rd.onload=ev=>{
     let d;
@@ -340,10 +317,15 @@ async function applyImport(){
   }catch(err){ toast('导入失败：'+String(err.message||err)+'，原项目未被覆盖',6000); }
   finally{ if(locked) persistClearing=false; if(app) app.inert=false; }
 }
-let confirmCb=null;
-function askConfirm(t,d,cb){ document.getElementById('confirmTitle').textContent=t; document.getElementById('confirmDesc').textContent=d; confirmCb=cb; document.getElementById('confirmModal').classList.add('show'); }
-function closeConfirm(){ document.getElementById('confirmModal').classList.remove('show'); confirmCb=null; }
-document.getElementById('confirmOk').onclick=()=>{ const cb=confirmCb; closeConfirm(); if(cb) cb(); };
+let confirmCb=null,confirmCancelCb=null;
+function askConfirm(t,d,cb,onCancel){
+  const previous=confirmCancelCb;confirmCancelCb=null;if(previous)previous();
+  document.getElementById('confirmTitle').textContent=t; document.getElementById('confirmDesc').textContent=d; confirmCb=cb;confirmCancelCb=onCancel||null;document.getElementById('confirmModal').classList.add('show');
+}
+function closeConfirm(cancel=true){
+  const cb=confirmCancelCb;confirmCancelCb=null;confirmCb=null;document.getElementById('confirmModal').classList.remove('show');if(cancel&&cb)cb();
+}
+document.getElementById('confirmOk').onclick=()=>{ const cb=confirmCb; closeConfirm(false); if(cb) cb(); };
 function clearAll(){
   askConfirm('清空全部数据？','不可恢复！将删除所有策划案与图片，建议先导出备份。姿势图库缓存不受影响，可在情绪板 → 素材来源中单独清除。',async()=>{
     if(persistConflict||persistClearing||!idb.ready()){ toast('当前无法安全清空，请先导出备份并刷新'); return; }

@@ -138,7 +138,7 @@ function settingsDataHtml(){
     +'<button class="btn btn-ghost btn-sm" onclick="exportJSON()">导出备份</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'settingsImportFile\').click()">导入备份</button>'
     +'</div>'
-    +'<input type="file" id="settingsImportFile" accept=".json" style="display:none" onchange="importJSON(event)">'
+    +'<input type="file" id="settingsImportFile" accept=".json,.zip,application/zip" style="display:none" onchange="importJSON(event)">'
     +'<p class="src-note" style="margin-top:10px">标签词表为项目级数据：在各策划案的「情绪板」页编辑（改词 / 删词入口在标签云上），不设全局词表。</p>'
     +'</div>';
 }

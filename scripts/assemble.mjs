@@ -31,6 +31,11 @@ export function assembleHtml(version) {
   const styleBlock = '<style>\n' + styles + '</style>\n';
   // JS：包回 <script> 标签（原文件 440-3613 行的形式）
   const jsBlock = '<script>\n' + js + '</script>\n';
+  const vendor = read(path.join(SRC, 'vendor', 'zip-native-2.25.0.min.js'));
+  const license = read(path.join(SRC, 'vendor', 'zip-native-2.25.0.LICENSE.txt'));
+  if (/<\/script/i.test(vendor + license) || license.includes('*/'))
+    throw new Error('[assemble] unsafe inline ZIP library');
+  const vendorBlock = '<script>\n/*\n' + license + '\n*/\n' + vendor + '</script>\n';
 
   if (!shell.includes('<!--__STYLES__-->') || !shell.includes('<!--__JS__-->'))
     throw new Error('[assemble] shell.html 缺少占位符 <!--__STYLES__--> / <!--__JS__-->');
@@ -38,7 +43,8 @@ export function assembleHtml(version) {
   // 用函数形式替换，避免替换字符串中的 $& / $' / $$ 被当作特殊替换模式（JS 源码含大量 '$'）
   let out = shell
     .replace('<!--__STYLES__-->', () => styleBlock.trimEnd())
-    .replace('<!--__JS__-->', () => jsBlock.trimEnd());
+    .replace('<!--__JS__-->', () => jsBlock.trimEnd())
+    .replace('<!--__ZIP_VENDOR__-->', () => vendorBlock.trimEnd());
 
   // 版本注入：仅替换含引号的完整字面量，函数形式避免 $ 特殊模式
   if (version) out = out.replace("'__APP_VERSION__'", () => JSON.stringify(String(version)));

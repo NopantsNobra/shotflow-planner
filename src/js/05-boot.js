@@ -5,6 +5,7 @@
     window.addEventListener('resize',fitCovers);
     bindPersistFlush();   // P0：页面隐藏/关闭时冲刷未落盘数据
     await initData(); seed(); await ensureV9Demo(); renderBoard();
+    if(idb.ready())idb.reapArchiveStages().catch(()=>{});
     shiseiInitReady=true; startShiseiSync();
   }catch(e){
     /* A2：任何启动异常都不允许白屏——给出可见错误与自救入口（刷新 / 检查存储设置） */
