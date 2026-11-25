@@ -945,5 +945,13 @@ check('ZIP 清单拒绝非法路径、重复键、摘要冲突、类型错配和
     &&badData({dataVersion:1,kind:'shots',entries:[{name:'A',shots:[{name:'S',refIds:['first']}]}]})
     &&badData({dataVersion:1,kind:'projects',entries:[{name:'A',shots:[{name:'S',refIds:['missing']}]}]});
 })()`,ctx));
+vm.runInContext(fn('appendArchiveShots'),ctx);
+check('分镜追加保持目标资料、原顺序与状态，只引入显式依赖且不改源对象',vm.runInContext(`(()=>{
+  const target={id:'target',name:'目标',status:'策划中',client:'客户',shootDates:['2026-11-26'],shootDate:'2026-11-26',shots:[{id:'old',ord:8,done:true}],scenes:[{id:'oldscene',name:'场景'}],refs:[],notes:[{id:'note',content:'保留'}],tagVocab:['旧标签']};
+  const source={name:'忽略',client:'不覆盖',notes:[{id:'secret',content:'不要'}],shots:[{id:'newshot',sceneId:'newscene',refIds:['newkey'],date:'2026-12-01',ord:2,done:true}],scenes:[{id:'newscene',name:'场景'},{id:'extra',name:'无关'}],refs:[{id:'newref',key:'newkey',tags:['新标签']},{id:'extraref',key:'extra'}]};
+  const before=JSON.stringify([target,source]),out=appendArchiveShots(target,source,123);
+  let rejected=false;try{appendArchiveShots(target,{...source,shots:[{id:'old'}]});}catch{rejected=true;}
+  return JSON.stringify([target,source])===before&&out.id==='target'&&out.name==='目标'&&out.client==='客户'&&out.notes.length===1&&out.shots.length===2&&out.shots[0].ord===8&&out.shots[1].ord===9&&out.shots[1].done&&out.scenes.length===2&&out.refs.length===1&&out.shootDates.length===2&&out.tagVocab.includes('新标签')&&rejected;
+})()`,ctx));
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

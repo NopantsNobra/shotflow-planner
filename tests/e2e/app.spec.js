@@ -1125,3 +1125,30 @@ test('ZIP 直接保存：特性检测、分块写出、取消选择与写入失�
   });
   expect(result).toEqual({supported:true,name:'流式保存测试',picks:2,closed:1,multiple:true,downloads:0,aborts:1,errorShown:true,clean:true});
 });
+
+
+test('分镜 ZIP 指定目标追加：保留客户资料与旧分镜，只新增选中依赖',async({page})=>{
+  await setupV108Project(page);
+  await page.evaluate(()=>{updateCur(p=>{p.client='原客户';p.shots[0].done=true;p.scenes=[{id:'existing-scene',name:'窗边',note:'原场景'}];p.notes=[{id:'existing-note',kind:'备注',content:'原备注',ts:1}];});});
+  await page.keyboard.press('Escape');
+  const bytes=await page.evaluate(async()=>{
+    const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==',parts=[];
+    const model={dataVersion:1,kind:'shots',entries:[{name:'追加来源',client:'不应写入',shots:[{id:'s',name:'新增分镜',sceneId:'sc',refIds:['pic'],date:'2026-12-01',done:true}],scenes:[{id:'sc',name:'窗边'},{id:'unrelated',name:'忽略'}],refs:[{key:'pic',tags:['新标签']},{key:'extra'}],notes:[{content:'无关隐私'}]}]};
+    await writeAssetArchive(model,()=>archiveImageBlob(image),new WritableStream({write(c){parts.push(c.slice());}}),globalThis.zip);
+    return Array.from(new Uint8Array(await new Blob(parts).arrayBuffer()));
+  });
+  await page.locator('#importFile').setInputFiles({name:'append.stillmark.zip',mimeType:'application/zip',buffer:Buffer.from(bytes)});
+  await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  await expect(page.locator('#archiveImportTarget')).toBeVisible();
+  await page.locator('#archiveImportTarget').selectOption('v108-test');
+  await expect(page.locator('#confirmDesc')).toContainText('追加');
+  await page.locator('#confirmOk').click();
+  await expect(page.locator('#toast')).toContainText('已向');
+  const result=await page.evaluate(async()=>{
+    const ps=await idb.getProjects(),p=ps.find(p=>p.id==='v108-test'),s=p.shots.find(x=>x.name==='新增分镜'),keys=await idb.keys();
+    return {count:ps.length,client:p.client,old:p.shots[0].done,added:s.done,scenes:p.scenes.length,linked:p.scenes.some(x=>x.id===s.sceneId&&x.name==='窗边'),notes:p.notes.map(x=>x.content),refs:p.refs.length,dates:p.shootDates,exists:!!(await idb.get(s.refIds[0])),imageCount:keys.filter(k=>typeof k==='string'&&k.startsWith('archive-')).length};
+  });
+  expect(result).toMatchObject({count:1,client:'原客户',old:true,added:true,scenes:2,linked:true,notes:['原备注'],refs:1,dates:['2026-11-24','2026-12-01'],exists:true,imageCount:1});
+  await page.reload();await page.locator('.pcard',{hasText:'V108 测试案'}).click();
+  await expect(page.locator('.shot',{hasText:'新增分镜'})).toBeVisible();
+});

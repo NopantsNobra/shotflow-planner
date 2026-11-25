@@ -106,11 +106,27 @@ async function previewArchiveImport(file){
     const names=opened.data.entries.slice(0,3).map(p=>p.name).join('、')+(opened.data.entries.length>3?' 等':'');
     const s=opened.stats,session=opened,controller=op.controller;
     finishArchiveOperation(op);op=null;opened=null;
-    askConfirm('导入 ZIP 资产包？','将新增 '+s.projects+' 个策划案：'+names+'；'+s.shots+' 条分镜、'+s.images+' 个图片引用（'+s.uniqueImages+' 张唯一图片），'+(s.archiveBytes/1048576).toFixed(2)+' MiB。保留现有数据与收藏。确认后校验全部图片并写入。',()=>applyArchiveImport(session,controller),()=>{controller.abort();session.close().catch(()=>{});});
+    const summary=s.shots+' 条分镜、'+s.images+' 个图片引用（'+s.uniqueImages+' 张唯一图片），'+(s.archiveBytes/1048576).toFixed(2)+' MiB。确认后校验全部图片并写入。';
+    const cancel=()=>{controller.abort();session.close().catch(()=>{});};
+    askConfirm('导入 ZIP 资产包？','将新增 '+s.projects+' 个策划案：'+names+'；'+summary+' 保留现有数据与收藏。',()=>{
+      const target=document.getElementById('archiveImportTarget').value;
+      applyArchiveImport(session,controller,target);
+    },cancel);
+    const picker=document.getElementById('archiveImportTarget'),row=document.getElementById('archiveImportTargetRow');
+    if(session.data.kind==='shots'){
+      const targets=loadP().filter(p=>!p.demo&&!p.assetPack);
+      picker.replaceChildren(new Option('创建新的策划案',''));
+      for(const p of targets)picker.add(new Option(p.name,p.id));
+      row.hidden=false;
+      picker.onchange=()=>{
+        const target=targets.find(p=>p.id===picker.value);
+        document.getElementById('confirmDesc').textContent=target?'向「'+target.name+'」追加 '+summary+' 保留原项目资料、日程及既有分镜。':'将新增 1 个策划案：'+names+'；'+summary+' 保留现有数据与收藏。';
+      };
+    }
   }catch(err){if(opened)await opened.close().catch(()=>{});toast('导入失败：'+String(err.message||err),6000);}
   finally{if(op)finishArchiveOperation(op);}
 }
-async function applyArchiveImport(opened,controller){
+async function applyArchiveImport(opened,controller,targetId=''){
   let op=null,locked=false,published=false,session=null;
   const app=document.getElementById('app');
   try{
@@ -122,9 +138,21 @@ async function applyArchiveImport(opened,controller){
     persistClearing=true;locked=true;
     const generation=persistGeneration,expected=persistExpected;
     session=crypto.randomUUID();
-    const map=new Map(opened.manifest.images.map(m=>[m.key,'archive-'+crypto.randomUUID()]));
+    const all=JSON.parse(JSON.stringify(loadP())),target=targetId?all.find(p=>p.id===targetId):null;
+    if(targetId&&(!target||target.demo||target.assetPack||opened.data.kind!=='shots'))throw Error('目标项目已不存在或不支持追加');
+    // On append, keep only actual shot dependencies. The general project
+    // format can also contain unselected metadata supplied by an Agent.
+    const needed=target?new Set(opened.data.entries[0].shots.flatMap(s=>s.refIds||[])):null;
+    const map=new Map(opened.manifest.images.filter(m=>!needed||needed.has(m.key)).map(m=>[m.key,'archive-'+crypto.randomUUID()]));
     const imported=opened.data.entries.map(raw=>{
-      const p=sanitizeProject(raw,()=>crypto.randomUUID());
+      let input=raw;
+      if(target){
+        const usedScenes=new Set(raw.shots.map(s=>s.sceneId).filter(Boolean)),refs=(raw.refs||[]).filter(x=>needed.has(x.key));
+        const have=new Set(refs.map(x=>x.key));
+        for(const key of needed)if(!have.has(key))refs.push({key,name:'参考图',tags:[]});
+        input={name:raw.name,shots:raw.shots,scenes:(raw.scenes||[]).filter(x=>usedScenes.has(x.id)),refs};
+      }
+      const p=sanitizeProject(input,()=>crypto.randomUUID());
       if(!p)throw Error('文件中有非法项目');
       migrate(p);p.demo=false;p.assetPack=false;p.name=p.name.slice(0,116)+'（导入）';
       const remap=key=>{if(!map.has(key))throw Error('图片依赖缺失');return map.get(key);};
@@ -133,13 +161,13 @@ async function applyArchiveImport(opened,controller){
       for(const s of p.shots||[])s.refIds=(s.refIds||[]).map(remap);
       return p;
     });
-    const arr=JSON.parse(JSON.stringify(loadP())).concat(imported),staged=[];
+    const arr=target?all.map(p=>p.id===targetId?appendArchiveShots(p,imported[0]):p):all.concat(imported),staged=[];
     const check=()=>{if(op.controller.signal.aborted)throw Error('已取消资产包导入');if(persistConflict||generation!==persistGeneration)throw Error('现有项目已变化，请刷新后重试');};
     check();
     await opened.consumeImages(async(keys,blob)=>{
       check();const value=await archiveDataURL(blob);
       for(const key of keys){
-        check();const id=map.get(key);if(!id)throw Error('图片依赖缺失');
+        check();const id=map.get(key);if(!id){if(target)continue;throw Error('图片依赖缺失');}
         await idb.stageArchiveImage(session,id,value);staged.push(id);
       }
     },p=>archiveProgress(op,'正在校验并暂存图片 '+p.processed+'/'+p.total,p.processed,p.total));
@@ -152,7 +180,7 @@ async function applyArchiveImport(opened,controller){
     if(generation!==persistGeneration){markPersistConflict();return;}
     projectsCache=arr;pendingPersist=false;persistFailed=false;notifyProjectChange();
     if(document.getElementById('settingsModal').classList.contains('show'))closeSettings();
-    view=freshView();renderBoard();toast('导入成功，新增 '+imported.length+' 个策划案');
+    view=freshView();renderBoard();toast(target?'导入成功，已向「'+target.name+'」追加 '+imported[0].shots.length+' 条分镜':'导入成功，新增 '+imported.length+' 个策划案');
   }catch(err){toast('导入失败：'+String(err.message||err)+'，原项目未被覆盖',6000);}
   finally{
     await opened.close().catch(()=>{});

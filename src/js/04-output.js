@@ -320,6 +320,8 @@ async function applyImport(){
 let confirmCb=null,confirmCancelCb=null;
 function askConfirm(t,d,cb,onCancel){
   const previous=confirmCancelCb;confirmCancelCb=null;if(previous)previous();
+  const row=document.getElementById('archiveImportTargetRow'),picker=document.getElementById('archiveImportTarget');
+  row.hidden=true;picker.onchange=null;picker.replaceChildren(new Option('创建新的策划案',''));
   document.getElementById('confirmTitle').textContent=t; document.getElementById('confirmDesc').textContent=d; confirmCb=cb;confirmCancelCb=onCancel||null;document.getElementById('confirmModal').classList.add('show');
 }
 function closeConfirm(cancel=true){

@@ -422,6 +422,37 @@ function buildPortableShots(project,ids){
     shots:copy(shots),scenes:copy((project.scenes||[]).filter(s=>scenes.has(s.id))),
     schedule:[],items:[],budget:[],notes:[],todos:[]};
 }
+/* Append only selected shots and their explicit dependency closure. Never
+   replace the target's project-level metadata or merge scenes by name. */
+function appendArchiveShots(target,source,now=Date.now()){
+  if(!target||target.demo||target.assetPack||!source||!(source.shots||[]).length)throw Error('目标项目或分镜包不可追加');
+  const copy=x=>JSON.parse(JSON.stringify(x)),out=copy(target);
+  const existingIds=new Set();
+  for(const k of ['shots','scenes','refs','mood','schedule','items','budget','notes','todos'])
+    for(const x of out[k]||[])if(x.id)existingIds.add(x.id);
+  const sceneIds=new Set(source.shots.map(x=>x.sceneId).filter(Boolean));
+  const imageKeys=new Set(source.shots.flatMap(x=>x.refIds||[]).filter(Boolean));
+  const scenes=(source.scenes||[]).filter(x=>sceneIds.has(x.id));
+  if(scenes.length!==sceneIds.size)throw Error('分镜引用的场景缺失');
+  const refs=(source.refs||[]).filter(x=>imageKeys.has(x.key));
+  const refKeys=new Set(refs.map(x=>x.key));
+  if([...imageKeys].some(k=>!refKeys.has(k)))throw Error('分镜引用的参考图元数据缺失');
+  for(const x of [...source.shots,...scenes,...refs]){
+    if(!x.id||existingIds.has(x.id))throw Error('追加实体 ID 冲突');existingIds.add(x.id);
+  }
+  const usedKeys=new Set([...(out.refs||[]).map(x=>x.key),...(out.shots||[]).flatMap(x=>x.refIds||[]),...(out.mood||[]).filter(x=>x.type==='image').map(x=>x.content)]);
+  if([...imageKeys].some(k=>usedKeys.has(k)))throw Error('追加图片键冲突');
+  out.shots=out.shots||[];out.scenes=out.scenes||[];out.refs=out.refs||[];
+  let ord=out.shots.reduce((n,x)=>Math.max(n,Number(x.ord)||0),0);
+  // Preserve the package order, including execution status, without moving old shots.
+  const appended=copy(source.shots).sort((a,b)=>(Number(a.ord)||0)-(Number(b.ord)||0));
+  for(const x of appended)x.ord=++ord;
+  out.shots.push(...appended);out.scenes.push(...copy(scenes));out.refs.push(...copy(refs));
+  out.shootDates=[...new Set([...(out.shootDates||[]),out.shootDate,...appended.map(x=>x.date)].filter(Boolean))].sort();
+  out.shootDate=out.shootDates[0]||'';
+  out.tagVocab=mergeVocab(out.tagVocab,refs.flatMap(x=>x.tags||[]));
+  out.updatedAt=now;return out;
+}
 function buildAssetProjects(projects,selected){
   const picks=Array.isArray(selected)?selected:[],result=[];
   const copy=x=>JSON.parse(JSON.stringify(x));
