@@ -53,11 +53,13 @@ function verifyStrictCsp(file) {
   for (const [name, value] of Object.entries(required)) {
     if (directives.get(name) !== value) throw new Error(file + ': invalid ' + name + ' directive');
   }
-  if (directives.has('script-src-elem') && directives.get('script-src-elem') !== expectedScript)
+  if (directives.has('script-src-elem') && directives.get('script-src-elem') !== expectedScript) {
     throw new Error(file + ': script-src-elem overrides the approved script hash');
+  }
 
-  if (html.includes('__APP_SCRIPT_HASH__') || html.includes('__PROPOSAL_SCRIPT_HASH__'))
+  if (html.includes('__APP_SCRIPT_HASH__') || html.includes('__PROPOSAL_SCRIPT_HASH__')) {
     throw new Error(file + ': unresolved CSP hash placeholder');
+  }
   console.log('[verify-build] CSP hash verified independently: ' + file);
 }
 

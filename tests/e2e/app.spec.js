@@ -641,7 +641,7 @@ test('P0 备份导入：缺失图片拒绝，合法图片独立重映射',async(
   await importPack();
   await expect(page.locator('.toast')).toContainText('图片依赖缺失');
   await expect(page.locator('.pcard',{hasText:'导入前项目'})).toBeVisible();
-  pack.images.same='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV7sAAAAASUVORK5CYII=';
+  pack.images.same='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==';
   await importPack();
   await expect(page.locator('.pcard',{hasText:'素材迁移'})).toBeVisible();
   const state=await page.evaluate(async()=>{
@@ -678,7 +678,7 @@ test('素材包追加导入、依赖重映射、引用到项目且不进入看�
   await createProject(page,'素材接续项目');
   await waitProjectPersisted(page,'素材接续项目');
   await page.keyboard.press('Escape');
-  const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV7sAAAAASUVORK5CYII=';
+  const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==';
   const pack={app:'stillmark',version:4,type:'assets',assetVersion:1,assets:[{
     name:'迁移收藏组',shots:[{id:'s',name:'迁移分镜',fav:true,sceneId:'c',refIds:['old']}],
     scenes:[{id:'c',name:'迁移场景'}],refs:[{id:'r',key:'old',name:'样片'}]
@@ -1109,7 +1109,7 @@ test('独立提案脚本哈希与实际导出内容一致，离线打开仍可�
 test.describe('CSP 正常业务网络与图片链路',()=>{
   test.use({serviceWorkers:'block'});
 
-  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV7sAAAAASUVORK5CYII=','base64');
+  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==','base64');
 
   async function watchCsp(page){
     await page.addInitScript(()=>{
@@ -1197,7 +1197,7 @@ test('PWA 旧缓存策略升级至严格 CSP，项目与图片保持完整',asyn
     await navigator.serviceWorker.register('/shotflow-sw.js?e2e-legacy=1');
   });
   await expect.poll(()=>page.evaluate(()=>navigator.serviceWorker.controller?.scriptURL||''),{timeout:15000}).toContain('e2e-legacy=1');
-  const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV7sAAAAASUVORK5CYII=';
+  const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==';
   await page.evaluate(async({legacyCache,image})=>{
     // Seed existing v4 user data, and make the old app cache carry the baseline policy.
     // Runtime JS is the current build: this fixture isolates the worker/cache-policy transition.
