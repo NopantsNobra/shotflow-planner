@@ -45,3 +45,5 @@ Branch: security/strict-csp. Do not merge until all acceptance checks pass. Main
 - Project metadata, workspace presets, project navigation and the moodboard migrated. Project field names, document types and file/input controls are explicitly scoped; date/time zone and tag operations continue through the existing business functions. Remaining: shots and final policy/audit.
 
 - Shot-list templates migrated, including scoped drafts and filters, image uploads, drag/drop, batch checkbox changes, and explicit reference replacement action. Phase 2 markup audit and final policy still require validation.
+
+- Performance gate caught repeated per-button JSON escaping in the 2,000-shot template (82.62 ms). Shot rows now encode their string ID once and reuse escaped JSON attributes with literal action IDs and numeric indices; the original 50 ms gate remains unchanged.

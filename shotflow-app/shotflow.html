@@ -2770,16 +2770,16 @@ function shotListHtml(p,days){
           +'（'+g.items.length+' 条 · 合计 '+mins+' 分钟）';
         return '<div class="day-group"><div class="day-head">'+esc(ghead)+'</div>'+g.items.map(function(s){
         const scene=sceneMap.get(s.sceneId);
-        const sid=esc(s.id);
+        const sid=esc(s.id), encodedId=jstr(s.id), id0=' data-a0="'+encodedId+'"', id1=' data-a1="'+encodedId+'"';
         const clash=!!conflictMap[s.id];
         const refs=s.refIds||[];
         const refHtml=refs.length? refs.map((r,ri)=>{
             const img=imgCache[r];
             const inner=img?'<img src="'+esc(img)+'">':'<div class="noref">图库原图已更新</div>';
-            return '<div class="ref-thumb'+(img?'':' ghost')+'"><button class="ref-open" aria-label="查看参考图 '+(ri+1)+'" title="点击查看大图" '+doAttrs('open-ref-viewer',[s.id,ri])+'>'+inner+'</button>'
-              +'<button class="ref-del" aria-label="移除参考图 '+(ri+1)+'" title="从本分镜移除该参考图" '+doAttrs('remove-shot-ref',[s.id,ri])+'>×</button></div>';
+            return '<div class="ref-thumb'+(img?'':' ghost')+'"><button class="ref-open" aria-label="查看参考图 '+(ri+1)+'" title="点击查看大图" data-do="open-ref-viewer"'+id0+' data-a1="'+ri+'">'+inner+'</button>'
+              +'<button class="ref-del" aria-label="移除参考图 '+(ri+1)+'" title="从本分镜移除该参考图" data-do="remove-shot-ref"'+id0+' data-a1="'+ri+'">×</button></div>';
           }).join('')
-          :'<button class="noref-add" '+doAttrs('open-shot-ref-editor',[s.id])+'>+ 添加参考图</button>';
+          :'<button class="noref-add" data-do="open-shot-ref-editor"'+id0+'>+ 添加参考图</button>';
         const editingThis=view.editingShotEditId===s.id;    // v10：行内编辑文字（与参考图选图态 editingShotId 正交）
         const meta=[s.date||'未定','约 '+(+s.duration||10)+' 分钟',
           scene?scene.name:'',s.position||'',s.light||'',s.note||''].filter(Boolean).join(' · ');
@@ -2790,16 +2790,16 @@ function shotListHtml(p,days){
         return '<div class="shot '+(s.done?'done':'')+(editingThis?' editing':'')+'" data-id="'+sid+'" data-fid="'+sid+'">'
           +(view.batchMode?'<input class="batch-check" type="checkbox" aria-label="选择分镜" '+(selected.has(s.id)?'checked':'')+' data-change="batch-shot" data-shot-id="'+sid+'">':'')
           +'<span class="drag-handle" title="拖拽排序"><svg width="12" height="18" viewBox="0 0 12 18" fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></svg></span>'
-          +'<button class="chk '+(s.done?'on':'')+'" aria-label="完成分镜" aria-pressed="'+!!s.done+'" '+doAttrs('toggle-shot',[s.id])+'>'+(s.done?'✓':'')+'</button>'
+          +'<button class="chk '+(s.done?'on':'')+'" aria-label="完成分镜" aria-pressed="'+!!s.done+'" data-do="toggle-shot"'+id0+'>'+(s.done?'✓':'')+'</button>'
           +'<div class="refs">'+refHtml+'</div>'
           +body
-          +'<button class="rowbtn'+(isFav(s)?' on':'')+'" title="收藏/取消收藏" '+doAttrs('toggle-fav',['shots',s.id])+'>'+(isFav(s)?'★':'☆')+'</button>'
-          +'<button class="rowbtn" title="复制分镜（时间顺延 '+COPY_SHIFT_MIN+' 分钟）" '+doAttrs('copy-shot',[s.id])+'>⧉复制</button>'
-          +'<button class="rowbtn" title="标记必拍" '+doAttrs('toggle-must-shoot',[s.id])+'>'+(s.mustShoot?'取消必拍':'必拍')+'</button>'
-          +'<button class="rowbtn" title="上移分镜" aria-label="上移分镜" '+doAttrs('move-shot-by',[s.id,-1])+'>↑</button>'
-          +'<button class="rowbtn" title="下移分镜" aria-label="下移分镜" '+doAttrs('move-shot-by',[s.id,1])+'>↓</button>'
-          +editBtn('Shot',s.id)
-          +'<button class="iconbtn" title="删除分镜" '+doAttrs('del-shot',[s.id])+'><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
+          +'<button class="rowbtn'+(isFav(s)?' on':'')+'" title="收藏/取消收藏" data-do="toggle-fav" data-a0="&quot;shots&quot;"'+id1+'>'+(isFav(s)?'★':'☆')+'</button>'
+          +'<button class="rowbtn" title="复制分镜（时间顺延 '+COPY_SHIFT_MIN+' 分钟）" data-do="copy-shot"'+id0+'>⧉复制</button>'
+          +'<button class="rowbtn" title="标记必拍" data-do="toggle-must-shoot"'+id0+'>'+(s.mustShoot?'取消必拍':'必拍')+'</button>'
+          +'<button class="rowbtn" title="上移分镜" aria-label="上移分镜" data-do="move-shot-by"'+id0+' data-a1="-1">↑</button>'
+          +'<button class="rowbtn" title="下移分镜" aria-label="下移分镜" data-do="move-shot-by"'+id0+' data-a1="1">↓</button>'
+          +'<button class="rowbtn" title="编辑" data-do="begin-inline-edit" data-a0="&quot;Shot&quot;"'+id1+' data-a2="&quot;&quot;">✎编辑</button>'
+          +'<button class="iconbtn" title="删除分镜" data-do="del-shot"'+id0+'><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
         }).join('')+'</div>'; }).join('')+'</div>' : '<p class="muted">'+(kw?'没有匹配的分镜。':'还没有分镜。添加第一条，把素材挂上来。')+'</p>');
 }
 /* v10.8.0：复制分镜——完整复制原分镜（含参考图 / 场景 / 时长 / 机位 / 光线 / 备注），
