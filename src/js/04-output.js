@@ -207,6 +207,8 @@ async function portableImagesFor(projects){
 async function exportPortableProjects(entries,scope='projects'){
   if(!entries.length){toast('请先选择要导出的项目或分镜');return;}
   try{
+    // Optional fields may be undefined on old projects. Validate the actual JSON shape.
+    entries=JSON.parse(JSON.stringify(entries));
     const images=await portableImagesFor(entries);
     const pack={app:'stillmark',version:5,type:'project-pack',packVersion:1,scope,exportedAt:new Date().toISOString(),entries,images};
     validatePortablePack(pack);

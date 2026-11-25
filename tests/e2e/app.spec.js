@@ -979,7 +979,10 @@ test('非收藏分镜精确导出并导入新项目，保留原始项目和图�
   },image);
   await page.getByRole('button',{name:'批量编辑'}).click();
   await page.locator('.shot',{hasText:'原始分镜'}).locator('.batch-check').check();
-  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'导出所选分镜'}).click()]);
+  const [download]=await Promise.all([page.waitForEvent('download'),(async()=>{
+    await page.getByRole('button',{name:'导出所选分镜'}).click();
+    await expect(page.locator('.toast')).toContainText('已导出');
+  })()]);
   const pack=JSON.parse(readFileSync(await download.path(),'utf8'));
   expect(pack.entries).toHaveLength(1);
   const entry=pack.entries[0];
