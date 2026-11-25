@@ -25,7 +25,12 @@ function projectCardHtml(p,i,t){
   const openT=p.todos.filter(x=>!x.done).length;
   const overdue=p.todos.filter(x=>!x.done&&x.due&&x.due<t).length;
   const cd=shootCountdown(p,t);
-  return '<article class="pcard st-'+i+'" role="button" tabindex="0" aria-label="'+esc('打开项目 '+p.name)+'" onclick="openProject('+jstr(p.id)+')">'
+  const selecting=!!view.boardPackMode,selected=selecting&&(view.boardPackIds||[]).includes(p.id);
+  const attrs=selecting?(p.demo?'aria-disabled="true" aria-label="'+esc('示例不可打包 '+p.name)+'"':
+    'role="button" tabindex="0" aria-pressed="'+selected+'" aria-label="'+esc('选择项目 '+p.name)+'" onclick="toggleBoardPackProject('+jstr(p.id)+')"'):
+    'role="button" tabindex="0" aria-label="'+esc('打开项目 '+p.name)+'" onclick="openProject('+jstr(p.id)+')"';
+  return '<article class="pcard st-'+i+'" '+attrs+'>'
+    +(selecting?'<div class="muted" style="font-weight:600">'+(p.demo?'示例不可选':selected?'✓ 已选择':'○ 选择项目')+'</div>':'')
     +'<div class="pname">'+demoBadge(p)+esc(p.name)+'</div>'
     +'<div class="pmeta">'+esc(p.client||'个人项目')+' · '+(p.shootDate?'拍摄 '+esc(p.shootDate)+cd.text:'未定拍摄日')+'</div>'
     +'<div class="pmeta">分镜 '+done+' / '+total+(openT?' · 待办 '+openT:'')+'</div>'
@@ -50,6 +55,7 @@ function renderBoard(){
     +favoritesButton()
     +'<button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙ 设置</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'importFile\').click()">导入</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="toggleBoardPackMode()">'+(view.boardPackMode?'退出打包':'打包项目')+'</button>'
     +'<button class="btn btn-danger btn-sm" onclick="clearAll()">清空</button>'
     +'<button class="btn btn-primary" onclick="newProject()">新建策划案</button>'
     +'<input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)"></div></header>'
@@ -72,6 +78,7 @@ function renderBoard(){
     +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/></svg>'
     +'<input id="boardSearch" placeholder="搜索策划案、客户、主题、分镜或沟通记录…" value="'+esc(view.boardQuery)+'" oninput="setBoardQuery(this.value)">'
     +'</div><div class="seg">'+['全部','进行中','已归档'].map(s=>'<button class="'+(view.boardScope===s?'on':'')+'" onclick="view.boardScope=\''+s+'\';renderBoard()">'+s+'</button>').join('')+'</div></div>'
+    +(view.boardPackMode?'<div class="card"><div class="row"><span id="boardPackCount" class="grow">已选 '+view.boardPackIds.length+' 个项目</span><button class="btn btn-ghost btn-sm" onclick="selectVisibleBoardPacks()">全选当前列表</button><button class="btn btn-ghost btn-sm" onclick="clearBoardPackSelection()">取消全选</button><button class="btn btn-primary btn-sm" onclick="exportBoardPacks()">导出所选项目</button></div><p class="muted">项目包包含完整策划、关联图片、客户及地点信息和执行状态；仅分享给有权限的人。导入时新增项目，不覆盖已有数据。</p></div>':'')
     +'<div id="boardGrid">'+boardGridHtml(all,ps,t)+'</div>';
   document.getElementById('app').innerHTML=h;
   const count=backupItemCount(all);
@@ -85,6 +92,27 @@ function refreshBoardGrid(){
   const q=(view.boardQuery||'').trim().toLowerCase();
   const ps=all.filter(p=>matchBoardScope(p,view.boardScope)&&searchHit(p,q));
   host.innerHTML=boardGridHtml(all,ps,todayStr());
+}
+function toggleBoardPackMode(){view.boardPackMode=!view.boardPackMode;view.boardPackIds=[];renderBoard();}
+function refreshBoardPackSelection(){
+  const count=document.getElementById('boardPackCount');if(count)count.textContent='已选 '+view.boardPackIds.length+' 个项目';
+  refreshBoardGrid();
+}
+function toggleBoardPackProject(id){
+  if(!view.boardPackMode||!loadP().some(p=>p.id===id&&!p.demo&&!p.assetPack))return;
+  view.boardPackIds=view.boardPackIds.includes(id)?view.boardPackIds.filter(k=>k!==id):view.boardPackIds.concat(id);
+  refreshBoardPackSelection();
+}
+function selectVisibleBoardPacks(){
+  if(!view.boardPackMode)return;
+  const q=(view.boardQuery||'').trim().toLowerCase();
+  const visible=loadP().filter(p=>!p.demo&&!p.assetPack&&matchBoardScope(p,view.boardScope)&&searchHit(p,q));
+  view.boardPackIds=[...new Set(view.boardPackIds.concat(visible.map(p=>p.id)))];refreshBoardPackSelection();
+}
+function clearBoardPackSelection(){view.boardPackIds=[];refreshBoardPackSelection();}
+async function exportBoardPacks(){
+  if(!view.boardPackMode)return;
+  await exportPortableProjects(buildPortableProjects(loadP(),view.boardPackIds));
 }
 function statPill(icon,num,lbl,warn){
   return '<div class="metric'+(warn?' warn':'')+'"><div class="mi"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="'+icon+'"/></svg></div><div><div class="mv">'+num+'</div><div class="ml">'+lbl+'</div></div></div>';

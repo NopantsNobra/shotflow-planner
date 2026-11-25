@@ -1,4 +1,4 @@
-const CACHE = 'shotflow-v10-22-portable';
+const CACHE = 'shotflow-v10-23-portable';
 const ASSETS = [
   './shotflow.html',
   './shotflow-manifest.json',

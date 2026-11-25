@@ -943,3 +943,58 @@ test('v5 项目包追加多个策划案且拒绝歧义类型，保留原项目',
   await page.reload();
   await expect(page.locator('.pcard',{hasText:'迁移项目甲'})).toBeVisible();
 });
+
+
+test('看板选择两个完整项目打包，保留各自执行状态',async({page})=>{
+  await setupV108Project(page);
+  await page.evaluate(()=>{updateCur(p=>p.shots[0].done=true);});
+  await page.keyboard.press('Escape');
+  await createProject(page,'第二策划');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:'打包项目'}).click();
+  await page.getByRole('button',{name:'选择项目 V108 测试案'}).click();
+  await page.getByRole('button',{name:'选择项目 第二策划'}).click();
+  await expect(page.locator('#boardPackCount')).toHaveText('已选 2 个项目');
+  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'导出所选项目'}).click()]);
+  const data=JSON.parse(readFileSync(await download.path(),'utf8'));
+  expect(data.type).toBe('project-pack');
+  expect(data.entries.map(p=>p.name).sort()).toEqual(['V108 测试案','第二策划'].sort());
+  expect(data.entries.find(p=>p.name==='V108 测试案').shots[0].done).toBe(true);
+});
+
+test('非收藏分镜精确导出并导入新项目，保留原始项目和图片',async({page})=>{
+  await setupV108Project(page);
+  const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==';
+  await page.evaluate(async(image)=>{
+    await idb.put('portable-ref',image);
+    imgCache['portable-ref']=image;
+    updateCur(p=>{
+      p.client='不应进入分镜包的客户';
+      p.refs.push({id:'portable-meta',key:'portable-ref',name:'参考图',tags:['参考']});
+      p.scenes.push({id:'portable-scene',name:'选中场景'});
+      Object.assign(p.shots[0],{refIds:['portable-ref'],sceneId:'portable-scene',done:true,fav:false});
+      p.shots.push({...p.shots[0],id:'not-selected',name:'未选择分镜',done:false});
+    });
+    await renderShots(cur());
+  },image);
+  await page.getByRole('button',{name:'批量编辑'}).click();
+  await page.locator('.shot',{hasText:'原始分镜'}).locator('.batch-check').check();
+  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'导出所选分镜'}).click()]);
+  const pack=JSON.parse(readFileSync(await download.path(),'utf8'));
+  expect(pack.entries).toHaveLength(1);
+  const entry=pack.entries[0];
+  expect(entry.shots.map(s=>s.name)).toEqual(['原始分镜']);
+  expect(entry.shots[0].done).toBe(true);
+  expect(entry.client).toBeUndefined();
+  expect(entry.scenes).toHaveLength(1);
+  expect(pack.images['portable-ref']).toBe(image);
+  await page.keyboard.press('Escape');
+  await page.locator('#importFile').setInputFiles({name:'shots.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(pack))});
+  await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  await page.locator('#confirmOk').click();
+  await expect(page.locator('.pcard',{hasText:'分镜选集'})).toBeVisible();
+  expect(await page.evaluate(async()=>{
+    const ps=await idb.getProjects(),original=ps.find(p=>p.id==='v108-test'),imported=ps.find(p=>p.name.includes('分镜选集'));
+    const s=imported.shots[0];return original.shots.length===2&&s.done&&s.sceneId===imported.scenes[0].id&&s.refIds[0]!=='portable-ref'&&!!(await idb.get(s.refIds[0]));
+  })).toBe(true);
+});

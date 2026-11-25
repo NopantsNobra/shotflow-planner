@@ -8,7 +8,7 @@ function workspaceModules(mode,custom){
   return all;
 }
 function freshView(patch){
-  const d={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',
+  const d={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',boardPackMode:false,boardPackIds:[],
     moodFilter:[],moodFilterMode:'any',shotDraft:{},poseCat:null,posePage:0,editingShotId:null,editingShotEditId:null,replaceIdx:-1,
     allowDemoWrite:false,editingNodeId:null,editingStuffId:null,editingStuffKey:null,
     editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null,lastShift:null,newDay:false,moodRefPicker:false,batchMode:false,batchShots:[]};

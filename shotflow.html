@@ -608,7 +608,7 @@ svg{display:inline-block;vertical-align:middle}
    注意：注释中不要复现带引号的占位字面量本身，
    否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
 const APP_VERSION="10.9.3";
-const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.2',data:'v10.9.3',core:'v10.9.3',app:'v10.9.2',output:'v10.9.3',boot:'v10.9.2',settings:'v10.9.3',swCache:'shotflow-v10-22-portable',dbSchema:4,since:'v10.5.0'};
+const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.2',data:'v10.9.3',core:'v10.9.3',app:'v10.9.2',output:'v10.9.3',boot:'v10.9.2',settings:'v10.9.3',swCache:'shotflow-v10-23-portable',dbSchema:4,since:'v10.5.0'};
 const FB_KEY_A = 'uJrHd8a=U+X9Uh3EUtyyUhdF';
 const FB_KEY_B = 'yRhU1RHdTUVl1XwU9dVu=mJD';
 const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded', LS_DEMO_V9='wb_sf_demo_v9';
@@ -999,7 +999,7 @@ function workspaceModules(mode,custom){
   return all;
 }
 function freshView(patch){
-  const d={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',
+  const d={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',boardPackMode:false,boardPackIds:[],
     moodFilter:[],moodFilterMode:'any',shotDraft:{},poseCat:null,posePage:0,editingShotId:null,editingShotEditId:null,replaceIdx:-1,
     allowDemoWrite:false,editingNodeId:null,editingStuffId:null,editingStuffKey:null,
     editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null,lastShift:null,newDay:false,moodRefPicker:false,batchMode:false,batchShots:[]};
@@ -1968,7 +1968,12 @@ function projectCardHtml(p,i,t){
   const openT=p.todos.filter(x=>!x.done).length;
   const overdue=p.todos.filter(x=>!x.done&&x.due&&x.due<t).length;
   const cd=shootCountdown(p,t);
-  return '<article class="pcard st-'+i+'" role="button" tabindex="0" aria-label="'+esc('打开项目 '+p.name)+'" onclick="openProject('+jstr(p.id)+')">'
+  const selecting=!!view.boardPackMode,selected=selecting&&(view.boardPackIds||[]).includes(p.id);
+  const attrs=selecting?(p.demo?'aria-disabled="true" aria-label="'+esc('示例不可打包 '+p.name)+'"':
+    'role="button" tabindex="0" aria-pressed="'+selected+'" aria-label="'+esc('选择项目 '+p.name)+'" onclick="toggleBoardPackProject('+jstr(p.id)+')"'):
+    'role="button" tabindex="0" aria-label="'+esc('打开项目 '+p.name)+'" onclick="openProject('+jstr(p.id)+')"';
+  return '<article class="pcard st-'+i+'" '+attrs+'>'
+    +(selecting?'<div class="muted" style="font-weight:600">'+(p.demo?'示例不可选':selected?'✓ 已选择':'○ 选择项目')+'</div>':'')
     +'<div class="pname">'+demoBadge(p)+esc(p.name)+'</div>'
     +'<div class="pmeta">'+esc(p.client||'个人项目')+' · '+(p.shootDate?'拍摄 '+esc(p.shootDate)+cd.text:'未定拍摄日')+'</div>'
     +'<div class="pmeta">分镜 '+done+' / '+total+(openT?' · 待办 '+openT:'')+'</div>'
@@ -1993,6 +1998,7 @@ function renderBoard(){
     +favoritesButton()
     +'<button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙ 设置</button>'
     +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'importFile\').click()">导入</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="toggleBoardPackMode()">'+(view.boardPackMode?'退出打包':'打包项目')+'</button>'
     +'<button class="btn btn-danger btn-sm" onclick="clearAll()">清空</button>'
     +'<button class="btn btn-primary" onclick="newProject()">新建策划案</button>'
     +'<input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)"></div></header>'
@@ -2015,6 +2021,7 @@ function renderBoard(){
     +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/></svg>'
     +'<input id="boardSearch" placeholder="搜索策划案、客户、主题、分镜或沟通记录…" value="'+esc(view.boardQuery)+'" oninput="setBoardQuery(this.value)">'
     +'</div><div class="seg">'+['全部','进行中','已归档'].map(s=>'<button class="'+(view.boardScope===s?'on':'')+'" onclick="view.boardScope=\''+s+'\';renderBoard()">'+s+'</button>').join('')+'</div></div>'
+    +(view.boardPackMode?'<div class="card"><div class="row"><span id="boardPackCount" class="grow">已选 '+view.boardPackIds.length+' 个项目</span><button class="btn btn-ghost btn-sm" onclick="selectVisibleBoardPacks()">全选当前列表</button><button class="btn btn-ghost btn-sm" onclick="clearBoardPackSelection()">取消全选</button><button class="btn btn-primary btn-sm" onclick="exportBoardPacks()">导出所选项目</button></div><p class="muted">项目包包含完整策划、关联图片、客户及地点信息和执行状态；仅分享给有权限的人。导入时新增项目，不覆盖已有数据。</p></div>':'')
     +'<div id="boardGrid">'+boardGridHtml(all,ps,t)+'</div>';
   document.getElementById('app').innerHTML=h;
   const count=backupItemCount(all);
@@ -2028,6 +2035,27 @@ function refreshBoardGrid(){
   const q=(view.boardQuery||'').trim().toLowerCase();
   const ps=all.filter(p=>matchBoardScope(p,view.boardScope)&&searchHit(p,q));
   host.innerHTML=boardGridHtml(all,ps,todayStr());
+}
+function toggleBoardPackMode(){view.boardPackMode=!view.boardPackMode;view.boardPackIds=[];renderBoard();}
+function refreshBoardPackSelection(){
+  const count=document.getElementById('boardPackCount');if(count)count.textContent='已选 '+view.boardPackIds.length+' 个项目';
+  refreshBoardGrid();
+}
+function toggleBoardPackProject(id){
+  if(!view.boardPackMode||!loadP().some(p=>p.id===id&&!p.demo&&!p.assetPack))return;
+  view.boardPackIds=view.boardPackIds.includes(id)?view.boardPackIds.filter(k=>k!==id):view.boardPackIds.concat(id);
+  refreshBoardPackSelection();
+}
+function selectVisibleBoardPacks(){
+  if(!view.boardPackMode)return;
+  const q=(view.boardQuery||'').trim().toLowerCase();
+  const visible=loadP().filter(p=>!p.demo&&!p.assetPack&&matchBoardScope(p,view.boardScope)&&searchHit(p,q));
+  view.boardPackIds=[...new Set(view.boardPackIds.concat(visible.map(p=>p.id)))];refreshBoardPackSelection();
+}
+function clearBoardPackSelection(){view.boardPackIds=[];refreshBoardPackSelection();}
+async function exportBoardPacks(){
+  if(!view.boardPackMode)return;
+  await exportPortableProjects(buildPortableProjects(loadP(),view.boardPackIds));
 }
 function statPill(icon,num,lbl,warn){
   return '<div class="metric'+(warn?' warn':'')+'"><div class="mi"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="'+icon+'"/></svg></div><div><div class="mv">'+num+'</div><div class="ml">'+lbl+'</div></div></div>';
@@ -2751,7 +2779,8 @@ function batchShotControls(p){
     +'<select id="batchDate"><option value="">日期不变</option>'+shootDatesOf(p).map(d=>'<option value="'+esc(d)+'">'+esc(d)+'</option>').join('')+'</select>'
     +'<select id="batchDuration"><option value="">时长不变</option>'+[10,15,20,30,45,60,90].map(n=>'<option value="'+n+'">'+n+' 分钟</option>').join('')+'</select>'
     +'<select id="batchScene"><option value="">场景不变</option><option value="__none">清除场景</option>'+(p.scenes||[]).map(s=>'<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>').join('')+'</select>'
-    +'<button class="btn btn-primary btn-sm" onclick="applyBatchShots()">应用</button></div>';
+    +'<button class="btn btn-primary btn-sm" onclick="applyBatchShots()">应用</button>'
+    +'<button class="btn btn-ghost btn-sm" onclick="exportBatchShots()">导出所选分镜</button></div>';
 }
 function toggleBatchShot(id,checked){
   view.batchShots=checked?Array.from(new Set(view.batchShots.concat(id))):view.batchShots.filter(x=>x!==id);
@@ -2760,6 +2789,12 @@ function toggleBatchShot(id,checked){
 function selectVisibleShots(){
   view.batchShots=Array.from(new Set(view.batchShots.concat(Array.from(document.querySelectorAll('#shotList .shot')).map(el=>el.dataset.id))));
   renderShots(cur());
+}
+async function exportBatchShots(){
+  try{
+    const p=buildPortableShots(cur(),view.batchShots);
+    await exportPortableProjects(p?[p]:[]);
+  }catch(e){toast('分镜包未完成：'+String(e.message||e),6000);}
 }
 function applyBatchShots(){
   const p=cur();if(!p||p.demo||!view.batchShots.length){toast('请选择要修改的分镜');return;}
