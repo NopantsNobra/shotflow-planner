@@ -1249,3 +1249,30 @@ test('PWA 旧缓存策略升级至严格 CSP，项目与图片保持完整',asyn
   await expect.poll(()=>page.locator('#moodGrid img').first().evaluate(el=>el.naturalWidth)).toBeGreaterThan(0);
   expect(await page.evaluate(()=>idb.get('legacy-image'))).toBe(image);
 });
+
+
+test('CSP 委托拒绝无效枚举、未知实体、超长参数和输入法组合回车',async({page})=>{
+  await setupV108Project(page);
+  const result=await page.evaluate(()=>{
+    const before=JSON.stringify(cur());
+    const click=(action,args)=>{
+      const b=document.createElement('button');b.dataset.do=action;
+      args.forEach((a,i)=>b.dataset['a'+i]=JSON.stringify(a));
+      document.body.append(b);b.click();b.remove();
+    };
+    click('toggle-fav',['constructor','shot-a']);
+    click('begin-inline-edit',['Shot','missing','']);
+    click('switch-project-tab',['constructor']);
+    click('open-project',['missing']);
+    click('feedback-type',['invalid']);
+    const rejected=readActionArgs({dataset:{a0:' '.repeat(2048)+'"shot-a"'}},ACTIONS['del-shot'])===null;
+    const input=document.getElementById('s_name');
+    input.value='输入法未确认';
+    input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',isComposing:true,bubbles:true,cancelable:true}));
+    return {unchanged:JSON.stringify(cur())===before,tab:view.tab,editing:view.editingShotEditId,rejected};
+  });
+  expect(result).toEqual({unchanged:true,tab:'shots',editing:null,rejected:true});
+  await page.locator('#s_name').fill('正常提交');
+  await page.locator('#s_name').press('Enter');
+  await expect(page.locator('.shot').filter({hasText:'正常提交'})).toBeVisible();
+});

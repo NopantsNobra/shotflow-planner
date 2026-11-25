@@ -91,11 +91,26 @@ document.addEventListener('keydown',e=>{
    设计约束（docs/strict-csp.md）：只用 action id + 转义后的 data 属性；禁止任意函数名查找、
    禁止解析可执行表达式；参数按声明类型校验后才交给业务函数。注册表集中、可审计。
    每条：{fn: 直接函数引用, argc: 参数个数, types: 每个参数类型 ['s'|'n']}。 */
+function validActionEntity(type,id,p=cur()){
+  return FAV_KINDS.includes(type)&&Array.isArray(p?.[type])&&p[type].some(item=>item.id===id);
+}
+function validStuffKey(key){return ['scenes','items_s','items_g'].includes(key);}
+function validStuffTarget(key,id){
+  if(!validStuffKey(key))return false;
+  const p=cur();if(!p)return false;
+  if(key==='scenes')return validActionEntity('scenes',id,p);
+  return p.items.some(item=>item.id===id&&(key==='items_g'?item.kind==='器材':item.kind!=='器材'));
+}
+function validEditTarget(kind,id,key){
+  if(kind==='Stuff')return validStuffTarget(key,id);
+  const kinds={Shot:'shots',Node:'schedule',Todo:'todos',Note:'notes'};
+  return key===''&&Object.prototype.hasOwnProperty.call(kinds,kind)&&validActionEntity(kinds[kind],id);
+}
 const ACTIONS=Object.freeze({
-  'add-stuff':{fn:(k)=>addStuff(k),argc:1,types:['s']},
-  'save-stuff-edit':{fn:(k,id)=>saveStuffEdit(k,id),argc:2,types:['s','s']},
-  'toggle-stuff':{fn:(k,id)=>toggleStuff(k,id),argc:2,types:['s','s']},
-  'del-stuff':{fn:(k,id)=>delStuff(k,id),argc:2,types:['s','s']},
+  'add-stuff':{fn:(k)=>(validStuffKey(k)&&addStuff(k)),argc:1,types:['s']},
+  'save-stuff-edit':{fn:(k,id)=>(validStuffTarget(k,id)&&view.editingStuffId===id&&view.editingStuffKey===k&&saveStuffEdit(k,id)),argc:2,types:['s','s']},
+  'toggle-stuff':{fn:(k,id)=>(validStuffTarget(k,id)&&toggleStuff(k,id)),argc:2,types:['s','s']},
+  'del-stuff':{fn:(k,id)=>(validStuffTarget(k,id)&&delStuff(k,id)),argc:2,types:['s','s']},
   'add-budget':{fn:()=>addBudget(),argc:0,types:[]},
   'toggle-paid':{fn:(id)=>togglePaid(id),argc:1,types:['s']},
   'del-budget':{fn:(id)=>delBudget(id),argc:1,types:['s']},
@@ -108,8 +123,8 @@ const ACTIONS=Object.freeze({
   'del-note':{fn:(id)=>delNote(id),argc:1,types:['s']},
   'cancel-inline-edit':{fn:()=>cancelInlineEdit(),argc:0,types:[]},
   /* 公共行按钮（editBtn / favBtn），全局共用：参数带可选 key，缺省时传空串由业务层忽略 */
-  'begin-inline-edit':{fn:(kind,id,key)=>beginInlineEdit(kind,id,key),argc:3,types:['s','s','optional-s']},
-  'toggle-fav':{fn:(type,id)=>toggleFav(type,id),argc:2,types:['s','s']},
+  'begin-inline-edit':{fn:(kind,id,key)=>(validEditTarget(kind,id,key)&&beginInlineEdit(kind,id,key)),argc:3,types:['s','s','optional-s']},
+  'toggle-fav':{fn:(type,id)=>(validActionEntity(type,id)&&toggleFav(type,id)),argc:2,types:['s','s']},
   'open-fav-picker':{fn:()=>openFavPicker(),argc:0,types:[]},
   'set-sched-date':{fn:(d)=>setSchedDate(d),argc:1,types:["s"]},
   'toggle-new-day':{fn:()=>toggleNewDay(),argc:0,types:[]},
@@ -128,7 +143,7 @@ const ACTIONS=Object.freeze({
   'sd-disposition':{fn:(id,kind)=>sdDisposition(id,kind),argc:2,types:["s","s"]},
   'sd-toggle':{fn:(id)=>sdToggle(id),argc:1,types:["s"]},
   'sd-toggle-node':{fn:(id)=>sdToggleNode(id),argc:1,types:["s"]},
-  'open-project':{fn:(id)=>openProject(id),argc:1,types:["s"]},
+  'open-project':{fn:(id)=>(loadP().some(p=>p.id===id&&!p.assetPack)&&openProject(id)),argc:1,types:["s"]},
   'install-app':{fn:()=>installApp(),argc:0,types:[]},
   'open-settings':{fn:()=>openSettings(),argc:0,types:[]},
   'pick-backup':{fn:(id)=>(['importFile','assetImportFile','settingsImportFile'].includes(id)&&document.getElementById(id)?.click()),argc:1,types:["s"]},
@@ -149,7 +164,7 @@ const ACTIONS=Object.freeze({
   'reload-page':{fn:()=>location.reload(),argc:0,types:[]},
   'export-backup':{fn:()=>exportJSON(),argc:0,types:[]},
   'open-deploy':{fn:()=>openDeployModal(),argc:0,types:[]},
-  'feedback-type':{fn:(type)=>setFeedbackType(type),argc:1,types:["s"]},
+  'feedback-type':{fn:(type)=>(['bug','idea','other'].includes(type)&&setFeedbackType(type)),argc:1,types:["s"]},
   'submit-feedback':{fn:()=>submitFeedback(),argc:0,types:[]},
   'copy-feedback':{fn:()=>copyFeedbackText(),argc:0,types:[]},
   'back-project-board':{fn:()=>backProjectBoard(),argc:0,types:[]},
@@ -158,7 +173,7 @@ const ACTIONS=Object.freeze({
   'copy-demo':{fn:(id)=>copyDemoToMine(id),argc:1,types:["s"]},
   'open-shoot-day':{fn:()=>openShootDay(),argc:0,types:[]},
   'set-coordinates':{fn:(lat,lng)=>setDelegatedCoordinates(lat,lng),argc:2,types:["s","s"]},
-  'switch-project-tab':{fn:(tab)=>switchProjectTab(tab),argc:1,types:["s"]},
+  'switch-project-tab':{fn:(tab)=>(TABS.some(t=>t[0]===tab)&&switchProjectTab(tab)),argc:1,types:["s"]},
   'open-doc':{fn:(type)=>(['proposal','callsheet','manual'].includes(type)&&openDoc(type)),argc:1,types:["s"]},
   'add-mood':{fn:(type)=>(['text','color'].includes(type)&&addMood(type)),argc:1,types:["s"]},
   'focus-mood-text':{fn:()=>document.getElementById('m_text')?.focus(),argc:0,types:[]},
@@ -210,16 +225,16 @@ function readActionArgs(el,spec){
   const out=[];
   for(let i=0;i<spec.argc;i++){
     const raw=el.dataset['a'+i];
-    if(raw==null) return null;
+    if(typeof raw!=='string'||raw.length>1024) return null;
     let v; try{ v=JSON.parse(raw); }catch{ return null; }
-    const ok=spec.types[i]==='n'?(typeof v==='number'&&isFinite(v)):(typeof v==='string'&&(spec.types[i]==='optional-s'||v.length>0)&&v.length<=120);
+    const ok=spec.types[i]==='n'?(Number.isSafeInteger(v)):(typeof v==='string'&&(spec.types[i]==='optional-s'||v.length>0)&&v.length<=120);
     if(!ok) return null;
     out.push(v);
   }
   return out;
 }
 document.addEventListener('click',e=>{
-  const el=e.target.closest?.('[data-do]'); if(!el) return;
+  const el=e.target.closest?.('[data-do]'); if(!el||el.disabled) return;
   const spec=ACTIONS[el.dataset.do];
   if(!spec||!Object.prototype.hasOwnProperty.call(ACTIONS,el.dataset.do)) return;
   const args=readActionArgs(el,spec); if(!args) return;
@@ -227,8 +242,8 @@ document.addEventListener('click',e=>{
 });
 /* Enter 提交：data-enter="actionId"，共用同一白名单；阻止默认后触发 */
 document.addEventListener('keydown',e=>{
-  if(e.key!=='Enter') return;
-  const el=e.target.closest?.('[data-enter]'); if(!el) return;
+  if(e.key!=='Enter'||e.isComposing||e.keyCode===229) return;
+  const el=e.target.closest?.('[data-enter]'); if(!el||el.disabled) return;
   const spec=ACTIONS[el.dataset.enter];
   if(!spec||!Object.prototype.hasOwnProperty.call(ACTIONS,el.dataset.enter)) return;
   const args=readActionArgs(el,spec); if(!args) return;
