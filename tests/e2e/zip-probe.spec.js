@@ -35,8 +35,8 @@ async function probe(externalFixture){
 }
 const script=bundle+'\n('+probe.toString()+')('+JSON.stringify(externalFixture)+').then(result=>{document.getElementById("result").textContent=JSON.stringify(result);},error=>{document.getElementById("result").textContent=JSON.stringify({error:String(error),stack:error.stack});});';
 const hash=createHash('sha256').update(script).digest('base64');
-const policy="default-src 'none'; script-src 'sha256-"+hash+"'; script-src-attr 'none'; worker-src 'none'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
-const html='<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="'+policy+'"></head><body><pre id="result">pending</pre><script>'+script+'</script></body></html>';
+const policy="default-src 'none'; script-src 'sha256-"+hash+"'; script-src-attr 'none'; worker-src 'none'; connect-src 'none'; img-src data:; object-src 'none'; base-uri 'none'; form-action 'none'";
+const html='<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="'+policy+'"><link rel="icon" href="data:,"></head><body><pre id="result">pending</pre><script>'+script+'</script></body></html>';
 
 for(const mode of ['local-file','localhost']){
   test('ZIP 原型：严格 CSP、'+mode+'、无 Worker/WASM 的 ZIP64 与二进制往返',async({page},testInfo)=>{
