@@ -1,16 +1,26 @@
 # Stillmark · Photography Planning Workbench
 
-[简体中文](README.md) · [Technical overview](overview.en.md) · [Changelog](CHANGELOG.md) · [Product principles (Chinese)](PRODUCT.md)
+[简体中文](README.md) · [Technical overview](overview.en.md) · [Changelog](CHANGELOG.md) · [Product principles (Chinese)](PRODUCT.md) · [Development roadmap (Chinese)](docs/portable-agent-roadmap.md)
 
 > Freeze the moment. Leave a mark.
 
-Stillmark is a lightweight, local-first photography planning and shoot-day workbench for independent photographers, creators and small teams. Collect ideas, reference images, shot lists, schedules and checklists in one place; turn the same plan into client proposals, call sheets and field manuals; then focus on what to shoot next.
+Stillmark is a lightweight photography planning and shoot-day workbench for independent photographers, creators and small teams, designed to be local-first, portable by design and agent-ready. Collect ideas, reference images, shot lists, schedules and checklists in one place; turn the same plan into client proposals, call sheets and field manuals; then focus on what to shoot next.
 
 **Minimize planning overhead, maximize confidence on set, and preserve creative freedom.** Stillmark does not require exposure settings in advance, replace aesthetic judgment, or attempt to be a RAW manager, lighting simulator, editing suite or full production management system.
 
 - **v10.9.3** (current) | Self-contained HTML, zero runtime dependencies, no account or backend required.
 - Local storage, offline use and PWA installation. Project data and user-uploaded images are not automatically uploaded.
 - [Build and test status](https://github.com/NopantsNobra/shotflow-planner/actions) · MIT License
+
+## Design philosophy
+
+**Local-first · Portable by design · Agent-ready**
+
+- Local-first: users control projects and personal images; the core workflow requires no account, network or model service.
+- Portable by design: transfer selected assets between desktops, tablets and phones without cloud synchronization. Single-project and favorites-pack exports are available; arbitrary shot selection, multiple-project transfer and append-to-project import are in development.
+- Agent-ready: enable external agents to understand the workbench and deliver validated photography assets through the normal import workflow. Agent guidance, schemas and tested examples are development priorities. The disabled built-in AI contract remains optional.
+
+The goal is low-friction planning, handoff and execution for humans and agents, not a larger management suite. See the [development roadmap](docs/portable-agent-roadmap.md).
 
 ## Quick start
 

@@ -1,8 +1,12 @@
 # Stillmark · 瞬刻摄影工作台：功能与技术简介
 
-[English](overview.en.md) · [README](README.md) · [产品总纲](PRODUCT.md)
+[English](overview.en.md) · [README](README.md) · [产品总纲](PRODUCT.md) · [开发路线](docs/portable-agent-roadmap.md)
 
 当前：v10.9.3。独立摄影师和小团队的本地优先摄影策划与执行工作台，分镜为数据中枢，以已有素材生成排程、沟通文档和现场提醒，不替代创作决策。单文件、零运行时依赖，支持静态部署与 PWA。
+
+## 设计方向
+
+本地优先、原生可迁移、面向 Agent 开放。浏览器存储是本地真源，版本化资产包是跨设备及外部 Agent 的交换边界，正常导入器是统一的校验与写入入口。现有 v4 完整备份、单项目和收藏包为基础；多项目、任意分镜和外部 Agent 契约是下一轮开发目标，非当前已交付功能。内置模型接入继续暂停。
 
 ## 产品流程
 

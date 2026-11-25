@@ -1,8 +1,12 @@
 # Stillmark: Product and Technical Overview
 
-[简体中文](overview.md) · [README](README.en.md)
+[简体中文](overview.md) · [README](README.en.md) · [Development roadmap (Chinese)](docs/portable-agent-roadmap.md)
 
 Current: v10.9.3. A local-first photography planning and field-execution workbench for independent photographers and small teams. The shot list is the central data model: existing materials generate schedules, client documents and shoot-day reminders without making creative decisions for the photographer. Self-contained HTML, zero runtime dependencies, static hosting and PWA support.
+
+## Design direction
+
+Local-first, portable by design, agent-ready. Browser storage is the local source of truth; versioned asset packages are the interchange boundary for devices and external agents; the normal importer is the shared validation and write boundary. Existing v4 backups, single-project exports and favorites packs form the baseline. Multi-project transfer, arbitrary shot selection and the external-agent contract are development goals, not released features. Built-in model integration remains paused.
 
 ## Product flow
 
