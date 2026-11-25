@@ -76,3 +76,9 @@ Archive writer / reader（ZIP / 旧 JSON 适配）
 3. PORT-2b：渐进式暂存、原子发布及异常回收、进度/取消和容量/安全测试；确保真实移动端达到可接受的预算。
 4. PORT-1b 与 AGENT-1：指定项目追加、预览、正式契约及可验证 ZIP 示例。Agent 可用任意标准 ZIP 工具生成，不能依赖应用内模型服务。
 5. AGENT-2：真实 Agent 盲测、跨设备往返；完成发布验收再将 ZIP 作为默认新迁移出口。旧版 JSON 读入继续保留。
+
+## 7. 开发分支候选 schema（未发布）
+
+- `schemas/asset-archive-manifest-v1.schema.json` 与 `schemas/asset-archive-data-v1.schema.json` 直接对应应用内 schema 定义；逻辑测试防止漂移。首期 kind 取 projects 或 shots，dataVersion 为 1；data.json 只含 dataVersion、kind、entries，不包含 Base64。后续复用素材和整库恢复使用不同 kind，暂不识别。
+- 清单逻辑键唯一，允许多个键共享同一内容摘要/条目，文件路径必须按 SHA-256 和 MIME 构造；同摘要的大小/MIME 不一致则拒绝。清单与业务类型、引用闭包必须一致。
+- 初始 Blob 原型运行时暂设 128 MiB 归档/展开预算、16 MiB 单图/业务数据预算、4 MiB 清单预算、10000 唯一条目、20000 逻辑图片映射；这些是尚待压测调整的安全门禁，不是格式永久限制或已验证支持能力。清单验证不等于真实解压字节/CRC/摘要校验，后者由后续 archive reader 实现。真实 ZIP 仍未接入生产导入器。

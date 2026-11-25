@@ -19,6 +19,8 @@ const FILES = [
   'icon-512.png',
   'docs/agent-guide.md',
   'schemas/project-pack-v1.schema.json',
+  'schemas/asset-archive-manifest-v1.schema.json',
+  'schemas/asset-archive-data-v1.schema.json',
   'examples/agent-shot.json',
   'examples/agent-project.json'
 ];

@@ -906,7 +906,7 @@ check('任意分镜选集保留执行状态和依赖，排除无关隐私且不�
     &&a.shootDate==='2026-11-26'&&!a.client&&a.notes.length===0&&p.shots.length===2
     &&buildPortableProjects([p,{id:'demo',demo:true}],['p','demo']).length===1;
 })()`,ctx));
-for(const n of ['portablePackSchema','validatePortableShape','validatePortablePack','validBackupImage'])vm.runInContext(fn(n),ctx);
+for(const n of ['portablePackSchema','validatePortableShape','portableImageKeys','validatePortablePack','validBackupImage'])vm.runInContext(fn(n),ctx);
 const schema=JSON.parse(fs.readFileSync(new URL('../schemas/project-pack-v1.schema.json',import.meta.url),'utf8'));
 check('Agent schema 与生产定义逐字段一致',JSON.stringify(schema)===vm.runInContext('JSON.stringify(portablePackSchema())',ctx));
 for(const name of ['agent-shot','agent-project']){
@@ -920,6 +920,30 @@ check('项目包拒绝缺失图片、非法场景和未知字段',vm.runInContex
   const clone=()=>JSON.parse(JSON.stringify(__pack));
   const a=clone(),b=clone(),c=clone();a.images={};b.entries[0].shots[0].sceneId='missing';c.entries[0].apiKey='secret';
   return reject(a)&&reject(b)&&reject(c);
+})()`,ctx));
+for(const n of ['assetArchiveManifestSchema','assetArchiveDataSchema','assetArchiveLimits','validateArchiveManifest','validateArchiveData'])vm.runInContext(fn(n),ctx);
+for(const [file,fnName] of [['asset-archive-manifest-v1','assetArchiveManifestSchema'],['asset-archive-data-v1','assetArchiveDataSchema']]){
+  const schema=JSON.parse(fs.readFileSync(new URL('../schemas/'+file+'.schema.json',import.meta.url),'utf8'));
+  check('ZIP 候选 schema 与生产定义一致 '+file,JSON.stringify(schema)===vm.runInContext('JSON.stringify('+fnName+'())',ctx));
+}
+check('ZIP 清单同一摘要支持多个逻辑键且按唯一文件计数',vm.runInContext(`(()=>{
+  const digest='a'.repeat(64),image={key:'first',path:'images/'+digest+'.png',bytes:100,sha256:digest,mime:'image/png'};
+  const manifest={format:'stillmark.asset-pack',containerVersion:1,dataVersion:1,kind:'projects',exportedAt:'2026-11-26T00:00:00Z',
+    data:{path:'data.json',bytes:1000,sha256:'b'.repeat(64)},images:[image,{...image,key:'second'}]};
+  const data={dataVersion:1,kind:'projects',entries:[{name:'A',shots:[{name:'S',refIds:['first','second']}]}]};
+  const v=validateArchiveData(data,manifest);
+  return v.images===2&&v.uniqueFiles===3&&v.expandedBytes===1100;
+})()`,ctx));
+check('ZIP 清单拒绝非法路径、重复键、摘要冲突、类型错配和超限',vm.runInContext(`(()=>{
+  const digest='a'.repeat(64),image={key:'first',path:'images/'+digest+'.png',bytes:100,sha256:digest,mime:'image/png'};
+  const make=()=>({format:'stillmark.asset-pack',containerVersion:1,dataVersion:1,kind:'projects',exportedAt:'2026-11-26T00:00:00Z',
+    data:{path:'data.json',bytes:1000,sha256:'b'.repeat(64)},images:[{...image}]});
+  const bad=(mut,limits)=>{const m=make();mut(m);try{validateArchiveManifest(m,limits);return false;}catch{return true;}};
+  const badData=(data,m=make())=>{try{validateArchiveData(data,m);return false;}catch{return true;}};
+  return bad(m=>m.images[0].path='../a.png')&&bad(m=>m.images.push({...image}))&&bad(m=>m.images.push({...image,key:'second',bytes:101}))
+    &&bad(m=>m.containerVersion=99)&&bad(()=>{}, {...assetArchiveLimits(),maxExpandedBytes:1050})
+    &&badData({dataVersion:1,kind:'shots',entries:[{name:'A',shots:[{name:'S',refIds:['first']}]}]})
+    &&badData({dataVersion:1,kind:'projects',entries:[{name:'A',shots:[{name:'S',refIds:['missing']}]}]});
 })()`,ctx));
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

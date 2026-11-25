@@ -608,7 +608,7 @@ svg{display:inline-block;vertical-align:middle}
    注意：注释中不要复现带引号的占位字面量本身，
    否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
 const APP_VERSION="10.9.3";
-const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.2',data:'v10.9.3',core:'v10.9.3',app:'v10.9.2',output:'v10.9.3',boot:'v10.9.2',settings:'v10.9.3',swCache:'shotflow-v10-25-portable',dbSchema:4,since:'v10.5.0'};
+const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.2',data:'v10.9.3',core:'v10.9.3',app:'v10.9.2',output:'v10.9.3',boot:'v10.9.2',settings:'v10.9.3',swCache:'shotflow-v10-26-portable',dbSchema:4,since:'v10.5.0'};
 const FB_KEY_A = 'uJrHd8a=U+X9Uh3EUtyyUhdF';
 const FB_KEY_B = 'yRhU1RHdTUVl1XwU9dVu=mJD';
 const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded', LS_DEMO_V9='wb_sf_demo_v9';
@@ -1285,12 +1285,11 @@ function validatePortableShape(value,schema,path){
     }
   }
 }
-function validatePortablePack(pack){
-  validatePortableShape(pack,portablePackSchema(),'$');
-  if(pack.scope==='shots'&&pack.entries.length!==1)throw Error('分镜包只能包含一个策划案');
+function portableImageKeys(entries,scope){
+  if(scope==='shots'&&(entries.length!==1||!(entries[0].shots||[]).length))throw Error('分镜包必须包含一个策划案及至少一条分镜');
   const used=new Set();
   const validDate=d=>!d||(/^\d{4}-\d{2}-\d{2}$/.test(d)&&new Date(d+'T00:00:00Z').toISOString().slice(0,10)===d);
-  for(const p of pack.entries){
+  for(const p of entries){
     const ids=new Set(),scenes=new Set((p.scenes||[]).map(s=>s.id).filter(Boolean));
     const dateValues=[p.shootDate,...(p.shootDates||[]),...(p.dayInit||[]),...(p.shots||[]).map(s=>s.date),...(p.schedule||[]).map(s=>s.date),...(p.todos||[]).map(s=>s.due)];
     try{if(dateValues.some(d=>!validDate(d)))throw Error();}catch{throw Error('项目包日期不合法');}
@@ -1306,11 +1305,66 @@ function validatePortablePack(pack){
     for(const r of p.refs||[])used.add(r.key);
     for(const m of p.mood||[])if(m.type==='image')used.add(m.content);
   }
+  return used;
+}
+function validatePortablePack(pack){
+  validatePortableShape(pack,portablePackSchema(),'$');
+  const used=portableImageKeys(pack.entries,pack.scope);
   for(const key of used){
     if(!key||key.startsWith('shisei:')||!Object.prototype.hasOwnProperty.call(pack.images,key)||!validBackupImage(pack.images[key]))throw Error('图片依赖缺失或格式不合法');
   }
   for(const key of Object.keys(pack.images))if(!used.has(key))throw Error('项目包含未引用图片');
   return {projects:pack.entries.length,shots:pack.entries.reduce((n,p)=>n+(p.shots||[]).length,0),images:used.size};
+}
+function assetArchiveManifestSchema(){
+  const sha256={type:'string',pattern:'^[0-9a-f]{64}$'};
+  const bytes={type:'integer',minimum:1,maximum:Number.MAX_SAFE_INTEGER};
+  const obj=(properties,required=Object.keys(properties))=>({type:'object',properties,required,additionalProperties:false});
+  const image=obj({key:{type:'string',minLength:1,maxLength:200},path:{type:'string',pattern:'^images/[0-9a-f]{64}\\.(jpg|png|webp|gif|avif)$'},bytes,sha256,mime:{enum:['image/jpeg','image/png','image/webp','image/gif','image/avif']}});
+  return {$schema:'https://json-schema.org/draft/2020-12/schema',title:'Stillmark asset archive manifest v1',
+    ...obj({format:{const:'stillmark.asset-pack'},containerVersion:{const:1},dataVersion:{const:1},kind:{enum:['projects','shots']},
+      exportedAt:{type:'string',maxLength:40,pattern:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T'},
+      data:obj({path:{const:'data.json'},bytes,sha256}),images:{type:'array',items:image}})};
+}
+function assetArchiveDataSchema(){
+  return {$schema:'https://json-schema.org/draft/2020-12/schema',title:'Stillmark asset archive business data v1',
+    type:'object',additionalProperties:false,required:['dataVersion','kind','entries'],
+    properties:{dataVersion:{const:1},kind:{enum:['projects','shots']},entries:portablePackSchema().properties.entries}};
+}
+function assetArchiveLimits(){
+  // Initial Blob-based prototype ceilings, not container-format limits.
+  return {maxArchiveBytes:128*1024*1024,maxManifestBytes:4*1024*1024,maxDataBytes:16*1024*1024,
+    maxImageBytes:16*1024*1024,maxUniqueFiles:10000,maxImageRefs:20000,maxExpandedBytes:128*1024*1024};
+}
+function validateArchiveManifest(manifest,limits){
+  validatePortableShape(manifest,assetArchiveManifestSchema(),'manifest');
+  limits=limits||assetArchiveLimits();
+  if(!Number.isFinite(Date.parse(manifest.exportedAt)))throw Error('资产包导出时间不合法');
+  if(manifest.images.length>limits.maxImageRefs||manifest.data.bytes>limits.maxDataBytes)throw Error('资产包清单超过处理上限');
+  const extensions={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','image/avif':'avif'};
+  const files=new Map([[manifest.data.path,manifest.data]]),keys=new Map(),digests=new Map();
+  let expanded=manifest.data.bytes;
+  for(const image of manifest.images){
+    if(image.key.startsWith('shisei:')||keys.has(image.key))throw Error('资产包图片逻辑键非法或重复');
+    if(image.path!=='images/'+image.sha256+'.'+extensions[image.mime])throw Error('资产包图片路径与摘要或 MIME 不符');
+    if(image.bytes>limits.maxImageBytes)throw Error('资产包单张图片超过处理上限');
+    const old=digests.get(image.sha256);
+    if(old&&(old.path!==image.path||old.mime!==image.mime||old.bytes!==image.bytes))throw Error('相同摘要的图片描述冲突');
+    if(!old){digests.set(image.sha256,image);files.set(image.path,image);expanded+=image.bytes;}
+    keys.set(image.key,image);
+    if(files.size+1>limits.maxUniqueFiles||expanded>limits.maxExpandedBytes)throw Error('资产包解压体积或条目数超过处理上限');
+  }
+  if(files.size+1>limits.maxUniqueFiles||expanded>limits.maxExpandedBytes)throw Error('资产包解压体积或条目数超过处理上限');
+  return {files,keys,expandedBytes:expanded};
+}
+function validateArchiveData(data,manifest,limits){
+  validatePortableShape(data,assetArchiveDataSchema(),'data');
+  const checked=validateArchiveManifest(manifest,limits);
+  if(data.dataVersion!==manifest.dataVersion||data.kind!==manifest.kind)throw Error('资产包清单与业务数据类型不一致');
+  const used=portableImageKeys(data.entries,data.kind);
+  for(const key of used)if(!checked.keys.has(key))throw Error('资产包图片依赖缺失');
+  for(const key of checked.keys.keys())if(!used.has(key))throw Error('资产包含未引用图片');
+  return {projects:data.entries.length,shots:data.entries.reduce((n,p)=>n+(p.shots||[]).length,0),images:used.size,uniqueFiles:checked.files.size+1,expandedBytes:checked.expandedBytes};
 }
 function classifyTransferPackage(d){
   if(!d||typeof d!=='object'||Array.isArray(d))throw Error('文件中没有合法的策划案');
