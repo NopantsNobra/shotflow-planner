@@ -3295,17 +3295,17 @@ function dayTabsHtml(p){
   const days=shootDatesOf(p);
   const cnt=d=>(p.shots||[]).filter(s=>s.date===d).length+(p.schedule||[]).filter(n=>(n.date||d)===d).length;
   let h='<div class="day-tabs">'+days.map(function(d,i){
-    return '<button class="day-tab'+(d===schedDate?' on':'')+'" onclick="setSchedDate('+jstr(d)+')">Day '+(i+1)+' · '+mmdd(d)+' '+weekdayCN(d)+'（'+cnt(d)+' 条）</button>';
+    return '<button class="day-tab'+(d===schedDate?' on':'')+'" '+doAttrs('set-sched-date',[d])+'>Day '+(i+1)+' · '+mmdd(d)+' '+weekdayCN(d)+'（'+cnt(d)+' 条）</button>';
   }).join('')
-    +'<button class="day-tab add" onclick="toggleNewDay()">＋ 添加拍摄日</button>'
-    +(days.length?'<button class="day-tab del" onclick="removeShootDay('+jstr(schedDate)+')">删除本日</button>':'')
+    +'<button class="day-tab add" '+doAttrs('toggle-new-day')+'>＋ 添加拍摄日</button>'
+    +(days.length?'<button class="day-tab del" '+doAttrs('remove-shoot-day',[schedDate])+'>删除本日</button>':'')
     +'</div>';
   if(view.newDay){
     const base=days.length?days[days.length-1]:(p.shootDate||todayStr());
     h+='<div class="new-scene"><span class="muted">新拍摄日</span>'
       +'<input type="date" id="new_day_date" value="'+esc(addDays(base,1))+'">'
-      +'<button class="btn btn-primary btn-sm" onclick="confirmNewDay()">添加并切换</button>'
-      +'<button class="btn btn-ghost btn-sm" onclick="toggleNewDay()">取消</button></div>';
+      +'<button class="btn btn-primary btn-sm" '+doAttrs('confirm-new-day')+'>添加并切换</button>'
+      +'<button class="btn btn-ghost btn-sm" '+doAttrs('toggle-new-day')+'>取消</button></div>';
   }
   return h;
 }
@@ -3329,16 +3329,16 @@ function renderSchedule(p){
   document.getElementById('tabBody').innerHTML='<div class="card"><h2>拍摄日流程 · 时间轴</h2>'
     +sunHtml
     +dayTabsHtml(p)
-    +'<div class="row" style="margin-bottom:14px"><input type="date" id="sc_date" style="max-width:170px" value="'+schedDate+'" onchange="chooseSchedDate(this.value)">'
+    +'<div class="row" style="margin-bottom:14px"><input type="date" id="sc_date" style="max-width:170px" value="'+schedDate+'" data-change="choose-sched-date">'
     +'<span class="muted">点上方 Day 切换日期；选任意日期会并入拍摄日清单。集合、收工自动生成，新增环节会顺延其后环节并重排分镜</span></div>'
     +'<div class="row" style="margin-bottom:6px">'
     +'<select id="n_type" style="max-width:120px">'+NODE_TYPES.map(t=>'<option>'+t+'</option>').join('')+'</select>'
-    +'<input id="n_title" class="grow" placeholder="环节内容，如：化妆师到场妆造" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addNode();}">'
+    +'<input id="n_title" class="grow" placeholder="环节内容，如：化妆师到场妆造" '+enterAttrs('add-node')+'>'
     +'<input type="time" id="n_start" style="max-width:105px" value="10:00">'
     +'<input type="time" id="n_end" style="max-width:105px" value="10:30">'
     +'<input id="n_note" class="grow" placeholder="备注…">'
     +favPickerBtn()
-    +'<button class="btn btn-primary" onclick="addNode()">添加环节</button></div>'
+    +'<button class="btn btn-primary" '+doAttrs('add-node')+'>添加环节</button></div>'
     +timelineHtml(p,schedDate)
     +'</div>';
 }
@@ -3690,8 +3690,8 @@ function timelineHtml(p,date){
           ? shotEditPanel(it,p)
           : '<div class="tl-body"><div class="tl-title"><span class="tag">分镜</span> '+esc(it.name)+' <span class="muted" style="font-weight:400">· 约 '+(+it.duration||0)+' 分钟</span>'+cflag+'</div>'
             +'<div class="tl-note">'+extra+'</div></div>')
-        +'<button class="chk '+(it.done?'on':'')+'" onclick="toggleShot('+jstr(it.id)+')">'+(it.done?'✓':'')+'</button>'
-        +(sdEditing?'':'<button class="rowbtn" title="编辑本分镜" onclick="beginInlineEdit(\'Shot\','+jstr(it.id)+')">✎编辑</button>')
+        +'<button class="chk '+(it.done?'on':'')+'" '+doAttrs('toggle-shot',[it.id])+'>'+(it.done?'✓':'')+'</button>'
+        +(sdEditing?'':'<button class="rowbtn" title="编辑本分镜" '+doAttrs('begin-inline-edit',['Shot',it.id,''])+'>✎编辑</button>')
         +'</div>';
     }
     const editing=view.editingNodeId===it.id;
@@ -3704,18 +3704,18 @@ function timelineHtml(p,date){
         +'<input type="time" id="en_start" style="max-width:100px" value="'+esc(it.start)+'"'+(autoN?' disabled':'')+'>'
         +'<input type="time" id="en_end" style="max-width:100px" value="'+esc(it.end)+'"'+(autoN?' disabled':'')+'>'
         +'<input id="en_note" class="grow" value="'+esc(it.note||'')+'">'
-        +'<button class="btn btn-primary btn-sm" onclick="saveNodeEdit('+jstr(it.id)+')">保存</button>'
-        +'<button class="btn btn-ghost btn-sm" onclick="cancelInlineEdit()">取消</button></div>'
+        +'<button class="btn btn-primary btn-sm" '+doAttrs('save-node-edit',[it.id])+'>保存</button>'
+        +'<button class="btn btn-ghost btn-sm" '+doAttrs('cancel-inline-edit')+'>取消</button></div>'
         +(autoN?'<div class="muted" style="margin-top:6px">收工时间由排程引擎接管（当天最晚结束 +15 分钟），此处只能改名称与备注。</div>':'')+'</div>'
       :'<div class="tl-body"><div class="tl-title '+(it.done?'done-text':'')+'">'+nodeTag(it.type)+' '+esc(it.title)+autoPill+(it.timeLocked?'<span class="tag blue">时间锁定</span>':'')+cflag+shiftedFlag(it.id)+'</div>'
         +(it.note?'<div class="tl-note">'+esc(it.note)+'</div>':'')+'</div>';
     return '<div class="tl-item" data-fid="'+esc(it.id)+'"><div class="tl-time">'+esc(time)+'</div><div class="tl-dot" style="background:'+(it.type==='拍摄'?'var(--accent)':'#b4b2a9')+'"></div>'
       +body
-      +'<button class="chk '+(it.done?'on':'')+'" onclick="toggleNode('+jstr(it.id)+')">'+(it.done?'✓':'')+'</button>'
+      +'<button class="chk '+(it.done?'on':'')+'" '+doAttrs('toggle-node',[it.id])+'>'+(it.done?'✓':'')+'</button>'
       +editBtn('Node',it.id)
       +favBtn('schedule',it)
-      +(!it.auto?'<button class="rowbtn" title="锁定或解锁时间" onclick="toggleNodeLock('+jstr(it.id)+')">'+(it.timeLocked?'解锁':'锁时')+'</button>':'')
-      +'<button class="iconbtn" onclick="delNode('+jstr(it.id)+')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
+      +(!it.auto?'<button class="rowbtn" title="锁定或解锁时间" '+doAttrs('toggle-node-lock',[it.id])+'>'+(it.timeLocked?'解锁':'锁时')+'</button>':'')
+      +'<button class="iconbtn" '+doAttrs('del-node',[it.id])+'><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
   }).join('');
   return h;
 }
@@ -3967,10 +3967,10 @@ async function renderShootDay(){
   if(isToday){ items.forEach(x=>{ if(!x.done&&!x.skipped&&!x.deferred&&(x._time||'00:00')<=nowT) currentId=x.id; }); if(!currentId){ const nxt=items.find(x=>!x.done&&!x.skipped&&!x.deferred)||items.find(x=>!x.done&&!x.skipped); if(nxt) currentId=nxt.id; } }
   const sun=sunTimes(sdDate,p.lat,p.lng,projectTimeZone(p));
   let h='<div class="sd-head"><h2>'+esc(p.name)+'</h2>'
-    +'<button class="sd-nav" onclick="sdShift(-1)" title="前一天">‹</button>'
-    +'<input type="date" value="'+sdDate+'" onchange="sdSetDate(this.value)" style="background:#221e18;color:#f0ebe2;border-color:#3a342b;max-width:150px">'
-    +'<button class="sd-nav" onclick="sdShift(1)" title="后一天">›</button>'
-    +'<button class="sd-btn" onclick="closeShootDay()">退出</button></div>'
+    +'<button class="sd-nav" '+doAttrs('sd-shift',[-1])+' title="前一天">‹</button>'
+    +'<input type="date" value="'+sdDate+'" data-change="sd-set-date" style="background:#221e18;color:#f0ebe2;border-color:#3a342b;max-width:150px">'
+    +'<button class="sd-nav" '+doAttrs('sd-shift',[1])+' title="后一天">›</button>'
+    +'<button class="sd-btn" '+doAttrs('close-shoot-day')+'>退出</button></div>'
     +'<div class="muted" style="color:#d7ccbb">拍摄日模式 · 完成 '+done+'/'+items.length+(skipped?' · 已跳过 '+skipped:'')+(pendingMust?' · 必拍未完成 '+pendingMust:'')+'</div>'
     +'<div class="sd-progress"><i style="width:'+(items.length?done/items.length*100:0)+'%"></i></div>';
   if(sun) h+='<div class="sd-sun"><span>日出 '+sun.sunrise+'</span><span>黄金 '+sun.goldenStart+'</span><span>日落 '+sun.sunset+'</span><span>暮光 '+addMin(sun.sunset,30)+'</span></div>';
@@ -3987,18 +3987,18 @@ async function renderShootDay(){
         const scene=p.scenes.find(s=>s.id===x.sceneId);
         const refs=x.refIds||[];
         h+='<div class="sd-shot '+(x.done||x.skipped?'done':'')+' '+(x.id===currentId?'now':'')+'">'
-          +(refs.length?'<div class="sd-refs">'+refs.map((r,i)=>'<button class="sd-ref" aria-label="查看参考图 '+(i+1)+'" onclick="openRefViewer('+jstr(x.id)+','+i+')">'+(imgCache[r]?'<img src="'+esc(imgCache[r])+'" alt="参考图">':'<span>查看参考图</span>')+'</button>').join('')+'</div>':'')
+          +(refs.length?'<div class="sd-refs">'+refs.map((r,i)=>'<button class="sd-ref" aria-label="查看参考图 '+(i+1)+'" '+doAttrs('open-ref-viewer',[x.id,i])+'>'+(imgCache[r]?'<img src="'+esc(imgCache[r])+'" alt="参考图">':'<span>查看参考图</span>')+'</button>').join('')+'</div>':'')
           +'<div style="flex:1;min-width:120px"><div class="sd-name"><span class="sd-tag">分镜</span>'+esc(x.name)+(x.mustShoot?' <span class="sd-tag">必拍</span>':'')+(x.skipped?' <span class="sd-tag">已跳过</span>':x.deferred?' <span class="sd-tag">待补拍</span>':'')+cflag+'</div>'
           +'<div class="sd-meta">'+(scene?esc(scene.name)+' · ':'')+'约 '+(+x.duration||0)+' 分钟'+(x.note?' · '+esc(x.note):'')+'</div>'
-          +((overdue||x._conflict)?'<button class="sd-btn" style="margin-top:8px" onclick="sdPostpone()" title="当天所有环节与分镜整体后移 1 小时，收工随之重排">⚠ 已'+(overdue?'超时':'重叠')+' · 整日顺延 1 小时</button>':'')
-          +(!x.done?'<div class="sd-actions"><button class="sd-btn" onclick="sdDisposition('+jstr(x.id)+',\'deferred\')">'+(x.deferred?'取消补拍':'稍后补拍')+'</button><button class="sd-btn" onclick="sdDisposition('+jstr(x.id)+',\'skipped\')">'+(x.skipped?'恢复':'跳过')+'</button></div>':'')
+          +((overdue||x._conflict)?'<button class="sd-btn" style="margin-top:8px" '+doAttrs('sd-postpone')+' title="当天所有环节与分镜整体后移 1 小时，收工随之重排">⚠ 已'+(overdue?'超时':'重叠')+' · 整日顺延 1 小时</button>':'')
+          +(!x.done?'<div class="sd-actions"><button class="sd-btn" '+doAttrs('sd-disposition',[x.id,'deferred'])+'>'+(x.deferred?'取消补拍':'稍后补拍')+'</button><button class="sd-btn" '+doAttrs('sd-disposition',[x.id,'skipped'])+'>'+(x.skipped?'恢复':'跳过')+'</button></div>':'')
           +'</div>'
-          +'<button class="sd-chk '+(x.done?'on':'')+'" aria-label="完成或恢复分镜" aria-pressed="'+!!x.done+'" onclick="sdToggle('+jstr(x.id)+')">✓</button></div>';
+          +'<button class="sd-chk '+(x.done?'on':'')+'" aria-label="完成或恢复分镜" aria-pressed="'+!!x.done+'" '+doAttrs('sd-toggle',[x.id])+'>✓</button></div>';
       } else {
         h+='<div class="sd-shot node '+(x.done?'done':'')+' '+(x.id===currentId?'now':'')+'">'
           +'<div style="flex:1;min-width:120px"><div class="sd-name" style="font-size:16px">'+esc(x.title)+cflag+'</div>'
           +'<div class="sd-meta">'+esc(x.type)+(x.end?' · 至 '+esc(x.end):'')+(x.note?' · '+esc(x.note):'')+'</div></div>'
-          +'<button class="sd-chk sm '+(x.done?'on':'')+'" aria-label="完成或恢复流程" aria-pressed="'+!!x.done+'" onclick="sdToggleNode('+jstr(x.id)+')">✓</button></div>';
+          +'<button class="sd-chk sm '+(x.done?'on':'')+'" aria-label="完成或恢复流程" aria-pressed="'+!!x.done+'" '+doAttrs('sd-toggle-node',[x.id])+'>✓</button></div>';
       }
     });
   }
@@ -4922,7 +4922,24 @@ const ACTIONS=Object.freeze({
   /* 公共行按钮（editBtn / favBtn），全局共用：参数带可选 key，缺省时传空串由业务层忽略 */
   'begin-inline-edit':{fn:(kind,id,key)=>beginInlineEdit(kind,id,key),argc:3,types:['s','s','optional-s']},
   'toggle-fav':{fn:(type,id)=>toggleFav(type,id),argc:2,types:['s','s']},
-  'open-fav-picker':{fn:()=>openFavPicker(),argc:0,types:[]}
+  'open-fav-picker':{fn:()=>openFavPicker(),argc:0,types:[]},
+  'set-sched-date':{fn:(d)=>setSchedDate(d),argc:1,types:["s"]},
+  'toggle-new-day':{fn:()=>toggleNewDay(),argc:0,types:[]},
+  'remove-shoot-day':{fn:(d)=>removeShootDay(d),argc:1,types:["s"]},
+  'confirm-new-day':{fn:()=>confirmNewDay(),argc:0,types:[]},
+  'add-node':{fn:()=>addNode(),argc:0,types:[]},
+  'toggle-shot':{fn:(id)=>toggleShot(id),argc:1,types:["s"]},
+  'save-node-edit':{fn:(id)=>saveNodeEdit(id),argc:1,types:["s"]},
+  'toggle-node':{fn:(id)=>toggleNode(id),argc:1,types:["s"]},
+  'toggle-node-lock':{fn:(id)=>toggleNodeLock(id),argc:1,types:["s"]},
+  'del-node':{fn:(id)=>delNode(id),argc:1,types:["s"]},
+  'sd-shift':{fn:(n)=>([-1,1].includes(n)&&sdShift(n)),argc:1,types:["n"]},
+  'close-shoot-day':{fn:()=>closeShootDay(),argc:0,types:[]},
+  'open-ref-viewer':{fn:(id,i)=>(Number.isInteger(i)&&i>=0&&i<3&&openRefViewer(id,i)),argc:2,types:["s","n"]},
+  'sd-postpone':{fn:()=>sdPostpone(),argc:0,types:[]},
+  'sd-disposition':{fn:(id,kind)=>sdDisposition(id,kind),argc:2,types:["s","s"]},
+  'sd-toggle':{fn:(id)=>sdToggle(id),argc:1,types:["s"]},
+  'sd-toggle-node':{fn:(id)=>sdToggleNode(id),argc:1,types:["s"]}
 });
 /* 参数必须能 JSON.parse 成声明类型；实体 id / key 额外限长，避免超长垃圾进入业务层 */
 function readActionArgs(el,spec){
@@ -4952,6 +4969,17 @@ document.addEventListener('keydown',e=>{
   if(!spec||!Object.prototype.hasOwnProperty.call(ACTIONS,el.dataset.enter)) return;
   const args=readActionArgs(el,spec); if(!args) return;
   e.preventDefault(); spec.fn.apply(null,args);
+});
+
+/* Input values come from specific controls, not executable attributes. */
+const DATE_CHANGE_ACTIONS=Object.freeze({'choose-sched-date':chooseSchedDate,'sd-set-date':sdSetDate});
+document.addEventListener('change',e=>{
+  const el=e.target;if(!el.matches?.('input[type="date"][data-change]'))return;
+  const key=el.dataset.change;
+  if(!Object.prototype.hasOwnProperty.call(DATE_CHANGE_ACTIONS,key))return;
+  const value=el.value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(value)||!el.validity.valid)return;
+  DATE_CHANGE_ACTIONS[key](value);
 });
 /* ================= 设置弹窗（v10.6.0）：版本信息 / 模块配置 / 数据备份 / 反馈 ================= */
 /* 硬约束：本文件顶层只允许 function 声明，禁止顶层 let/const——构建拼接顺序在 05-boot.js 之后，

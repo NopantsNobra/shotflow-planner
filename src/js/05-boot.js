@@ -110,7 +110,24 @@ const ACTIONS=Object.freeze({
   /* 公共行按钮（editBtn / favBtn），全局共用：参数带可选 key，缺省时传空串由业务层忽略 */
   'begin-inline-edit':{fn:(kind,id,key)=>beginInlineEdit(kind,id,key),argc:3,types:['s','s','optional-s']},
   'toggle-fav':{fn:(type,id)=>toggleFav(type,id),argc:2,types:['s','s']},
-  'open-fav-picker':{fn:()=>openFavPicker(),argc:0,types:[]}
+  'open-fav-picker':{fn:()=>openFavPicker(),argc:0,types:[]},
+  'set-sched-date':{fn:(d)=>setSchedDate(d),argc:1,types:["s"]},
+  'toggle-new-day':{fn:()=>toggleNewDay(),argc:0,types:[]},
+  'remove-shoot-day':{fn:(d)=>removeShootDay(d),argc:1,types:["s"]},
+  'confirm-new-day':{fn:()=>confirmNewDay(),argc:0,types:[]},
+  'add-node':{fn:()=>addNode(),argc:0,types:[]},
+  'toggle-shot':{fn:(id)=>toggleShot(id),argc:1,types:["s"]},
+  'save-node-edit':{fn:(id)=>saveNodeEdit(id),argc:1,types:["s"]},
+  'toggle-node':{fn:(id)=>toggleNode(id),argc:1,types:["s"]},
+  'toggle-node-lock':{fn:(id)=>toggleNodeLock(id),argc:1,types:["s"]},
+  'del-node':{fn:(id)=>delNode(id),argc:1,types:["s"]},
+  'sd-shift':{fn:(n)=>([-1,1].includes(n)&&sdShift(n)),argc:1,types:["n"]},
+  'close-shoot-day':{fn:()=>closeShootDay(),argc:0,types:[]},
+  'open-ref-viewer':{fn:(id,i)=>(Number.isInteger(i)&&i>=0&&i<3&&openRefViewer(id,i)),argc:2,types:["s","n"]},
+  'sd-postpone':{fn:()=>sdPostpone(),argc:0,types:[]},
+  'sd-disposition':{fn:(id,kind)=>sdDisposition(id,kind),argc:2,types:["s","s"]},
+  'sd-toggle':{fn:(id)=>sdToggle(id),argc:1,types:["s"]},
+  'sd-toggle-node':{fn:(id)=>sdToggleNode(id),argc:1,types:["s"]}
 });
 /* 参数必须能 JSON.parse 成声明类型；实体 id / key 额外限长，避免超长垃圾进入业务层 */
 function readActionArgs(el,spec){
@@ -140,4 +157,15 @@ document.addEventListener('keydown',e=>{
   if(!spec||!Object.prototype.hasOwnProperty.call(ACTIONS,el.dataset.enter)) return;
   const args=readActionArgs(el,spec); if(!args) return;
   e.preventDefault(); spec.fn.apply(null,args);
+});
+
+/* Input values come from specific controls, not executable attributes. */
+const DATE_CHANGE_ACTIONS=Object.freeze({'choose-sched-date':chooseSchedDate,'sd-set-date':sdSetDate});
+document.addEventListener('change',e=>{
+  const el=e.target;if(!el.matches?.('input[type="date"][data-change]'))return;
+  const key=el.dataset.change;
+  if(!Object.prototype.hasOwnProperty.call(DATE_CHANGE_ACTIONS,key))return;
+  const value=el.value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(value)||!el.validity.valid)return;
+  DATE_CHANGE_ACTIONS[key](value);
 });

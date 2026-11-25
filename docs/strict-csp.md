@@ -33,3 +33,9 @@ Branch: security/strict-csp. Do not merge until all acceptance checks pass. Main
 - Phase 3 policy, exported-proposal audit, file:// + three-engine + offline + mobile acceptance are all still pending. Main retains baseline CSP.
 
 **Branch state:** `security/strict-csp` was synced with `main` at `b990d27` (merge of the v10.9.3 storage-recovery commits; the E2E file conflict was resolved by keeping both sides' tests). Branch is ahead of main, never merged.
+
+## Follow-up audit — 2026-11-25
+
+- Fixed optional empty third argument in the shared edit action (required IDs still reject empty values); added a browser regression. Performance harness now extracts the actual doAttrs helper rather than mocking it or weakening the threshold.
+- Schedule and shoot-day domains migrated to explicit click/Enter and date-change allowlists. Their source templates have no remaining inline event attributes; the regression covers date/schedule controls, time lock, defer/restore and closing the field view.
+- The policy is still baseline. Other dynamic domains and exported documents remain to be migrated; main is unchanged.

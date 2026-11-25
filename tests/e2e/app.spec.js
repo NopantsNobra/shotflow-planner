@@ -969,3 +969,28 @@ test('CSP 公共编辑按钮接受可选空 key，严格拒绝空必填参数',a
   expect(validation.optional).toEqual(['Shot','shot-a','']);
   expect(validation.required).toBeNull();
 });
+
+test('CSP 日程与拍摄日无内联事件，键盘添加、锁时及现场状态有效',async({page})=>{
+  await setupV108Project(page);
+  await page.locator('[data-project-tab="schedule"]').click();
+  await expect(page.locator('#tabBody [onclick],#tabBody [onchange],#tabBody [onkeydown]')).toHaveCount(0);
+  await page.locator('#n_title').fill('委托日程');
+  await page.locator('#n_start').fill('12:00');
+  await page.locator('#n_end').fill('12:30');
+  await page.locator('#n_title').press('Enter');
+  await expect(page.locator('#tabBody')).toContainText('委托日程');
+  const id=await page.evaluate(()=>cur().schedule.find(n=>n.title==='委托日程').id);
+  const button=page.locator('[data-do="toggle-node-lock"]').filter({hasText:'锁时'});
+  // The only non-auto event is the one added above.
+  await button.click();
+  expect(await page.evaluate(id=>cur().schedule.find(n=>n.id===id).timeLocked,id)).toBe(true);
+  await page.getByRole('button',{name:'进入拍摄日模式'}).click();
+  await expect(page.locator('#sdOverlay')).toHaveClass(/show/);
+  await expect(page.locator('#sdBody [onclick],#sdBody [onchange],#sdBody [onkeydown]')).toHaveCount(0);
+  await page.getByRole('button',{name:'稍后补拍'}).first().click();
+  await expect(page.locator('#sdBody')).toContainText('待补拍');
+  await page.getByRole('button',{name:'取消补拍'}).first().click();
+  await expect(page.locator('#sdBody')).not.toContainText('待补拍');
+  await page.locator('[data-do="close-shoot-day"]').click();
+  await expect(page.locator('#sdOverlay')).not.toHaveClass(/show/);
+});
