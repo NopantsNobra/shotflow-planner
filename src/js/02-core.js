@@ -560,6 +560,16 @@ function migrate(p){
    消除「200ms 防抖窗口内关页/刷新导致末次写入丢失」与「落盘失败仅提示无重试」两个风险。 */
 /* 三方合并以项目为原子：不同时修改的项目安全合并；同项目分歧、删除/编辑冲突拒绝。
    不用 updatedAt 判等，避免同毫秒写入及旧版客户端时间差。 */
+function projectDataEqual(a,b){
+  const first=JSON.stringify(a),second=JSON.stringify(b);
+  if(first===second)return true;
+  if(first===undefined||second===undefined)return false;
+  // IndexedDB structured clone can reconstruct property order differently.
+  // Arrays remain ordered; only object property order is irrelevant.
+  const ordered=value=>JSON.stringify(value,(_key,v)=>v&&typeof v==='object'&&!Array.isArray(v)
+    ?Object.fromEntries(Object.keys(v).sort().map(key=>[key,v[key]])):v);
+  return ordered(a)===ordered(b);
+}
 function mergeProjectChanges(base,local,remote){
   const index=rows=>{
     const m=new Map();
@@ -569,7 +579,7 @@ function mergeProjectChanges(base,local,remote){
   const b=index(base),l=index(local),r=index(remote);
   if(!b||!l||!r)return null;
   const ids=new Set([...r.keys(),...l.keys(),...b.keys()]),out=[];
-  const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+  const same=projectDataEqual;
   for(const id of ids){
     const before=b.get(id),mine=l.get(id),theirs=r.get(id);
     const mc=!same(mine,before),rc=!same(theirs,before);
@@ -582,7 +592,30 @@ let projectsCache=null, persistTimer=null;
 let persistChain=Promise.resolve();      // 串行化所有落盘，保证写入顺序与最终一致性
 let pendingPersist=false, persistFailed=false;
 let persistExpected=null, persistConflict=false, persistGeneration=0, persistClearing=false;
-let persistChannel=null;
+let persistChannel=null,persistLastError='';
+function persistErrorCode(err){
+  const name=String(err&&err.name||'Error');
+  const codes=['QuotaExceededError','UnknownError','InvalidStateError','TransactionInactiveError','AbortError','DataCloneError','SecurityError','VersionError','NotReadableError','ConstraintError'];
+  return codes.includes(name)?name:'IDB_WRITE_ERROR';
+}
+function showPersistFailure(code){
+  if(typeof document==='undefined'||!document.body)return;
+  let tip=document.getElementById('persistFailureTip');
+  if(!tip){
+    tip=document.createElement('div');tip.id='persistFailureTip';tip.className='backup-tip show';
+    tip.setAttribute('role','alert');tip.style.cssText='position:sticky;top:0;z-index:100;display:flex;gap:8px;align-items:center;flex-wrap:wrap';
+    const msg=document.createElement('span');msg.id='persistFailureMessage';
+    const save=document.createElement('button');save.className='btn btn-primary btn-sm';save.textContent='导出本页备份';save.onclick=()=>exportJSON();
+    const retry=document.createElement('button');retry.className='btn btn-ghost btn-sm';retry.textContent='重新尝试保存';retry.onclick=()=>flushPersist();
+    tip.append(msg,save,retry);document.body.prepend(tip);
+  }
+  const advice=code==='QuotaExceededError'?'本地空间可能不足，请先备份。可暂停图库同步，备份成功后再考虑清除可重新下载的图库。':'请先备份，不要刷新或清除网站数据。';
+  document.getElementById('persistFailureMessage').textContent='保存失败（'+code+'）。本页修改仍在内存中。'+advice;
+}
+function clearPersistFailure(){
+  persistLastError='';
+  if(typeof document!=='undefined'&&document.getElementById)document.getElementById('persistFailureTip')?.remove();
+}
 function notifyProjectChange(){if(persistChannel)try{persistChannel.postMessage({type:'projects-changed'});}catch{}}
 function showRemoteProjectChange(){
   if(persistConflict||document.getElementById('remoteProjectTip'))return;
@@ -617,38 +650,52 @@ function loadP(){ if(!projectsCache) projectsCache=[]; return projectsCache; }
 function persistRetryDelay(attempt){ return Math.min(200*Math.pow(2,attempt),10000); }
 /* 单次落盘（含退避重试）。snapshot 为固定快照：重试期间的新写入排在 persistChain 链尾，
    最终以最新 projectsCache 为准，不会出现旧快照覆盖新数据。 */
-function writeProjects(snapshot,attempt,generation){
+async function writeProjects(snapshot,attempt,generation){
   attempt=attempt||0;
-  if(generation==null) generation=persistGeneration;
-  if(persistConflict) return Promise.resolve(false);
-  if(!idb.ready()){                        // A2 存储不可用：不进入重试风暴，只提示一次（看板有常驻降级提示）
-    persistFailed=true; pendingPersist=true;
-    if(!storageDegraded){ storageDegraded=true; toast('存储不可用，本次修改不会持久保存，请及时导出备份',6000); }
-    return Promise.resolve(false);
+  if(generation==null)generation=persistGeneration;
+  if(persistConflict)return false;
+  let merged;
+  try{
+    if(!idb.ready()){
+      if(typeof idb.reopenProjects==='function')await idb.reopenProjects();
+      if(!idb.ready())throw Object.assign(new Error('IDB_UNAVAILABLE'),{name:'InvalidStateError'});
+    }
+    if(persistConflict)return false;
+    merged=await idb.mergeProjects(snapshot,persistExpected);
+  }catch(err){
+    const code=persistErrorCode(err);persistLastError=code;
+    persistFailed=true;pendingPersist=true;
+    // Gallery writes share the origin quota; yield while recovering a project write.
+    if(typeof shiseiState!=='undefined'&&shiseiState.running)shiseiState.paused=true;
+    const retryable=!['QuotaExceededError','SecurityError','DataCloneError','VersionError','ConstraintError'].includes(code);
+    if(retryable&&attempt<PERSIST_MAX_RETRY&&!persistConflict){
+      toast('保存遇到问题（'+code+'），正在重试（'+(attempt+1)+'/'+PERSIST_MAX_RETRY+'）…');
+      await new Promise(res=>setTimeout(res,persistRetryDelay(attempt)));
+      if(['UnknownError','InvalidStateError','TransactionInactiveError','AbortError','NotReadableError'].includes(code)&&typeof idb.reopenProjects==='function'&&!persistConflict){
+        try{await idb.reopenProjects();}catch{}
+      }
+      return writeProjects(snapshot,attempt+1,generation);
+    }
+    if(code==='VersionError'){markPersistConflict();return false;}
+    showPersistFailure(code);toast('保存失败，请立即导出备份！（'+code+'）',8000);
+    return false;
   }
-  return idb.mergeProjects(snapshot,persistExpected).then(merged=>{
-    if(merged===null){ markPersistConflict(); return false; }
-    persistExpected=JSON.stringify(merged);
-    // 保存期间可能继续编辑，不能用磁盘快照覆盖当前页面的新输入。
+  if(merged===null){markPersistConflict();return false;}
+  // Transaction has committed. UI/reconciliation errors must never enter the I/O retry path.
+  persistExpected=JSON.stringify(merged);
+  try{
     const current=mergeProjectChanges(snapshot,projectsCache,merged);
     if(current===null){markPersistConflict();return false;}
-    // 保留当前对象身份，避免正在运行的异步渲染引用变成旧快照。
     const live=new Map(projectsCache.map(p=>[p.id,p]));
-    projectsCache=current.map(p=>{const old=live.get(p.id);return old&&JSON.stringify(old)===JSON.stringify(p)?old:p;});
-    notifyProjectChange();
+    projectsCache=current.map(p=>{const old=live.get(p.id);return old&&projectDataEqual(old,p)?old:p;});
     pendingPersist=generation!==persistGeneration;
-    if(persistFailed){ persistFailed=false; toast('数据已保存成功'); }
+    const recovered=persistFailed;persistFailed=false;storageDegraded=false;
+    clearPersistFailure();
+    try{notifyProjectChange();if(recovered)toast('数据已保存成功');}catch{}
     return true;
-  }).catch(()=>{
-    persistFailed=true; pendingPersist=true;
-    if(attempt<PERSIST_MAX_RETRY){
-      toast('保存遇到问题，正在重试（'+(attempt+1)+'/'+PERSIST_MAX_RETRY+'）…');
-      return new Promise(res=>setTimeout(res,persistRetryDelay(attempt)))
-        .then(()=>writeProjects(snapshot,attempt+1,generation));
-    }
-    toast('保存失败，请立即导出备份！');
-    return false;
-  });
+  }catch{
+    persistLastError='POST_COMMIT_RECONCILIATION';markPersistConflict();return false;
+  }
 }
 /* 立即冲刷：取消待执行的防抖定时器，把当前 projectsCache 追加到串行写链尾 */
 function flushPersist(){
@@ -656,7 +703,7 @@ function flushPersist(){
   if(!projectsCache||persistConflict||persistClearing) return persistChain;
   // 到达队首才获取快照与基线，防止前一次合并引入的远端项目被旧快照删除。
   persistChain=persistChain.then(()=>{
-    if(!pendingPersist||persistConflict)return !persistConflict;
+    if(!pendingPersist||persistConflict||persistClearing)return !persistConflict;
     return writeProjects(JSON.parse(JSON.stringify(projectsCache)),0,persistGeneration);
   });
   return persistChain;

@@ -95,6 +95,7 @@ function settingsVersionHtml(){
     +'<dt>Service Worker 缓存</dt><dd>'+esc(MODULE_VERSIONS.swCache)+'</dd>'
     +'<dt>数据结构（IndexedDB）</dt><dd>'+dbVer+'</dd>'
     +'<dt>数据规模</dt><dd>'+loadP().length+' 个策划案 · '+imgN+' 张已载图片</dd>'
+    +'<dt>保存状态</dt><dd>'+esc(persistConflict?'存储冲突 · 请备份':persistFailed?'保存失败 · '+(persistLastError||'未知原因'):pendingPersist?'待保存':idb.ready()?'已保存':'存储不可用')+'</dd>'
     +'</dl>'
     +'<details class="src-panel"><summary>各代码模块最后实质变更</summary>'
     +'<dl class="settings-kv" style="margin-top:8px">'+rows.map(r=>'<dt>'+r[0]+'</dt><dd>'+esc(r[1])+'</dd>').join('')

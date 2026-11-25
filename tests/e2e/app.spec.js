@@ -494,7 +494,10 @@ test('v10.8.0 引用时间顺延：带时分字段的收藏条目 +10 分钟', a
   await expect(page.locator('#s_name')).toBeVisible();
   await page.locator('#openFavBtn').click();
   await expect(page.locator('#favPickerBody')).toContainText('被收藏分镜');
-  await page.locator('#favPickerBody button', { hasText:'引用收藏' }).click();
+  /* 新版示例项目自带收藏分镜，浮窗会有多条「引用收藏」；先限定到目标条目所在行再点，
+     避免 strict mode 歧义（v10.9.x 引入示例收藏后暴露的定位脆弱点）。 */
+  await page.locator('#favPickerBody .row').filter({ hasText:'被收藏分镜' })
+    .locator('button', { hasText:'引用收藏' }).click();
   await expect.poll(async()=>page.evaluate(async()=>{
     const arr=await new Promise(res=>{const r=indexedDB.open('shotflow');r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
     const p=arr.find(x=>x.id==='v108-dst'); return p?p.shots.length:0;
@@ -892,4 +895,31 @@ test('静态 shell 不依赖内联事件，委托动作仍可键盘创建项目'
   await page.locator('#nameInput').fill('CSP 委托测试');
   await page.locator('#nameInput').press('Enter');
   await expect(page.locator('.phead h1')).toContainText('CSP 委托测试');
+});
+test('持久化连接失效后恢复，修改分镜与日程并刷新仍保留',async({page})=>{
+  await setupV108Project(page);
+  await page.evaluate(()=>{
+    idb.db.close(); // Simulate a stale connection while idb.ready() still reports true.
+    updateCur(p=>{p.shots[0].name='恢复后分镜';p.schedule.push({id:'recover-node',date:p.shootDate,title:'恢复后日程',start:'12:00',end:'12:30'});});
+  });
+  await expect.poll(()=>page.evaluate(async()=>{
+    try{const p=(await idb.getProjects()).find(x=>x.id==='v108-test');return p.shots[0].name==='恢复后分镜'&&p.schedule.some(n=>n.title==='恢复后日程')&&!pendingPersist&&!persistFailed;}catch{return false;}
+  }),{timeout:15000}).toBe(true);
+  await page.reload();await page.locator('.pcard',{hasText:'V108 测试案'}).click();
+  await expect(page.locator('.shot')).toContainText('恢复后分镜');
+  expect(await page.evaluate(()=>cur().schedule.some(n=>n.title==='恢复后日程'))).toBe(true);
+});
+test('配额失败明确显示诊断、保留草稿，手动重试可恢复',async({page})=>{
+  await setupV108Project(page);
+  await page.evaluate(()=>{
+    window.__merge=idb.mergeProjects;
+    idb.mergeProjects=async()=>{throw new DOMException('test quota','QuotaExceededError');};
+    updateCur(p=>{p.shots[0].name='未落盘草稿';});
+  });
+  await expect(page.locator('#persistFailureTip')).toContainText('QuotaExceededError');
+  expect(await page.evaluate(()=>cur().shots[0].name)).toBe('未落盘草稿');
+  await page.evaluate(()=>{idb.mergeProjects=window.__merge;});
+  await page.getByRole('button',{name:'重新尝试保存'}).click();
+  await expect(page.locator('#persistFailureTip')).toHaveCount(0);
+  await expect.poll(()=>page.evaluate(async()=> (await idb.getProjects()).find(p=>p.id==='v108-test').shots[0].name)).toBe('未落盘草稿');
 });

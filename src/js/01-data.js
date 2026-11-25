@@ -7,7 +7,7 @@
    注意：注释中不要复现带引号的占位字面量本身，
    否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
 const APP_VERSION='__APP_VERSION__';
-const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.2',data:'v10.9.2',core:'v10.9.1',app:'v10.9.2',output:'v10.9.2',boot:'v10.9.2',settings:'v10.9.1',swCache:'shotflow-v10-17',dbSchema:4,since:'v10.5.0'};
+const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.2',data:'v10.9.3',core:'v10.9.3',app:'v10.9.2',output:'v10.9.3',boot:'v10.9.2',settings:'v10.9.3',swCache:'shotflow-v10-18',dbSchema:4,since:'v10.5.0'};
 const FB_KEY_A = 'uJrHd8a=U+X9Uh3EUtyyUhdF';
 const FB_KEY_B = 'yRhU1RHdTUVl1XwU9dVu=mJD';
 const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded', LS_DEMO_V9='wb_sf_demo_v9';
@@ -233,7 +233,12 @@ const idb={db:null,
       idb.db=e.target.result;
       idb.db.onversionchange=()=>{idb.db.close();idb.db=null;markPersistConflict();toast('数据版本已更新，请先备份未保存的修改，再刷新页面',8000);};
       res();
-    };r.onerror=rej;});},
+    };r.onerror=()=>rej(r.error||new Error('IDB_OPEN'));});},
+  async reopenProjects(){
+    // Reopen a stale connection, never replace the original comparison baseline.
+    if(idb.db){idb.db.close();idb.db=null;}
+    await idb.open();
+  },
   put(k,v){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('images','readwrite');t.objectStore('images').put(v,k);t.oncomplete=res;t.onerror=rej;});},
   get(k){if(!idb.db) return Promise.resolve(null);return new Promise((res,rej)=>{const r=idb.db.transaction('images').objectStore('images').get(k);r.onsuccess=()=>res(r.result);r.onerror=rej;});},
   del(k){if(!idb.db) return Promise.resolve();return new Promise((res,rej)=>{const t=idb.db.transaction('images','readwrite');t.objectStore('images').delete(k);t.oncomplete=res;t.onerror=rej;});},
@@ -246,17 +251,24 @@ const idb={db:null,
     if(!idb.db)return Promise.reject(new Error('IDB_UNAVAILABLE'));
     return new Promise((res,rej)=>{
       const tx=idb.db.transaction('projects','readwrite'),store=tx.objectStore('projects'),r=store.get('all');
-      let merged=null;
+      let merged=null, failure=null;
       r.onsuccess=()=>{
-        const disk=r.result==null?null:r.result;
-        // 全库清空不能被旧页面的保存复活。
-        if(disk===null&&expected!=='null')return;
-        merged=mergeProjectChanges(JSON.parse(expected),a,disk);
-        if(merged!==null)store.put(merged,'all');
+        try{
+          const disk=r.result==null?null:r.result;
+          // 全库清空不能被旧页面的保存复活。
+          if(disk===null&&expected!=='null')return;
+          merged=mergeProjectChanges(JSON.parse(expected),a,disk);
+          if(merged!==null){
+            // Keep read, comparison and put inside the same IDB callback.
+            const write=store.put(merged,'all');
+            write.onerror=()=>{failure=write.error;};
+          }
+        }catch(err){failure=err;try{tx.abort();}catch{}}
       };
-      tx.oncomplete=()=>res(merged);
-      tx.onabort=()=>rej(tx.error||new Error('IDB_ABORT'));
-      tx.onerror=()=>rej(tx.error||new Error('IDB_WRITE'));
+      r.onerror=()=>{failure=r.error;};
+      tx.oncomplete=()=>failure?rej(failure):res(merged);
+      tx.onabort=()=>rej(failure||tx.error||new Error('IDB_ABORT'));
+      tx.onerror=ev=>{failure=failure||ev.target.error||tx.error||new Error('IDB_WRITE');};
     });
   },
   importProjects(a,expected,images){return idb.compareProjects(a,expected,false,images);},
@@ -267,7 +279,7 @@ const idb={db:null,
       const store=t.objectStore('projects'), r=store.get('all');
       let matched=false;
       r.onsuccess=()=>{
-        if(JSON.stringify(r.result==null?null:r.result)!==expected) return;
+        if(!projectDataEqual(r.result==null?null:r.result,JSON.parse(expected))) return;
         matched=true;
         if(clear){ store.delete('all'); t.objectStore('images').clear(); }
         else {

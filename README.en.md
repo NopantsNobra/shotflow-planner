@@ -8,7 +8,7 @@ Stillmark is a lightweight, local-first photography planning and shoot-day workb
 
 **Minimize planning overhead, maximize confidence on set, and preserve creative freedom.** Stillmark does not require exposure settings in advance, replace aesthetic judgment, or attempt to be a RAW manager, lighting simulator, editing suite or full production management system.
 
-- **v10.9.2** (current) | Self-contained HTML, zero runtime dependencies, no account or backend required.
+- **v10.9.3** (current) | Self-contained HTML, zero runtime dependencies, no account or backend required.
 - Local storage, offline use and PWA installation. Project data and user-uploaded images are not automatically uploaded.
 - [Build and test status](https://github.com/NopantsNobra/shotflow-planner/actions) · MIT License
 
