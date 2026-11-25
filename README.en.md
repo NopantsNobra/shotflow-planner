@@ -17,7 +17,7 @@ Stillmark is a lightweight photography planning and shoot-day workbench for inde
 **Local-first · Portable by design · Agent-ready**
 
 - Local-first: users control projects and personal images; the core workflow requires no account, network or model service.
-- Portable by design: transfer selected assets between desktops, tablets and phones without cloud synchronization. Single-project and favorites-pack exports are available; arbitrary shot selection, multiple-project transfer and append-to-project import are in development.
+- Portable by design: transfer selected assets between desktops, tablets and phones without cloud synchronization. Single-project and favorites-pack exports are available; arbitrary shot selection, multiple-project transfer and append-to-project import are in development. New asset packages will use standard ZIP containers with structured JSON and separate binary images, while retaining legacy JSON import.
 - Agent-ready: enable external agents to understand the workbench and deliver validated photography assets through the normal import workflow. Agent guidance, schemas and tested examples are development priorities. The disabled built-in AI contract remains optional.
 
 The goal is low-friction planning, handoff and execution for humans and agents, not a larger management suite. See the [development roadmap](docs/portable-agent-roadmap.md).

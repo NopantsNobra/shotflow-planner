@@ -1,6 +1,6 @@
 # Stillmark — External Agent Guide / 外部 Agent 操作指南
 
-Status: development branch, project-pack v1 (format version 5). This is an application usage contract, not a repository coding guide. Current implementation creates NEW editable projects; append-to-existing-project is planned separately. Do not claim that a package has been imported unless the user or browser tool verifies it.
+Status: transitional development-branch JSON prototype, project-pack v1 (format version 5). Not the final public interchange format. The approved long-term design is ZIP with separate binary images and versioned JSON metadata; see [asset archive specification](https://github.com/NopantsNobra/shotflow-planner/blob/main/docs/asset-pack-format.md). The instructions below apply only to this prototype, not to the forthcoming ZIP contract. This is an application usage contract, not a repository coding guide. Current implementation creates NEW editable projects; append-to-existing-project is planned separately. Do not claim that a package has been imported unless the user or browser tool verifies it.
 
 ## Quick path
 
