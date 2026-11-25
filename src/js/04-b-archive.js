@@ -14,7 +14,7 @@ async function writeAssetArchive(data,readImage,sink,codec,options={}){
   const model=JSON.parse(snapshot),keys=portableImageKeys(model.entries,model.kind);
   if(keys.size>limits.maxImageRefs||[...keys].some(k=>!k||k.startsWith('shisei:')))throw Error('资产包图片引用非法或超限');
   if(!codec||typeof codec.ZipWriter!=='function'||!sink?.getWriter)throw Error('资产包归档接口不可用');
-  const opts={useWebWorkers:false,useCompressionStream:false};
+  const opts={useWebWorkers:false,useCompressionStream:false,signal};
   const extensions={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','image/avif':'avif'};
   const manifest={format:'stillmark.asset-pack',containerVersion:1,dataVersion:1,kind:model.kind,exportedAt:new Date().toISOString(),
     data:{path:'data.json',bytes:dataBytes.byteLength,sha256:await archiveSha256(dataBytes)},images:[]};
@@ -40,12 +40,14 @@ async function writeAssetArchive(data,readImage,sink,codec,options={}){
       const mime=blob?.type,extension=Object.prototype.hasOwnProperty.call(extensions,mime)?extensions[mime]:null;
       if(!extension||typeof blob.arrayBuffer!=='function'||!Number.isSafeInteger(blob.size)||blob.size<1||blob.size>limits.maxImageBytes)throw Error('图片缺失、格式非法或超过处理上限');
       const bytes=new Uint8Array(await blob.arrayBuffer());
-      if(bytes.byteLength!==blob.size||!archiveImageSignature(bytes,mime))throw Error('图片读取长度或文件签名不一致');
+      if(bytes.byteLength!==blob.size)throw Error('图片读取长度不一致');
+      validateArchiveImage(bytes,mime,limits);
       check();
       const sha256=await archiveSha256(bytes),path='images/'+sha256+'.'+extension;
       const entry={key,path,bytes:bytes.byteLength,sha256,mime},old=unique.get(sha256);
       if(old&&(old.mime!==mime||old.bytes!==entry.bytes))throw Error('相同摘要的图片描述冲突');
       logicalBytes+=entry.bytes;
+      if(logicalBytes>limits.maxLogicalImageBytes)throw Error('图片逻辑引用展开体积超过处理上限');
       if(!old){
         expanded+=entry.bytes;
         if(expanded>limits.maxExpandedBytes||unique.size+3>limits.maxUniqueFiles)throw Error('资产包超过处理上限');
@@ -86,6 +88,86 @@ function archiveImageSignature(bytes,mime){
   }
   return false;
 }
+/* Header-only raster bounds, never decode pixels or compute visual features.
+   This is a resource guard, not a full image conformance validator. */
+function archiveImageDimensions(bytes,mime){
+  const n=bytes.length,d=new DataView(bytes.buffer,bytes.byteOffset,n);
+  const at=(o,t)=>o>=0&&o+t.length<=n&&[...t].every((c,i)=>bytes[o+i]===c.charCodeAt(0));
+  const le24=o=>bytes[o]+bytes[o+1]*256+bytes[o+2]*65536;
+  if(mime==='image/png')return n>=33&&d.getUint32(8)===13&&at(12,'IHDR')?[[d.getUint32(16),d.getUint32(20)]]:[];
+  if(mime==='image/gif')return n>=13?[[d.getUint16(6,true),d.getUint16(8,true)]]:[];
+  if(mime==='image/jpeg'){
+    let p=2;
+    while(p+3<n){
+      if(bytes[p++]!==255)return [];
+      while(p<n&&bytes[p]===255)p++;
+      const marker=bytes[p++];
+      if(marker===217||marker===218||marker===0)return [];
+      if(marker===1||(marker>=208&&marker<=215))continue;
+      if(p+2>n)return [];
+      const length=d.getUint16(p);
+      if(length<2||p+length>n)return [];
+      if([192,193,194,195,197,198,199,201,202,203,205,206,207].includes(marker)){
+        if(length<8)return [];
+        return [[d.getUint16(p+5),d.getUint16(p+3)]];
+      }
+      p+=length;
+    }
+    return [];
+  }
+  if(mime==='image/webp'){
+    if(n<20)return [];
+    const end=d.getUint32(4,true)+8;
+    if(end<20||end>n)return [];
+    for(let p=12;p+8<=end;){
+      const size=d.getUint32(p+4,true),o=p+8;
+      if(o+size>end)return [];
+      if(at(p,'VP8X')&&size===10)return [[1+le24(o+4),1+le24(o+7)]];
+      if(at(p,'VP8L')&&size>=5&&bytes[o]===47){
+        const b=d.getUint32(o+1,true);
+        return [[1+(b&16383),1+((b>>>14)&16383)]];
+      }
+      if(at(p,'VP8 ')&&size>=10&&bytes[o+3]===157&&bytes[o+4]===1&&bytes[o+5]===42)
+        return [[d.getUint16(o+6,true)&16383,d.getUint16(o+8,true)&16383]];
+      p=o+size+(size%2);
+    }
+    return [];
+  }
+  if(mime==='image/avif'){
+    const sizes=[];let count=0;
+    const walk=(start,end,level)=>{
+      for(let p=start;p+8<=end;){
+        if(++count>10000)throw Error('图片元数据条目过多');
+        let size=d.getUint32(p),header=8;
+        if(size===1){
+          if(p+16>end||d.getUint32(p+8)!==0)return false;
+          size=d.getUint32(p+12);header=16;
+        }else if(size===0)size=end-p;
+        if(size<header||p+size>end)return false;
+        const o=p+header,stop=p+size;
+        if(level===0&&at(p+4,'meta')){
+          if(o+4>stop||!walk(o+4,stop,1))return false;
+        }else if((level===1&&at(p+4,'iprp'))||(level===2&&at(p+4,'ipco'))){
+          if(!walk(o,stop,level+1))return false;
+        }else if(level===3&&at(p+4,'ispe')){
+          if(o+12>stop)return false;
+          sizes.push([d.getUint32(o+4),d.getUint32(o+8)]);
+        }
+        p=stop;
+      }
+      return true;
+    };
+    return walk(0,n,0)?sizes:[];
+  }
+  return [];
+}
+function validateArchiveImage(bytes,mime,limits){
+  if(!archiveImageSignature(bytes,mime))throw Error('图片文件签名不一致');
+  const sizes=archiveImageDimensions(bytes,mime);
+  if(!sizes.length||sizes.some(([w,h])=>!w||!h||w>limits.maxImageDimension||h>limits.maxImageDimension||w*h>limits.maxImagePixels))
+    throw Error('图片尺寸无法确认或超过安全上限');
+  return sizes;
+}
 async function readArchiveEntry(entry,expected,options={}){
   if(!entry||entry.uncompressedSize!==expected||!Number.isSafeInteger(expected)||expected<1)throw Error('资产包条目声明大小不一致');
   const signal=options.signal,bytes=new Uint8Array(expected);
@@ -111,7 +193,16 @@ async function openAssetArchive(blob,codec,options={}){
   if(!blob||!Number.isSafeInteger(blob.size)||blob.size<22||blob.size>limits.maxArchiveBytes||typeof blob.slice!=='function')throw Error('资产包文件大小不合法或超过处理上限');
   if(!codec||typeof codec.ZipReader!=='function')throw Error('资产包归档接口不可用');
   const opts={useWebWorkers:false,useCompressionStream:false,strictness:'strict',checkCrc32:true};
-  const reader=new codec.ZipReader(new codec.BlobReader(blob),opts);
+  // The codec may read the central directory in one allocation. Bound that
+  // read independently from total archive size; compressed payloads stream.
+  class BoundedReader extends codec.BlobReader{
+    async readUint8Array(offset,length){
+      if(!Number.isSafeInteger(offset)||!Number.isSafeInteger(length)||offset<0||length<0||length>limits.maxMetadataReadBytes)
+        throw Error('资产包目录读取超过处理上限');
+      return super.readUint8Array(offset,length);
+    }
+  }
+  const reader=new codec.ZipReader(new BoundedReader(blob),opts);
   const entries=new Map();let expanded=0,folder=false,closed=false,consumed=false;
   const close=async()=>{if(!closed){closed=true;await reader.close();}};
   try{
@@ -155,7 +246,8 @@ async function openAssetArchive(blob,codec,options={}){
         for(const [path,group] of groups){
           check();
           const im=group[0],bytes=await readArchiveEntry(entries.get(path),im.bytes,options);
-          if(!archiveImageSignature(bytes,im.mime)||await archiveSha256(bytes)!==im.sha256)throw Error('资产包图片签名或摘要不一致');
+          validateArchiveImage(bytes,im.mime,limits);
+          if(await archiveSha256(bytes)!==im.sha256)throw Error('资产包图片摘要不一致');
           check();
           await onImage(group.map(x=>x.key),new Blob([bytes],{type:im.mime}),{...im});
           if(onProgress)onProgress({processed:++count,total:groups.size});

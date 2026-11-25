@@ -343,7 +343,8 @@ function assetArchiveDataSchema(){
 function assetArchiveLimits(){
   // Initial Blob-based prototype ceilings, not container-format limits.
   return {maxArchiveBytes:128*1024*1024,maxManifestBytes:4*1024*1024,maxDataBytes:16*1024*1024,
-    maxImageBytes:16*1024*1024,maxUniqueFiles:10000,maxImageRefs:20000,maxExpandedBytes:128*1024*1024};
+    maxImageBytes:16*1024*1024,maxUniqueFiles:10000,maxImageRefs:20000,maxExpandedBytes:128*1024*1024,
+    maxLogicalImageBytes:128*1024*1024,maxMetadataReadBytes:8*1024*1024,maxImagePixels:40*1000*1000,maxImageDimension:16384};
 }
 function validateArchiveManifest(manifest,limits){
   validatePortableShape(manifest,assetArchiveManifestSchema(),'manifest');
@@ -352,7 +353,7 @@ function validateArchiveManifest(manifest,limits){
   if(manifest.images.length>limits.maxImageRefs||manifest.data.bytes>limits.maxDataBytes)throw Error('资产包清单超过处理上限');
   const extensions={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','image/avif':'avif'};
   const files=new Map([[manifest.data.path,manifest.data]]),keys=new Map(),digests=new Map();
-  let expanded=manifest.data.bytes;
+  let expanded=manifest.data.bytes,logicalBytes=0;
   for(const image of manifest.images){
     if(image.key.startsWith('shisei:')||keys.has(image.key))throw Error('资产包图片逻辑键非法或重复');
     if(image.path!=='images/'+image.sha256+'.'+extensions[image.mime])throw Error('资产包图片路径与摘要或 MIME 不符');
@@ -360,8 +361,8 @@ function validateArchiveManifest(manifest,limits){
     const old=digests.get(image.sha256);
     if(old&&(old.path!==image.path||old.mime!==image.mime||old.bytes!==image.bytes))throw Error('相同摘要的图片描述冲突');
     if(!old){digests.set(image.sha256,image);files.set(image.path,image);expanded+=image.bytes;}
-    keys.set(image.key,image);
-    if(files.size+1>limits.maxUniqueFiles||expanded>limits.maxExpandedBytes)throw Error('资产包解压体积或条目数超过处理上限');
+    keys.set(image.key,image);logicalBytes+=image.bytes;
+    if(logicalBytes>limits.maxLogicalImageBytes||files.size+1>limits.maxUniqueFiles||expanded>limits.maxExpandedBytes)throw Error('资产包解压体积或条目数超过处理上限');
   }
   if(files.size+1>limits.maxUniqueFiles||expanded>limits.maxExpandedBytes)throw Error('资产包解压体积或条目数超过处理上限');
   return {files,keys,expandedBytes:expanded};

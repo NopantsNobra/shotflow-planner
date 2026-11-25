@@ -91,12 +91,17 @@ async function probe(externalFixture){
   let imageRejected=false,deliveredBad=0;
   try{const r=await openAssetArchive(await makeBad(()=>({corrupt:true})),z);await r.consumeImages(()=>{deliveredBad++;});}catch{imageRejected=true;}
   const readerRejects=badExtra&&badData&&badLimit&&imageRejected&&deliveredBad===0;
+  const big=new Uint8Array(a);new DataView(big.buffer).setUint32(16,100000);
+  let pixelRejected=false,aliasRejected=false,metadataRejected=false;
+  try{await writeAssetArchive(model,async()=>new Blob([big],{type:'image/png'}),new WritableStream(),z);}catch(e){pixelRejected=String(e).includes('尺寸');}
+  try{await writeAssetArchive(model,async()=>new Blob([a],{type:'image/png'}),new WritableStream(),z,{limits:{...assetArchiveLimits(),maxLogicalImageBytes:100}});}catch(e){aliasRejected=String(e).includes('展开体积');}
+  metadataRejected=await rejectPreflight(new Blob(output),{limits:{...assetArchiveLimits(),maxMetadataReadBytes:20}});
   let aborted=false,rejected=false;
   try{
     await writeAssetArchive(model,async()=>new Blob([a],{type:'image/png'}),new WritableStream({abort(){aborted=true;}}),z,
       {limits:{...assetArchiveLimits(),maxImageBytes:78}});
   }catch{rejected=true;}
-  return {generated,external,sha,chunks:sink.length,size:resultBlob.size,secureContext:isSecureContext,dedup,budgetRejected:rejected&&aborted,readerOK,readerRejects};
+  return {generated,external,sha,chunks:sink.length,size:resultBlob.size,secureContext:isSecureContext,dedup,budgetRejected:rejected&&aborted,readerOK,readerRejects,resourceGuards:pixelRejected&&aliasRejected&&metadataRejected};
 }
 const script=bundle+'\n'+contracts+'\n'+archiveWriter+'\n('+probe.toString()+')('+JSON.stringify(externalFixture)+').then(result=>{document.getElementById("result").textContent=JSON.stringify(result);},error=>{document.getElementById("result").textContent=JSON.stringify({error:String(error),stack:error.stack});});';
 const hash=createHash('sha256').update(script).digest('base64');
@@ -131,6 +136,7 @@ for(const mode of ['local-file','localhost']){
     expect(result.dedup).toEqual({reads:['a','alias','b'],progress:{processed:3,total:3,unique:2},count:4,alias:true,sameSizeDistinct:true,validHashes:true,modelMatches:true,unique:2,saved:79,sizeMatches:true});
     expect(result.budgetRejected).toBe(true);
     expect(result.readerOK).toBe(true);expect(result.readerRejects).toBe(true);
+    expect(result.resourceGuards).toBe(true);
     violations.push(...await page.evaluate(()=>window.__zipCsp||[]));
     expect(violations).toEqual([]);expect(errors).toEqual([]);expect(requests).toEqual([]);
   });

@@ -5,9 +5,9 @@ function archiveCodec(){
   if(!codec||!globalThis.crypto?.subtle)throw Error('当前浏览器无法使用 ZIP 资产包，请使用安全上下文或本地文件');
   return codec;
 }
-function startArchiveOperation(title){
+function startArchiveOperation(title,controller=new AbortController()){
   if(archiveOperation)throw Error('已有资产操作正在进行');
-  const controller=new AbortController(),modal=document.getElementById('archiveProgressModal'),bar=document.getElementById('archiveProgressBar'),button=document.getElementById('archiveCancel');
+  const modal=document.getElementById('archiveProgressModal'),bar=document.getElementById('archiveProgressBar'),button=document.getElementById('archiveCancel');
   const op={controller,modal,bar,button};
   archiveOperation=op;
   document.getElementById('archiveProgressTitle').textContent=title;
@@ -81,23 +81,19 @@ async function previewArchiveImport(file){
     op=startArchiveOperation('检查 ZIP 资产包');
     opened=await openAssetArchive(file,archiveCodec(),{signal:op.controller.signal});
     if(op.controller.signal.aborted)throw Error('已取消资产包导入');
-    const logicalBytes=opened.manifest.images.reduce((n,m)=>n+m.bytes,0);
-    // Preserve distinct logical keys/metadata even when archive payloads are
-    // shared. Bound the expansion of aliases in the existing data-URL store.
-    if(logicalBytes>assetArchiveLimits().maxExpandedBytes)throw Error('图片逻辑引用展开体积超过本机处理上限');
     const names=opened.data.entries.slice(0,3).map(p=>p.name).join('、')+(opened.data.entries.length>3?' 等':'');
-    const s=opened.stats,session=opened;
+    const s=opened.stats,session=opened,controller=op.controller;
     finishArchiveOperation(op);op=null;opened=null;
-    askConfirm('导入 ZIP 资产包？','将新增 '+s.projects+' 个策划案：'+names+'；'+s.shots+' 条分镜、'+s.images+' 个图片引用（'+s.uniqueImages+' 张唯一图片），'+(s.archiveBytes/1048576).toFixed(2)+' MiB。保留现有数据与收藏。确认后校验全部图片并写入。',()=>applyArchiveImport(session),()=>{session.close().catch(()=>{});});
+    askConfirm('导入 ZIP 资产包？','将新增 '+s.projects+' 个策划案：'+names+'；'+s.shots+' 条分镜、'+s.images+' 个图片引用（'+s.uniqueImages+' 张唯一图片），'+(s.archiveBytes/1048576).toFixed(2)+' MiB。保留现有数据与收藏。确认后校验全部图片并写入。',()=>applyArchiveImport(session,controller),()=>{controller.abort();session.close().catch(()=>{});});
   }catch(err){if(opened)await opened.close().catch(()=>{});toast('导入失败：'+String(err.message||err),6000);}
   finally{if(op)finishArchiveOperation(op);}
 }
-async function applyArchiveImport(opened){
+async function applyArchiveImport(opened,controller){
   let op=null,locked=false,published=false,session=null;
   const app=document.getElementById('app');
   try{
     if(persistConflict||persistClearing||!idb.ready())throw Error('当前无法安全导入，请先备份并刷新');
-    op=startArchiveOperation('导入 ZIP 资产包');
+    op=startArchiveOperation('导入 ZIP 资产包',controller);
     if(app)app.inert=true;
     if(persistTimer||pendingPersist)await flushPersist();else await persistChain;
     if(persistConflict||persistFailed)throw Error('现有数据尚未保存');

@@ -1060,3 +1060,37 @@ test('ZIP 暂存隔离、原子发布、冲突和碰撞回滚及过期清理',as
   });
   expect(result).toEqual({isolated:true,mismatch:true,retained:true,committed:true,protectedData:true,cleaned:true,reaped:true});
 });
+
+
+test('ZIP 导入确认前不写入，取消暂存时项目及图片均不改变',async({page})=>{
+  await setupV108Project(page);await page.keyboard.press('Escape');
+  const bytes=await page.evaluate(async()=>{
+    const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==';
+    const parts=[];
+    await writeAssetArchive({dataVersion:1,kind:'projects',entries:[{name:'取消导入测试',refs:[{key:'a'},{key:'b'}]}]},()=>archiveImageBlob(image),new WritableStream({write(c){parts.push(c.slice());}}),globalThis.zip);
+    window.__archiveBaseline=JSON.stringify(await idb.getProjects());window.__archiveKeys=JSON.stringify(await idb.keys());
+    return Array.from(new Uint8Array(await new Blob(parts).arrayBuffer()));
+  });
+  const upload=()=>page.locator('#importFile').setInputFiles({name:'cancel.stillmark.zip',mimeType:'application/zip',buffer:Buffer.from(bytes)});
+  await upload();await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  expect(await page.evaluate(async()=>JSON.stringify(await idb.keys())===window.__archiveKeys)).toBe(true);
+  await page.locator('#confirmModal').getByRole('button',{name:'取消'}).click();
+  await expect(page.locator('#confirmModal')).not.toHaveClass(/show/);
+  // Gate the first staging call; cancel via the real button after the first write.
+  await page.evaluate(()=>{
+    const stage=idb.stageArchiveImage;
+    window.__staged=0;
+    idb.stageArchiveImage=async(...args)=>{
+      await stage(...args);window.__staged++;
+      if(window.__staged===1)await new Promise(resolve=>{window.__resumeArchive=resolve;});
+    };
+  });
+  await upload();await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  await page.locator('#confirmOk').click();
+  await expect.poll(()=>page.evaluate(()=>window.__staged)).toBe(1);
+  await expect(page.locator('#archiveProgressModal')).toHaveClass(/show/);
+  await page.locator('#archiveCancel').click();await page.evaluate(()=>window.__resumeArchive());
+  await expect(page.locator('#archiveProgressModal')).not.toHaveClass(/show/);
+  await expect(page.locator('#toast')).toContainText('取消');
+  expect(await page.evaluate(async()=>JSON.stringify(await idb.getProjects())===window.__archiveBaseline&&JSON.stringify(await idb.keys())===window.__archiveKeys)).toBe(true);
+});
