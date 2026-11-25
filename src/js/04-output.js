@@ -183,6 +183,36 @@ async function imagesFor(ps){
   if(missing.length) throw new Error('缺失 '+missing.length+' 张引用图片');
   return out;
 }
+/* Strictly portable: materialize every referenced pose image, with one mapping per
+   source key. Do not silently export a reference that requires the original device. */
+async function portableImagesFor(projects){
+  const images=await imagesFor(projects),mapping=new Map();
+  const remap=async key=>{
+    if(!String(key||'').startsWith('shisei:'))return key;
+    if(mapping.has(key))return mapping.get(key);
+    const data=await ensureShiseiImage(key);
+    if(!validBackupImage(data))throw Error('姿势参考未缓存，请先加载后重试');
+    const next=uid();images[next]=data;mapping.set(key,next);return next;
+  };
+  for(const p of projects){
+    for(const r of p.refs||[])r.key=await remap(r.key);
+    for(const m of p.mood||[])if(m.type==='image')m.content=await remap(m.content);
+    for(const s of p.shots||[]){
+      const refs=[];for(const key of s.refIds||[])refs.push(await remap(key));s.refIds=refs;
+    }
+  }
+  for(const key of collectImages(projects))if(!validBackupImage(images[key]))throw Error('引用图片缺失或格式不合法');
+  return images;
+}
+async function exportPortableProjects(entries){
+  if(!entries.length){toast('请先选择要导出的项目或分镜');return;}
+  try{
+    const images=await portableImagesFor(entries);
+    downloadData({app:'stillmark',version:5,type:'project-pack',packVersion:1,exportedAt:new Date().toISOString(),entries,images},
+      'Stillmark_项目包_'+todayStr()+'.json');
+    toast('已导出 '+entries.length+' 个策划案');
+  }catch(e){toast('项目包未完成：'+String(e.message||e),6000);}
+}
 async function exportSelectedAssets(){
   try{
     const selected=[...document.querySelectorAll('.asset-select:checked')].map(el=>JSON.parse(el.dataset.entry));
@@ -259,16 +289,15 @@ function importJSON(e){
   rd.onload=ev=>{
     let d;
     try{ d=JSON.parse(ev.target.result); }catch{ toast('文件格式不正确，导入失败'); e.target.value=''; return; }
-    const isAssets=d&&d.type==='assets';
-    const list=d&&typeof d==='object'?(isAssets?d.assets:d.project?[d.project]:d.projects):null;
-    if(isAssets&&(d.app!=='stillmark'||d.assetVersion!==1)){toast('不支持的素材包版本');return;}
-    if(!Array.isArray(list)||!list.length||list.some(p=>!p||typeof p!=='object'||Array.isArray(p))){ toast('文件中没有合法的策划案'); e.target.value=''; return; }
-    if(d.version!=null&&(!Number.isInteger(d.version)||d.version<1||d.version>4)){ toast('不支持的备份版本'); e.target.value=''; return; }
+    let mode,list;
+    try{({mode,list}=classifyTransferPackage(d));}catch(err){toast(String(err.message||err));return;}
     pendingImport=d;
     const names=list.slice(0,3).map(p=>p.name||'未命名').join('、')+(list.length>3?' 等':'');
-    if(isAssets){
+    if(mode==='assets'){
       askConfirm('导入素材包？','将新增 '+list.length+' 组收藏素材，保留原有项目与收藏。',applyImport);
-    } else if(d.type==='project'||d.project){
+    } else if(mode==='append'){
+      askConfirm('导入项目包？','将新增 '+list.length+' 个策划案：'+names+'，保留现有数据与收藏。',applyImport);
+    } else if(mode==='single'){
       askConfirm('导入为新的策划案？','将新增 1 个策划案「'+(list[0].name||'未命名')+'」，不会覆盖现有数据。',applyImport);
     } else {
       askConfirm('导入将覆盖全部数据？','文件含 '+list.length+' 个策划案：'+names+'。此操作会替换当前全部数据，不可撤销；建议先导出备份。',applyImport);
@@ -282,21 +311,21 @@ async function applyImport(){
   let locked=false;
   const app=document.getElementById('app');
   try{
-    const assets=d.type==='assets';
-    const single=!assets&&(d.type==='project'||!!d.project);
-    const raw=assets?d.assets:single?[d.project]:d.projects;
-    if(!Array.isArray(raw)||!raw.length) throw new Error('文件中没有合法项目');
+    const {mode,list:raw}=classifyTransferPackage(d);
+    const assets=mode==='assets',single=mode==='single',append=mode==='append';
     const imported=raw.map(p=>sanitizeProject(p));
     if(imported.some(p=>!p)) throw new Error('文件中有非法项目');
     imported.forEach(p=>{migrate(p);p.v3=1;if(assets){p.assetPack=true;p.demo=false;}});
     if(single) imported[0].name+='（导入）';
+    if(append) imported.forEach(p=>{p.demo=false;p.assetPack=false;p.name+='（导入）';});
+    if(append&&imported.some(p=>[...(p.refs||[]).map(r=>r.key),...(p.mood||[]).filter(m=>m.type==='image').map(m=>m.content),...(p.shots||[]).flatMap(s=>s.refIds||[])].some(k=>String(k).startsWith('shisei:'))))throw Error('项目包包含未打包的外部图片');
     const images=remapBackupImages(imported,d.images,uid);
     if(app) app.inert=true;
     if(persistTimer||pendingPersist) await flushPersist(); else await persistChain;
     if(persistConflict||persistFailed) throw new Error('现有数据尚未保存');
     persistClearing=true; locked=true;
     const generation=persistGeneration;
-    const arr=single||assets?JSON.parse(JSON.stringify(loadP())).concat(imported):imported;
+    const arr=mode!=='restore'?JSON.parse(JSON.stringify(loadP())).concat(imported):imported;
     const ok=await idb.importProjects(arr,persistExpected,images);
     if(!ok){markPersistConflict();return;}
     persistExpected=JSON.stringify(arr);

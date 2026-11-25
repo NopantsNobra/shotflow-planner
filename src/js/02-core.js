@@ -233,6 +233,54 @@ function collectFavorites(projects){
   return out;
 }
 /* 轻量资产包只复制选中收藏及其直接依赖，不复制客户、预算之外的项目背景等字段。 */
+/* Portable v5 project-pack uses entries, not projects: older readers must fail closed,
+   never treat a selective transfer as a destructive full restore. */
+function classifyTransferPackage(d){
+  if(!d||typeof d!=='object'||Array.isArray(d))throw Error('文件中没有合法的策划案');
+  const own=k=>Object.prototype.hasOwnProperty.call(d,k);
+  let mode,list;
+  if(d.type==='project-pack'){
+    if(d.app!=='stillmark'||d.version!==5||d.packVersion!==1||own('projects')||own('project')||own('assets'))throw Error('不支持或存在歧义的项目包版本');
+    mode='append';list=d.entries;
+    if(!Array.isArray(list)||list.some(p=>p?.assetPack||p?.demo))throw Error('项目包必须包含可编辑的策划案');
+  }else{
+    if(d.version!=null&&(!Number.isInteger(d.version)||d.version<1||d.version>4))throw Error('不支持的备份版本');
+    if(d.type==='assets'){
+      if(d.app!=='stillmark'||d.assetVersion!==1||own('project')||own('projects')||own('entries'))throw Error('不支持或存在歧义的素材包版本');
+      mode='assets';list=d.assets;
+    }else if(d.type==='project'||(!d.type&&own('project'))){
+      if(own('projects')||own('assets')||own('entries'))throw Error('备份类型存在歧义');
+      mode='single';list=[d.project];
+    }else if(!d.type||d.type==='backup'){
+      if(own('project')||own('assets')||own('entries'))throw Error('备份类型存在歧义');
+      mode='restore';list=d.projects;
+    }else throw Error('不支持的资产包类型');
+  }
+  if(!Array.isArray(list)||!list.length||list.some(p=>!p||typeof p!=='object'||Array.isArray(p)))throw Error('文件中没有合法的策划案');
+  return {mode,list};
+}
+function buildPortableProjects(projects,ids){
+  const selected=new Set(Array.isArray(ids)?ids:[]);
+  return (projects||[]).filter(p=>selected.has(p.id)&&!p.demo&&!p.assetPack).map(p=>JSON.parse(JSON.stringify(p)));
+}
+function buildPortableShots(project,ids){
+  if(!project||project.demo||project.assetPack)return null;
+  const selected=new Set(Array.isArray(ids)?ids:[]);
+  const shots=(project.shots||[]).filter(s=>selected.has(s.id));
+  if(!shots.length)return null;
+  const copy=x=>JSON.parse(JSON.stringify(x));
+  const scenes=new Set(shots.map(s=>s.sceneId).filter(Boolean));
+  const keys=new Set(shots.flatMap(s=>s.refIds||[]).filter(Boolean));
+  const dates=[...new Set(shots.map(s=>s.date).filter(Boolean))].sort();
+  if([...scenes].some(id=>!(project.scenes||[]).some(s=>s.id===id)))throw Error('分镜引用的场景缺失');
+  const refs=[...keys].map(k=>copy((project.refs||[]).find(r=>r.key===k)||{id:k,key:k,name:'参考图',tags:[],fav:false}));
+  return {id:project.id,name:project.name+'（分镜选集）',v3:1,demo:false,assetPack:false,
+    status:project.status,shootDates:dates,shootDate:dates[0]||'',dayInit:[],
+    workspaceMode:project.workspaceMode,workspaceCustom:copy(project.workspaceCustom||[]),timeZone:project.timeZone||'',
+    concept:{},mood:[],refs,tagVocab:[...new Set(refs.flatMap(r=>r.tags||[]))],
+    shots:copy(shots),scenes:copy((project.scenes||[]).filter(s=>scenes.has(s.id))),
+    schedule:[],items:[],budget:[],notes:[],todos:[]};
+}
 function buildAssetProjects(projects,selected){
   const picks=Array.isArray(selected)?selected:[],result=[];
   const copy=x=>JSON.parse(JSON.stringify(x));

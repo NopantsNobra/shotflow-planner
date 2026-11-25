@@ -915,3 +915,31 @@ test('配额失败明确显示诊断、保留草稿，手动重试可恢复',asy
   await expect(page.locator('#persistFailureTip')).toHaveCount(0);
   await expect.poll(()=>page.evaluate(async()=> (await idb.getProjects()).find(p=>p.id==='v108-test').shots[0].name)).toBe('未落盘草稿');
 });
+
+
+test('v5 项目包追加多个策划案且拒绝歧义类型，保留原项目',async({page})=>{
+  await setupV108Project(page);
+  await page.keyboard.press('Escape');
+  const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==';
+  const pack={app:'stillmark',version:5,type:'project-pack',packVersion:1,entries:[
+    {name:'迁移项目甲',shots:[{id:'s',name:'已完成镜头',done:true,sceneId:'c',refIds:['img']}],scenes:[{id:'c',name:'场景甲'}],refs:[{key:'img'}]},
+    {name:'迁移项目乙',shots:[{name:'第二镜头',refIds:['img']}]}
+  ],images:{img:image}};
+  const upload=async(data)=>page.locator('#importFile').setInputFiles({name:'pack.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});
+  await upload({...pack,projects:pack.entries});
+  await expect(page.locator('#confirmModal')).not.toHaveClass(/show/);
+  await expect(page.locator('.toast')).toContainText('歧义');
+  await upload(pack);
+  await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  await expect(page.locator('#confirmDesc')).toContainText('保留现有数据');
+  await page.locator('#confirmOk').click();
+  await expect(page.locator('.pcard',{hasText:'迁移项目甲'})).toBeVisible();
+  await expect(page.locator('.pcard',{hasText:'迁移项目乙'})).toBeVisible();
+  await expect(page.locator('.pcard',{hasText:'V108 测试案'})).toBeVisible();
+  expect(await page.evaluate(async()=>{
+    const ps=await idb.getProjects(),a=ps.find(p=>p.name.includes('迁移项目甲')),b=ps.find(p=>p.name.includes('迁移项目乙'));
+    return a.shots[0].done&&a.shots[0].sceneId===a.scenes[0].id&&a.shots[0].refIds[0]===b.shots[0].refIds[0]&&!!(await idb.get(a.shots[0].refIds[0]));
+  })).toBe(true);
+  await page.reload();
+  await expect(page.locator('.pcard',{hasText:'迁移项目甲'})).toBeVisible();
+});

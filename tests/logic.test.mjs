@@ -889,5 +889,22 @@ check('存储比较忽略对象键顺序，保留数组顺序和真实冲突',vm
   return mergeProjectChanges(b,l,r)[0].name==='新'&&!projectDataEqual([1,2],[2,1])
     &&mergeProjectChanges(b,l,[{...r[0],name:'远端'}])===null;
 })()`,ctx));
+for(const n of ['classifyTransferPackage','buildPortableProjects','buildPortableShots'])vm.runInContext(fn(n),ctx);
+check('项目包 v5 明确追加、旧版备份仍可识别、未知/歧义类型拒绝',vm.runInContext(`(()=>{
+  const p={name:'A'},reject=d=>{try{classifyTransferPackage(d);return false;}catch{return true;}};
+  const pack={app:'stillmark',version:5,type:'project-pack',packVersion:1,entries:[p]};
+  return classifyTransferPackage(pack).mode==='append'&&classifyTransferPackage({version:4,projects:[p]}).mode==='restore'
+    &&classifyTransferPackage({version:4,type:'project',project:p}).mode==='single'
+    &&reject({...pack,projects:[p]})&&reject({...pack,version:4})&&reject({...pack,type:'unknown'})
+    &&reject({...pack,entries:[{demo:true}]})&&reject({version:4,type:'unknown',projects:[p]});
+})()` ,ctx));
+check('任意分镜选集保留执行状态和依赖，排除无关隐私且不修改来源',vm.runInContext(`(()=>{
+  const p={id:'p',name:'A',client:'private',shots:[{id:'s',fav:false,done:true,sceneId:'c',date:'2026-11-26',refIds:['img']},{id:'x'}],
+    scenes:[{id:'c',name:'场景'},{id:'other'}],refs:[{key:'img',tags:['参考']},{key:'unused'}],notes:[{content:'secret'}]};
+  const a=buildPortableShots(p,['s']);
+  return a.shots.length===1&&a.shots[0].done&&!a.shots[0].fav&&a.scenes.length===1&&a.refs.length===1
+    &&a.shootDate==='2026-11-26'&&!a.client&&a.notes.length===0&&p.shots.length===2
+    &&buildPortableProjects([p,{id:'demo',demo:true}],['p','demo']).length===1;
+})()`,ctx));
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);
