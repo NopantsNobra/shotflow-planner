@@ -1102,3 +1102,86 @@ test('独立提案脚本哈希与实际导出内容一致，离线打开仍可�
   });
   expect(result).toBe(0);
 });
+
+
+/* Use actual browser fetch + intercepted HTTP responses, not a replacement window.fetch.
+   The isolated context disables service workers so they cannot bypass request interception. */
+test.describe('CSP 正常业务网络与图片链路',()=>{
+  test.use({serviceWorkers:'block'});
+
+  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV7sAAAAASUVORK5CYII=','base64');
+
+  async function watchCsp(page){
+    await page.addInitScript(()=>{
+      window.__cspViolations=[];
+      document.addEventListener('securitypolicyviolation',e=>{
+        if(e.disposition==='enforce')window.__cspViolations.push({directive:e.effectiveDirective,blocked:e.blockedURI});
+      });
+      try{localStorage.setItem('wb_sf_shisei_sync','0');}catch{/* No storage on initial blank document. */}
+    });
+  }
+
+  test('允许图库目录与图片请求、反馈 POST，且无 CSP 违规',async({page,context})=>{
+    await watchCsp(page);
+    const requests=[];
+    const cors={'access-control-allow-origin':'*','access-control-allow-methods':'GET, POST, OPTIONS','access-control-allow-headers':'content-type, accept'};
+    await context.route('https://cdn.jsdelivr.net/**',async route=>{
+      const url=new URL(route.request().url());
+      if(url.pathname.endsWith('/data/catalog.json')){
+        requests.push('catalog');
+        await route.fulfill({status:200,headers:cors,contentType:'application/json',
+          body:JSON.stringify([{id:'csp-pose',class_cn:'CSP 测试',name_cn:'测试姿势',views:{front:'fixture.png'}}])});
+      }else if(url.pathname.endsWith('/images/line/w300/fixture.png')){
+        requests.push('image');
+        await route.fulfill({status:200,headers:cors,contentType:'image/png',body:png});
+      }else await route.abort();
+    });
+    await context.route('https://api.web3forms.com/submit',async route=>{
+      const method=route.request().method();
+      if(method==='OPTIONS'){await route.fulfill({status:204,headers:cors});return;}
+      requests.push(method);
+      await route.fulfill({status:200,headers:cors,contentType:'application/json',body:JSON.stringify({success:true})});
+    });
+    await openFreshApp(page);
+    await expect.poll(()=>page.evaluate(()=>!pendingPersist&&!persistFailed)).toBe(true);
+    // Exercise the real sync implementation while the automatic background sync is disabled.
+    await page.evaluate(()=>runShiseiSync(true));
+    const pose=await page.evaluate(()=>idb.getShiseiImg('shisei:csp-pose:front'));
+    expect(pose.data).toBe('data:image/png;base64,'+png.toString('base64'));
+    expect(requests).toContain('catalog');expect(requests).toContain('image');
+
+    await page.getByRole('button',{name:'⚙ 设置'}).click();
+    await page.locator('#fbTitle').fill('仅测试，不实际发送');
+    await page.getByRole('button',{name:'提交反馈'}).click();
+    await expect(page.locator('.toast')).toContainText('反馈已提交，感谢！');
+    expect(requests).toContain('POST');
+    expect(await page.evaluate(()=>window.__cspViolations)).toEqual([]);
+  });
+
+  test('本地图片上传、压缩、导出和再次导入均无 CSP 违规',async({page})=>{
+    await watchCsp(page);
+    await openFreshApp(page);
+    await createProject(page,'CSP 图片迁移');
+    await page.locator('[data-project-tab="mood"]').click();
+    await page.locator('#m_img').setInputFiles({name:'fixture.png',mimeType:'image/png',buffer:png});
+    await expect.poll(()=>page.evaluate(()=>cur().mood.filter(m=>m.type==='image').length)).toBe(1);
+    const image=page.locator('#moodGrid img').first();
+    await expect.poll(()=>image.evaluate(el=>el.naturalWidth)).toBeGreaterThan(0);
+    await waitProjectPersisted(page,'CSP 图片迁移');
+    const [download]=await Promise.all([page.waitForEvent('download'),page.locator('[data-do="export-project"]').click()]);
+    const pack=JSON.parse(readFileSync(await download.path(),'utf8'));
+    const key=pack.project.mood.find(m=>m.type==='image').content;
+    expect(pack.images[key]).toMatch(/^data:image\/jpeg;base64,/);
+    await page.keyboard.press('Escape');
+    await page.locator('#importFile').setInputFiles({name:'roundtrip.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(pack))});
+    await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+    await page.locator('#confirmOk').click();
+    await expect.poll(()=>page.evaluate(async()=>{
+      const ps=(await idb.getProjects()).filter(p=>p.name.includes('CSP 图片迁移'));
+      if(ps.length!==2)return false;
+      const keys=ps.map(p=>p.mood.find(m=>m.type==='image')?.content);
+      return keys.every(Boolean)&&keys[0]!==keys[1]&&(await idb.get(keys[0]))===(await idb.get(keys[1]));
+    })).toBe(true);
+    expect(await page.evaluate(()=>window.__cspViolations)).toEqual([]);
+  });
+});
