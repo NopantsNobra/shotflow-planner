@@ -1031,3 +1031,19 @@ test('CSP 项目资料与情绪板委托输入、上传及筛选',async({page})=
   await page.locator('[data-do="clear-mood-filter"]').click();
   await expect(page.locator('.mood-item')).toHaveCount(1);
 });
+
+test('CSP 分镜委托输入与操作保留草稿、筛选及批量选择',async({page})=>{
+  await setupV108Project(page);
+  await expect(page.locator('#tabBody [onclick],#tabBody [onchange],#tabBody [oninput],#tabBody [onkeydown],#tabBody [ondrop]')).toHaveCount(0);
+  await page.locator('#s_name').fill('委托分镜');
+  await page.locator('#s_dur').selectOption('30');
+  await page.locator('#s_name').press('Enter');
+  await expect(page.locator('.shot').filter({hasText:'委托分镜'})).toBeVisible();
+  await page.locator('#s_filter').fill('委托分镜');
+  await expect(page.locator('.shot')).toHaveCount(1);
+  await page.getByRole('button',{name:'批量编辑'}).click();
+  await page.locator('.batch-check').check();
+  await expect(page.locator('#batchCount')).toContainText('1');
+  await page.locator('.shot [data-do="toggle-must-shoot"]').click();
+  await expect(page.locator('.shot')).toContainText('必拍');
+});

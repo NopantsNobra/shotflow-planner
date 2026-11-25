@@ -176,7 +176,34 @@ const ACTIONS=Object.freeze({
   'save-tag-editor':{fn:(id)=>saveTagEditor(id),argc:1,types:["s"]},
   'cancel-tag-editor':{fn:()=>cancelTagEditor(),argc:0,types:[]},
   'commit-rename-tag':{fn:(label)=>commitRenameTag(label),argc:1,types:["s"]},
-  'select-ref-to-mood':{fn:(id)=>selectRefToMood(id),argc:1,types:["s"]}
+  'select-ref-to-mood':{fn:(id)=>selectRefToMood(id),argc:1,types:["s"]},
+  'exit-shot-ref-editor':{fn:()=>exitShotRefEditor(),argc:0,types:[]},
+  'pick-shot-image':{fn:()=>document.getElementById('s_img')?.click(),argc:0,types:[]},
+  'toggle-ref':{fn:(id)=>toggleRef(id),argc:1,types:["s"]},
+  'set-pose-cat':{fn:(cat)=>setShiseiCat(cat),argc:1,types:["s"]},
+  'change-pose-page':{fn:(delta)=>([-1,1].includes(delta)&&changePosePage(delta)),argc:1,types:["n"]},
+  'add-shot':{fn:()=>addShot(),argc:0,types:[]},
+  'confirm-new-shot-date':{fn:()=>confirmNewShotDate(),argc:0,types:[]},
+  'cancel-new-shot-date':{fn:()=>cancelNewShotDate(),argc:0,types:[]},
+  'add-scene-inline':{fn:()=>addSceneInline(),argc:0,types:[]},
+  'cancel-scene-inline':{fn:()=>cancelSceneInline(),argc:0,types:[]},
+  'toggle-batch-mode':{fn:()=>toggleBatchMode(),argc:0,types:[]},
+  'reschedule-all-days':{fn:()=>rescheduleAllDays(),argc:0,types:[]},
+  'select-visible-shots':{fn:()=>selectVisibleShots(),argc:0,types:[]},
+  'apply-batch-shots':{fn:()=>applyBatchShots(),argc:0,types:[]},
+  'remove-shot-ref':{fn:(id,i)=>(validRefIndex(id,i)&&removeShotRef(id,i)),argc:2,types:["s","n"]},
+  'open-shot-ref-editor':{fn:(id)=>(cur()?.shots.some(s=>s.id===id)&&openShotRefEditor(id)),argc:1,types:["s"]},
+  'copy-shot':{fn:(id)=>copyShot(id),argc:1,types:["s"]},
+  'toggle-must-shoot':{fn:(id)=>toggleMustShoot(id),argc:1,types:["s"]},
+  'move-shot-by':{fn:(id,delta)=>([-1,1].includes(delta)&&moveShotBy(id,delta)),argc:2,types:["s","n"]},
+  'del-shot':{fn:(id)=>delShot(id),argc:1,types:["s"]},
+  'remove-sel-ref':{fn:(i)=>(Number.isInteger(i)&&i>=0&&i<3&&removeSelRef(i)),argc:1,types:["n"]},
+  'clear-sel-refs':{fn:()=>clearSelRefs(),argc:0,types:[]},
+  'cancel-shot-edit':{fn:()=>cancelShotEdit(),argc:0,types:[]},
+  'save-shot-edit':{fn:(id)=>saveShotEdit(id),argc:1,types:["s"]},
+  'ref-nav':{fn:(delta)=>([-1,1].includes(delta)&&refNav(delta)),argc:1,types:["n"]},
+  'replace-shot-ref':{fn:(id,i)=>replaceDelegatedShotRef(id,i),argc:2,types:["s","n"]},
+  'close-ref-viewer':{fn:()=>closeRefViewer(),argc:0,types:[]}
 });
 /* 参数必须能 JSON.parse 成声明类型；实体 id / key 额外限长，避免超长垃圾进入业务层 */
 function readActionArgs(el,spec){
@@ -257,3 +284,28 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('dragover',e=>{if(e.target.closest?.('[data-image-drop="true"]'))allowImageDrop(e);});
 document.addEventListener('drop',e=>{if(e.target.closest?.('[data-image-drop="true"]'))dropImages(e);});
+
+function validRefIndex(id,i){
+  const shot=cur()?.shots.find(s=>s.id===id);
+  return !!shot&&Number.isInteger(i)&&i>=0&&i<(shot.refIds||[]).length;
+}
+function replaceDelegatedShotRef(id,i){
+  if(!validRefIndex(id,i))return;
+  closeRefViewer();openShotRefEditor(id);view.replaceIdx=i;
+}
+document.addEventListener('input',e=>{
+  const el=e.target;
+  if(view.mode!=='project'||view.tab!=='shots')return;
+  if(el.dataset?.input==='shot-draft'&&['name','note'].includes(el.dataset.field)&&el.id==='s_'+el.dataset.field)saveShotDraft(el.dataset.field,el.value);
+  else if(el.dataset?.input==='shot-filter'&&el.id==='s_filter')setShotFilter(el.value);
+});
+document.addEventListener('change',e=>{
+  const el=e.target;
+  if(view.mode!=='project'||view.tab!=='shots'||el.disabled)return;
+  const action=el.dataset?.change;
+  if(action==='shot-images'&&el.id==='s_img'&&el.type==='file')addShotImg(e);
+  else if(action==='shot-date'&&el.id==='s_date')pickShotDate(el.value);
+  else if(action==='shot-scene'&&el.id==='s_scene')pickShotScene(el.value);
+  else if(action==='shot-draft'&&({duration:'s_dur',position:'s_pos',light:'s_light'})[el.dataset.field]===el.id)saveShotDraft(el.dataset.field,el.value);
+  else if(action==='batch-shot'&&el.type==='checkbox'&&cur()?.shots.some(s=>s.id===el.dataset.shotId))toggleBatchShot(el.dataset.shotId,el.checked);
+});
