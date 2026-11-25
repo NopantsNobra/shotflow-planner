@@ -46,13 +46,24 @@ export function assembleHtml(version) {
 
   // Hash the actual classic-script bytes after all other build substitutions.
   const hash = (value) => createHash('sha256').update(value, 'utf8').digest('base64');
-  const fit = js.slice(js.indexOf('function fitCovers(){'), js.indexOf('\nfunction coverHtml(')).trimEnd();
-  if (!fit.startsWith('function fitCovers(){')) throw new Error('[assemble] missing proposal script');
+  const fitStart = js.indexOf('function fitCovers(){');
+  const fitEnd = js.indexOf('\nfunction coverHtml(', fitStart);
+  if (fitStart < 0 || fitEnd <= fitStart) throw new Error('[assemble] missing proposal script boundaries');
+  const fit = js.slice(fitStart, fitEnd).trimEnd();
   const proposal = fit + '\nwindow.addEventListener("resize",fitCovers);fitCovers();';
+  if (out.split("'__PROPOSAL_SCRIPT_HASH__'").length !== 2)
+    throw new Error('[assemble] expected exactly one proposal script hash placeholder');
   out = out.replace("'__PROPOSAL_SCRIPT_HASH__'", () => JSON.stringify(hash(proposal)));
   const match = out.match(/<script>([\s\S]*?)<\/script>/);
-  if (!match || !out.includes('__APP_SCRIPT_HASH__')) throw new Error('[assemble] missing CSP script or placeholder');
-  if (/\s(?:on[a-z]+)\s*=\s*["']/.test(shell + js))
+  if (!match || out.split('__APP_SCRIPT_HASH__').length !== 2)
+    throw new Error('[assemble] missing CSP script or ambiguous placeholder');
+
+  // Check quoted attributes and unquoted attributes in literal HTML tags.
+  // Runtime DOM assignments such as request.onsuccess are not HTML attributes.
+  const templateSource = shell + js;
+  const quotedHandler = /\s(?:on[a-z]+)\s*=\s*["']/i;
+  const unquotedHandler = /<[a-z][^<>]*\son[a-z]+\s*=\s*[^\s"'`=<>]+(?=[\s/>])/i;
+  if (quotedHandler.test(templateSource) || unquotedHandler.test(templateSource))
     throw new Error('[assemble] inline HTML event attribute is forbidden');
   return out.replace('__APP_SCRIPT_HASH__', () => hash(match[1]));
 }
