@@ -7,6 +7,10 @@
 3. `aiValidate` 严格检查对象、字段、类型、数量、长度，`aiValidateReferences` 仅允许已知场景/分镜/素材 ID；结果为候选，不修改任何项目。
 4. `aiCandidateIsCurrent(candidate,project)` 检查项目 ID、完整快照及只读状态。快照仅留在本地候选，不进入请求。未来业务 UI 必须确认、筛选、编辑后经现有 updateCur 等写入守卫应用，提供撤销。
 
+## 外部 Agent 使用轨道（2026-11-26）
+
+实际模型接入继续冻结。外部 Agent 可通过未来交付的版本化资产包 schema、操作指南和现有导入 UI 生成项目或分镜，不需要调用本模块，也不需要配置工作台模型密钥。两条轨道共享数据校验、用户确认、最小权限和持久化守卫，不共享隐式授权。见 [专项路线](portable-agent-roadmap.md)。
+
 ## 适配器契约
 
 `{id, capabilities:{text,vision,structuredOutput,embedding,imageGeneration}, generate(request,signal):Promise<{data,usage?,warnings?}>}`。generate 为统一任务入口；embedding 与图像生成可由适配器内部调用不同协议。适配器负责超时、取消、模型协议、鉴权和结构化结果解析。运行层不接收或存储 API key，不将配置对象传给模型。凭据未来由用户明确配置在适配器内存闭包；无后台重试。
