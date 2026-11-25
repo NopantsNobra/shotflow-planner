@@ -1,0 +1,51 @@
+{
+  "app": "stillmark",
+  "version": 5,
+  "type": "project-pack",
+  "packVersion": 1,
+  "scope": "shots",
+  "entries": [
+    {
+      "name": "Agent 示例 · 窗边人像",
+      "status": "策划中",
+      "shootDates": [
+        "2026-12-01"
+      ],
+      "scenes": [
+        {
+          "id": "window",
+          "name": "窗边",
+          "note": "实际光线与场地条件待现场确认"
+        }
+      ],
+      "refs": [
+        {
+          "key": "reference",
+          "name": "仅用于格式测试的 2×2 PNG",
+          "tags": [
+            "参考"
+          ]
+        }
+      ],
+      "shots": [
+        {
+          "id": "shot-1",
+          "name": "窗边侧光半身",
+          "date": "2026-12-01",
+          "duration": 10,
+          "sceneId": "window",
+          "refIds": [
+            "reference"
+          ],
+          "position": "平视",
+          "light": "窗光",
+          "note": "根据现场光线调整人物朝向；示例图仅为测试占位。",
+          "mustShoot": true
+        }
+      ]
+    }
+  ],
+  "images": {
+    "reference": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg=="
+  }
+}

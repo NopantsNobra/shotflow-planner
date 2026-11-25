@@ -11,7 +11,17 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TARGET = path.join(ROOT, 'shotflow-app');
-const FILES = ['shotflow.html', 'shotflow-manifest.json', 'shotflow-sw.js', 'icon-192.png', 'icon-512.png'];
+const FILES = [
+  'shotflow.html',
+  'shotflow-manifest.json',
+  'shotflow-sw.js',
+  'icon-192.png',
+  'icon-512.png',
+  'docs/agent-guide.md',
+  'schemas/project-pack-v1.schema.json',
+  'examples/agent-shot.json',
+  'examples/agent-project.json'
+];
 const checkOnly = process.argv.includes('--check');
 
 if (!fs.existsSync(TARGET)) {
@@ -47,6 +57,7 @@ for (const name of FILES) {
   if (checkOnly) {
     if (!same(src, dst)) drift.push(name);
   } else {
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
     fs.copyFileSync(src, dst);
   }
 }

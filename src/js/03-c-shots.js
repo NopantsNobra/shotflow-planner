@@ -146,7 +146,7 @@ function selectVisibleShots(){
 async function exportBatchShots(){
   try{
     const p=buildPortableShots(cur(),view.batchShots);
-    await exportPortableProjects(p?[p]:[]);
+    await exportPortableProjects(p?[p]:[],'shots');
   }catch(e){toast('分镜包未完成：'+String(e.message||e),6000);}
 }
 function applyBatchShots(){

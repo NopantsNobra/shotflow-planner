@@ -204,12 +204,13 @@ async function portableImagesFor(projects){
   for(const key of collectImages(projects))if(!validBackupImage(images[key]))throw Error('引用图片缺失或格式不合法');
   return images;
 }
-async function exportPortableProjects(entries){
+async function exportPortableProjects(entries,scope='projects'){
   if(!entries.length){toast('请先选择要导出的项目或分镜');return;}
   try{
     const images=await portableImagesFor(entries);
-    downloadData({app:'stillmark',version:5,type:'project-pack',packVersion:1,exportedAt:new Date().toISOString(),entries,images},
-      'Stillmark_项目包_'+todayStr()+'.json');
+    const pack={app:'stillmark',version:5,type:'project-pack',packVersion:1,scope,exportedAt:new Date().toISOString(),entries,images};
+    validatePortablePack(pack);
+    downloadData(pack,'Stillmark_项目包_'+todayStr()+'.json');
     toast('已导出 '+entries.length+' 个策划案');
   }catch(e){toast('项目包未完成：'+String(e.message||e),6000);}
 }
@@ -289,14 +290,14 @@ function importJSON(e){
   rd.onload=ev=>{
     let d;
     try{ d=JSON.parse(ev.target.result); }catch{ toast('文件格式不正确，导入失败'); e.target.value=''; return; }
-    let mode,list;
-    try{({mode,list}=classifyTransferPackage(d));}catch(err){toast(String(err.message||err));return;}
+    let mode,list,summary;
+    try{({mode,list}=classifyTransferPackage(d));if(mode==='append')summary=validatePortablePack(d);}catch(err){toast(String(err.message||err));return;}
     pendingImport=d;
     const names=list.slice(0,3).map(p=>p.name||'未命名').join('、')+(list.length>3?' 等':'');
     if(mode==='assets'){
       askConfirm('导入素材包？','将新增 '+list.length+' 组收藏素材，保留原有项目与收藏。',applyImport);
     } else if(mode==='append'){
-      askConfirm('导入项目包？','将新增 '+list.length+' 个策划案：'+names+'，保留现有数据与收藏。',applyImport);
+      askConfirm('导入项目包？','将新增 '+summary.projects+' 个策划案：'+names+'；'+summary.shots+' 条分镜、'+summary.images+' 张图片。保留现有数据与收藏。',applyImport);
     } else if(mode==='single'){
       askConfirm('导入为新的策划案？','将新增 1 个策划案「'+(list[0].name||'未命名')+'」，不会覆盖现有数据。',applyImport);
     } else {
@@ -313,12 +314,12 @@ async function applyImport(){
   try{
     const {mode,list:raw}=classifyTransferPackage(d);
     const assets=mode==='assets',single=mode==='single',append=mode==='append';
+    if(append)validatePortablePack(d);
     const imported=raw.map(p=>sanitizeProject(p));
     if(imported.some(p=>!p)) throw new Error('文件中有非法项目');
     imported.forEach(p=>{migrate(p);p.v3=1;if(assets){p.assetPack=true;p.demo=false;}});
     if(single) imported[0].name+='（导入）';
     if(append) imported.forEach(p=>{p.demo=false;p.assetPack=false;p.name+='（导入）';});
-    if(append&&imported.some(p=>[...(p.refs||[]).map(r=>r.key),...(p.mood||[]).filter(m=>m.type==='image').map(m=>m.content),...(p.shots||[]).flatMap(s=>s.refIds||[])].some(k=>String(k).startsWith('shisei:'))))throw Error('项目包包含未打包的外部图片');
     const images=remapBackupImages(imported,d.images,uid);
     if(app) app.inert=true;
     if(persistTimer||pendingPersist) await flushPersist(); else await persistChain;

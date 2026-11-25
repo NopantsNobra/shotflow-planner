@@ -235,6 +235,92 @@ function collectFavorites(projects){
 /* 轻量资产包只复制选中收藏及其直接依赖，不复制客户、预算之外的项目背景等字段。 */
 /* Portable v5 project-pack uses entries, not projects: older readers must fail closed,
    never treat a selective transfer as a destructive full restore. */
+function portablePackSchema(){
+  const str=(maxLength,minLength=0)=>({type:'string',maxLength,minLength});
+  const integer=(minimum,maximum)=>({type:'integer',minimum,maximum});
+  const num={type:'number',minimum:0,maximum:Number.MAX_SAFE_INTEGER};
+  const bool={type:'boolean'},id=str(200,1),tag=str(120,1),tags={type:'array',items:tag,maxItems:5000};
+  const date={type:'string',pattern:'^(?:[0-9]{4}-[0-9]{2}-[0-9]{2})?$'};
+  const time={type:'string',pattern:'^(?:[01][0-9]:[0-5][0-9]|2[0-3]:[0-5][0-9])?$'};
+  const obj=(properties,required=[])=>({type:'object',properties,required,additionalProperties:false});
+  const arr=(items,maxItems=5000)=>({type:'array',items,maxItems});
+  const dates=arr({type:'string',pattern:'^[0-9]{4}-[0-9]{2}-[0-9]{2}$'},3660);
+  const module={enum:['concept','mood','shots','schedule','stuff','budget','notes']};
+  const shot=obj({id,name:str(200,1),date,slot:time,duration:{type:['integer','null'],minimum:5,maximum:1440},sceneId:str(200),refIds:arr(id,3),position:str(20),light:str(20),note:str(1000),done:bool,mustShoot:bool,skipped:bool,deferred:bool,ord:integer(0,1000000000),fav:bool},['name']);
+  const scene=obj({id,name:str(120,1),note:str(1000),done:bool,fav:bool},['name']);
+  const ref=obj({id,key:id,name:str(120),tags,createdAt:num,fav:bool},['key']);
+  const mood=obj({id,type:{enum:['text','color','image']},content:str(4000),tag:str(120),tags,autoTags:tags,fav:bool},['type','content']);
+  const schedule=obj({id,type:str(20),title:str(200,1),start:time,end:time,note:str(1000),date,done:bool,fav:bool,timeLocked:bool,auto:{enum:[null,'call','wrap']}},['title']);
+  const project=obj({
+    id,name:str(120,1),client:str(120),studio:str(120),status:{enum:['灵感期','策划中','待拍摄','后期中','已交付','已归档']},location:str(120),
+    lat:{type:['string','number'],maxLength:32},lng:{type:['string','number'],maxLength:32},timeZone:str(80),workspaceMode:{enum:['casual','portrait','professional','custom']},workspaceCustom:arr(module,7),
+    v3:{const:1},v9:{type:'integer'},demo:{const:false},assetPack:{const:false},createdAt:num,updatedAt:num,shootDate:date,shootDates:dates,dayInit:dates,
+    concept:obj({theme:str(200),model:str(200),style:str(200),audience:str(200),usage:str(200),note:str(4000)}),
+    tagVocab:tags,shots:arr(shot),scenes:arr(scene),refs:arr(ref),mood:arr(mood),schedule:arr(schedule),
+    items:arr(obj({id,kind:{enum:['服装道具','器材']},name:str(120,1),note:str(500),done:bool,fav:bool},['name'])),
+    budget:arr(obj({id,item:str(120,1),cat:str(20),amount:{type:'number',minimum:0,maximum:999999999},paid:bool,fav:bool},['item'])),
+    notes:arr(obj({id,kind:str(20),content:str(4000),ts:num,fav:bool},['content'])),
+    todos:arr(obj({id,title:str(200,1),owner:str(60),due:date,done:bool,fav:bool},['title']))
+  },['name']);
+  return {$schema:'https://json-schema.org/draft/2020-12/schema',title:'Stillmark portable project package v1',
+    ...obj({app:{const:'stillmark'},version:{const:5},type:{const:'project-pack'},packVersion:{const:1},scope:{enum:['projects','shots']},exportedAt:str(40),
+      entries:{type:'array',items:project,minItems:1,maxItems:200},
+      images:{type:'object',maxProperties:10000,propertyNames:str(200,1),additionalProperties:{type:'string',maxLength:8388608,pattern:'^data:image/'}}},['app','version','type','packVersion','entries','images'])};
+}
+function validatePortableShape(value,schema,path){
+  const error=()=>{throw Error('项目包字段不合法：'+path);};
+  if(Object.prototype.hasOwnProperty.call(schema,'const')&&value!==schema.const)error();
+  if(schema.enum&&!schema.enum.includes(value))error();
+  const kinds=Array.isArray(schema.type)?schema.type:[schema.type];
+  const matches=t=>t==='null'?value===null:t==='array'?Array.isArray(value):t==='object'?value!==null&&typeof value==='object'&&!Array.isArray(value):t==='integer'?Number.isSafeInteger(value):t==='number'?typeof value==='number'&&Number.isFinite(value):typeof value===t;
+  if(schema.type&&!kinds.some(matches))error();
+  if(typeof value==='string'){
+    if((schema.minLength!=null&&value.length<schema.minLength)||(schema.maxLength!=null&&value.length>schema.maxLength)||(schema.pattern&&!new RegExp(schema.pattern).test(value)))error();
+  }else if(typeof value==='number'){
+    if((schema.minimum!=null&&value<schema.minimum)||(schema.maximum!=null&&value>schema.maximum))error();
+  }else if(Array.isArray(value)){
+    if((schema.minItems!=null&&value.length<schema.minItems)||(schema.maxItems!=null&&value.length>schema.maxItems))error();
+    if(schema.items)value.forEach((v,i)=>validatePortableShape(v,schema.items,path+'['+i+']'));
+  }else if(value&&typeof value==='object'){
+    const keys=Object.keys(value);
+    if(schema.maxProperties!=null&&keys.length>schema.maxProperties)error();
+    for(const k of schema.required||[])if(!Object.prototype.hasOwnProperty.call(value,k))error();
+    for(const k of keys){
+      if(schema.propertyNames)validatePortableShape(k,schema.propertyNames,path+'.key');
+      const field=schema.properties&&Object.prototype.hasOwnProperty.call(schema.properties,k)?schema.properties[k]:null;
+      if(field)validatePortableShape(value[k],field,path+'.'+k);
+      else if(schema.additionalProperties===false)error();
+      else if(schema.additionalProperties&&typeof schema.additionalProperties==='object')validatePortableShape(value[k],schema.additionalProperties,path+'.'+k);
+    }
+  }
+}
+function validatePortablePack(pack){
+  validatePortableShape(pack,portablePackSchema(),'$');
+  if(pack.scope==='shots'&&pack.entries.length!==1)throw Error('分镜包只能包含一个策划案');
+  const used=new Set();
+  const validDate=d=>!d||(/^\d{4}-\d{2}-\d{2}$/.test(d)&&new Date(d+'T00:00:00Z').toISOString().slice(0,10)===d);
+  for(const p of pack.entries){
+    const ids=new Set(),scenes=new Set((p.scenes||[]).map(s=>s.id).filter(Boolean));
+    const dateValues=[p.shootDate,...(p.shootDates||[]),...(p.dayInit||[]),...(p.shots||[]).map(s=>s.date),...(p.schedule||[]).map(s=>s.date),...(p.todos||[]).map(s=>s.due)];
+    try{if(dateValues.some(d=>!validDate(d)))throw Error();}catch{throw Error('项目包日期不合法');}
+    for(const k of ['shots','scenes','refs','mood','schedule','items','budget','notes','todos']){
+      for(const item of p[k]||[]){
+        if(item.id){if(ids.has(item.id))throw Error('项目包实体 ID 重复');ids.add(item.id);}
+      }
+    }
+    for(const s of p.shots||[]){
+      if(s.sceneId&&!scenes.has(s.sceneId))throw Error('分镜引用的场景缺失');
+      for(const key of s.refIds||[])used.add(key);
+    }
+    for(const r of p.refs||[])used.add(r.key);
+    for(const m of p.mood||[])if(m.type==='image')used.add(m.content);
+  }
+  for(const key of used){
+    if(!key||key.startsWith('shisei:')||!Object.prototype.hasOwnProperty.call(pack.images,key)||!validBackupImage(pack.images[key]))throw Error('图片依赖缺失或格式不合法');
+  }
+  for(const key of Object.keys(pack.images))if(!used.has(key))throw Error('项目包含未引用图片');
+  return {projects:pack.entries.length,shots:pack.entries.reduce((n,p)=>n+(p.shots||[]).length,0),images:used.size};
+}
 function classifyTransferPackage(d){
   if(!d||typeof d!=='object'||Array.isArray(d))throw Error('文件中没有合法的策划案');
   const own=k=>Object.prototype.hasOwnProperty.call(d,k);

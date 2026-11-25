@@ -998,3 +998,24 @@ test('非收藏分镜精确导出并导入新项目，保留原始项目和图�
     const s=imported.shots[0];return original.shots.length===2&&s.done&&s.sceneId===imported.scenes[0].id&&s.refIds[0]!=='portable-ref'&&!!(await idb.get(s.refIds[0]));
   })).toBe(true);
 });
+
+
+test('公开 Agent 示例可经真实导入器进入项目并显示参考图',async({page})=>{
+  await setupV108Project(page);await page.keyboard.press('Escape');
+  for(const name of ['agent-shot','agent-project']){
+    const buffer=readFileSync(new URL('../../examples/'+name+'.json',import.meta.url));
+    await page.locator('#importFile').setInputFiles({name:name+'.json',mimeType:'application/json',buffer});
+    await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+    await expect(page.locator('#confirmDesc')).toContainText('条分镜');
+    await page.locator('#confirmOk').click();
+    await expect(page.locator('#confirmModal')).not.toHaveClass(/show/);
+    await expect(page.locator('.toast')).toContainText('导入成功');
+  }
+  await page.locator('.pcard',{hasText:'Agent 示例 · 窗边人像'}).click();
+  await expect(page.locator('.shot')).toContainText('窗边侧光半身');
+  await expect.poll(()=>page.locator('.shot img').first().evaluate(el=>el.naturalWidth)).toBeGreaterThan(0);
+  await page.reload();
+  await expect(page.locator('.pcard',{hasText:'Agent 示例 · 窗边人像'})).toBeVisible();
+  await expect(page.locator('.pcard',{hasText:'Agent 示例 · 城市漫步'})).toBeVisible();
+  await expect(page.locator('.pcard',{hasText:'V108 测试案'})).toBeVisible();
+});

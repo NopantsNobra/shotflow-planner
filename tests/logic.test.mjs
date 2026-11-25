@@ -906,5 +906,20 @@ check('任意分镜选集保留执行状态和依赖，排除无关隐私且不�
     &&a.shootDate==='2026-11-26'&&!a.client&&a.notes.length===0&&p.shots.length===2
     &&buildPortableProjects([p,{id:'demo',demo:true}],['p','demo']).length===1;
 })()`,ctx));
+for(const n of ['portablePackSchema','validatePortableShape','validatePortablePack','validBackupImage'])vm.runInContext(fn(n),ctx);
+const schema=JSON.parse(fs.readFileSync(new URL('../schemas/project-pack-v1.schema.json',import.meta.url),'utf8'));
+check('Agent schema 与生产定义逐字段一致',JSON.stringify(schema)===vm.runInContext('JSON.stringify(portablePackSchema())',ctx));
+for(const name of ['agent-shot','agent-project']){
+  const example=JSON.parse(fs.readFileSync(new URL('../examples/'+name+'.json',import.meta.url),'utf8'));
+  ctx.__pack=example;
+  check('Agent 示例通过生产结构与依赖校验 '+name,vm.runInContext('validatePortablePack(__pack).projects===1',ctx));
+}
+ctx.__pack=JSON.parse(fs.readFileSync(new URL('../examples/agent-shot.json',import.meta.url),'utf8'));
+check('项目包拒绝缺失图片、非法场景和未知字段',vm.runInContext(`(()=>{
+  const reject=d=>{try{validatePortablePack(d);return false;}catch{return true;}};
+  const clone=()=>JSON.parse(JSON.stringify(__pack));
+  const a=clone(),b=clone(),c=clone();a.images={};b.entries[0].shots[0].sceneId='missing';c.entries[0].apiKey='secret';
+  return reject(a)&&reject(b)&&reject(c);
+})()`,ctx));
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);
