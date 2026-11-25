@@ -4920,7 +4920,7 @@ const ACTIONS=Object.freeze({
   'del-note':{fn:(id)=>delNote(id),argc:1,types:['s']},
   'cancel-inline-edit':{fn:()=>cancelInlineEdit(),argc:0,types:[]},
   /* 公共行按钮（editBtn / favBtn），全局共用：参数带可选 key，缺省时传空串由业务层忽略 */
-  'begin-inline-edit':{fn:(kind,id,key)=>beginInlineEdit(kind,id,key),argc:3,types:['s','s','s']},
+  'begin-inline-edit':{fn:(kind,id,key)=>beginInlineEdit(kind,id,key),argc:3,types:['s','s','optional-s']},
   'toggle-fav':{fn:(type,id)=>toggleFav(type,id),argc:2,types:['s','s']},
   'open-fav-picker':{fn:()=>openFavPicker(),argc:0,types:[]}
 });
@@ -4930,8 +4930,8 @@ function readActionArgs(el,spec){
   for(let i=0;i<spec.argc;i++){
     const raw=el.dataset['a'+i];
     if(raw==null) return null;
-    let v; try{ v=JSON.parse(raw); }catch(e){ return null; }
-    const ok=spec.types[i]==='n'?(typeof v==='number'&&isFinite(v)):(typeof v==='string'&&v.length>0&&v.length<=120);
+    let v; try{ v=JSON.parse(raw); }catch{ return null; }
+    const ok=spec.types[i]==='n'?(typeof v==='number'&&isFinite(v)):(typeof v==='string'&&(spec.types[i]==='optional-s'||v.length>0)&&v.length<=120);
     if(!ok) return null;
     out.push(v);
   }

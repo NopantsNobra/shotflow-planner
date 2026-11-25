@@ -955,3 +955,17 @@ test('Phase2 支持域无内联事件，委托动作在重绘后仍生效',async
   await expect(page.locator('#tabBody')).toContainText('委托测试场景');
   expect(await page.locator('[data-fid]').filter({hasText:'委托测试场景'}).count()).toBe(1);
 });
+
+test('CSP 公共编辑按钮接受可选空 key，严格拒绝空必填参数',async({page})=>{
+  await setupV108Project(page);
+  const edit=page.locator('.shot [data-do="begin-inline-edit"]').first();
+  await edit.click();
+  await expect.poll(()=>page.evaluate(()=>view.editingShotEditId)).toBe('shot-a');
+  const validation=await page.evaluate(()=>{
+    const spec=ACTIONS['begin-inline-edit'];
+    return {optional:readActionArgs({dataset:{a0:'"Shot"',a1:'"shot-a"',a2:'""'}},spec),
+      required:readActionArgs({dataset:{a0:'"Shot"',a1:'""',a2:'""'}},spec)};
+  });
+  expect(validation.optional).toEqual(['Shot','shot-a','']);
+  expect(validation.required).toBeNull();
+});

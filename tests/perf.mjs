@@ -93,6 +93,7 @@ const FNS = [
   'resolveShootDate',
   'shotSortKey',
   'mmdd',
+  'doAttrs',
   'editBtn',
   'shotListHtml'
 ];
