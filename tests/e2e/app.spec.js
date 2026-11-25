@@ -1016,3 +1016,18 @@ test('CSP 看板、收藏与设置动作不依赖内联事件',async({page})=>{
   await page.getByRole('button',{name:'返回看板'}).click();
   await expect(page.locator('.masthead h1')).toHaveText('瞬刻摄影工作台');
 });
+
+test('CSP 项目资料与情绪板委托输入、上传及筛选',async({page})=>{
+  await setupV108Project(page);
+  await expect(page.locator('.metacard [onchange],.workspace-control [onchange],.ptabs [onclick]')).toHaveCount(0);
+  const client=page.locator('[data-field="client"]');await client.fill('委托客户');await client.press('Tab');
+  expect(await page.evaluate(()=>cur().client)).toBe('委托客户');
+  await page.locator('[data-project-tab="mood"]').click();
+  await expect(page.locator('#tabBody [onclick],#tabBody [onchange],#tabBody [oninput],#tabBody [onkeydown],#tabBody [ondrop]')).toHaveCount(0);
+  await page.locator('#m_text').fill('委托灵感');await page.locator('#m_tag').fill('测试标签');await page.locator('#m_text').press('Enter');
+  await expect(page.locator('#tabBody')).toContainText('委托灵感');
+  await page.locator('#m_filter').fill('不存在的标签');
+  await expect(page.locator('.mood-item')).toHaveCount(0);
+  await page.locator('[data-do="clear-mood-filter"]').click();
+  await expect(page.locator('.mood-item')).toHaveCount(1);
+});

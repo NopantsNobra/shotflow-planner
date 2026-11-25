@@ -41,3 +41,5 @@ Branch: security/strict-csp. Do not merge until all acceptance checks pass. Main
 - The policy is still baseline. Other dynamic domains and exported documents remain to be migrated; main is unchanged.
 
 - Board/favorites, settings, output status/notifications and boot error UI migrated to the same declared actions; import uses specific file controls and the board search uses a scoped input listener. Remaining live template migration is concentrated in project/mood and shots. DOM event properties assigned in trusted JS (e.g. IndexedDB request callbacks) are not inline HTML attributes and do not violate strict CSP.
+
+- Project metadata, workspace presets, project navigation and the moodboard migrated. Project field names, document types and file/input controls are explicitly scoped; date/time zone and tag operations continue through the existing business functions. Remaining: shots and final policy/audit.

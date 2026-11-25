@@ -151,7 +151,32 @@ const ACTIONS=Object.freeze({
   'open-deploy':{fn:()=>openDeployModal(),argc:0,types:[]},
   'feedback-type':{fn:(type)=>setFeedbackType(type),argc:1,types:["s"]},
   'submit-feedback':{fn:()=>submitFeedback(),argc:0,types:[]},
-  'copy-feedback':{fn:()=>copyFeedbackText(),argc:0,types:[]}
+  'copy-feedback':{fn:()=>copyFeedbackText(),argc:0,types:[]},
+  'back-project-board':{fn:()=>backProjectBoard(),argc:0,types:[]},
+  'show-project-notes':{fn:()=>showProjectNotes(),argc:0,types:[]},
+  'export-project':{fn:(id)=>exportProject(id),argc:1,types:["s"]},
+  'copy-demo':{fn:(id)=>copyDemoToMine(id),argc:1,types:["s"]},
+  'open-shoot-day':{fn:()=>openShootDay(),argc:0,types:[]},
+  'set-coordinates':{fn:(lat,lng)=>setDelegatedCoordinates(lat,lng),argc:2,types:["s","s"]},
+  'switch-project-tab':{fn:(tab)=>switchProjectTab(tab),argc:1,types:["s"]},
+  'open-doc':{fn:(type)=>(['proposal','callsheet','manual'].includes(type)&&openDoc(type)),argc:1,types:["s"]},
+  'add-mood':{fn:(type)=>(['text','color'].includes(type)&&addMood(type)),argc:1,types:["s"]},
+  'focus-mood-text':{fn:()=>document.getElementById('m_text')?.focus(),argc:0,types:[]},
+  'pick-mood-image':{fn:()=>document.getElementById('m_img')?.click(),argc:0,types:[]},
+  'toggle-ref-picker':{fn:()=>toggleRefPicker(),argc:0,types:[]},
+  'mood-filter-mode':{fn:(mode)=>setMoodFilterMode(mode),argc:1,types:["s"]},
+  'clear-mood-filter':{fn:()=>clearMoodFilter(),argc:0,types:[]},
+  'add-tag-word':{fn:(word)=>addTagWord(word),argc:1,types:["s"]},
+  'toggle-mood-filter-key':{fn:(key)=>toggleMoodFilterKey(key),argc:1,types:["s"]},
+  'start-rename-tag':{fn:(label)=>startRenameTag(label),argc:1,types:["s"]},
+  'del-tag-from-vocab':{fn:(label)=>delTagFromVocab(label),argc:1,types:["s"]},
+  'open-tag-editor':{fn:(id)=>openTagEditor(id),argc:1,types:["s"]},
+  'apply-ai-suggestion':{fn:(id)=>applyAiSuggestion(id),argc:1,types:["s"]},
+  'del-mood':{fn:(id)=>delMood(id),argc:1,types:["s"]},
+  'save-tag-editor':{fn:(id)=>saveTagEditor(id),argc:1,types:["s"]},
+  'cancel-tag-editor':{fn:()=>cancelTagEditor(),argc:0,types:[]},
+  'commit-rename-tag':{fn:(label)=>commitRenameTag(label),argc:1,types:["s"]},
+  'select-ref-to-mood':{fn:(id)=>selectRefToMood(id),argc:1,types:["s"]}
 });
 /* 参数必须能 JSON.parse 成声明类型；实体 id / key 额外限长，避免超长垃圾进入业务层 */
 function readActionArgs(el,spec){
@@ -207,3 +232,28 @@ document.addEventListener('change',e=>{
   const el=e.target;
   if(el.matches?.('input[type="file"][data-change="import-backup"]')&&['importFile','assetImportFile','settingsImportFile'].includes(el.id))importJSON(e);
 });
+
+function backProjectBoard(){view.mode='board';renderBoard();}
+function showProjectNotes(){view.tab='notes';renderProject();}
+function setDelegatedCoordinates(lat,lng){
+  const a=Number(lat),b=Number(lng);if(!Number.isFinite(a)||!Number.isFinite(b)||Math.abs(a)>90||Math.abs(b)>180)return;
+  setLL(lat,lng);
+}
+document.addEventListener('change',e=>{
+  const el=e.target;if(view.mode!=='project'||el.disabled)return;
+  const action=el.dataset?.change;
+  if(action==='workspace-mode'&&el.id==='workspaceMode')setWorkspaceMode(el.value);
+  else if(action==='workspace-module'&&el.type==='checkbox'&&workspaceModules('professional').includes(el.dataset.module))toggleWorkspaceModule(el.dataset.module,el.checked);
+  else if(action==='project-field'&&['INPUT','SELECT'].includes(el.tagName)){
+    const field=el.dataset.field;
+    if(['client','studio','status','location','lat','lng'].includes(field)&&(field!=='status'||STATUSES.includes(el.value)))setP(field,el.value);
+  }else if(action==='shoot-date'&&el.id==='p_shootdate')setShootDate(el.value);
+  else if(action==='project-time-zone'&&el.id==='p_timezone')setProjectTimeZone(el.value);
+  else if(action==='pick-city'&&el.id==='cityPick')pickCity(el.value);
+  else if(action==='mood-images'&&el.id==='m_img'&&el.type==='file'&&view.tab==='mood')addMoodImg(e);
+});
+document.addEventListener('input',e=>{
+  const el=e.target;if(view.mode==='project'&&view.tab==='mood'&&el.id==='m_filter'&&el.dataset.input==='mood-filter')setMoodFilter(el.value);
+});
+document.addEventListener('dragover',e=>{if(e.target.closest?.('[data-image-drop="true"]'))allowImageDrop(e);});
+document.addEventListener('drop',e=>{if(e.target.closest?.('[data-image-drop="true"]'))dropImages(e);});
