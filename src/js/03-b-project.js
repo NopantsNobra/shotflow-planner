@@ -134,16 +134,29 @@ function cancelInlineEdit(){
   if(!has) return false;
   clearInlineEditState(view); renderProject(); return true;
 }
+/* Strict-CSP Phase 2：动作属性统一由 doAttrs/enterAttrs 生成，参数 JSON 编码后 esc 入 data-aN，
+   委派层（05-boot.js）按白名单解析调用。禁止解析可执行表达式。 */
+function doAttrs(action,args){
+  let h='data-do="'+esc(action)+'"';
+  (args||[]).forEach((v,i)=>{ h+=' data-a'+i+'="'+esc(JSON.stringify(v))+'"'; });
+  return h;
+}
+function enterAttrs(action,args){
+  let h='data-enter="'+esc(action)+'"';
+  (args||[]).forEach((v,i)=>{ h+=' data-a'+i+'="'+esc(JSON.stringify(v))+'"'; });
+  return h;
+}
+const cancelBtn='<button class="btn btn-ghost btn-sm" '+doAttrs('cancel-inline-edit')+'>取消</button>';
 function editBtn(kind,id,key){
-  return '<button class="rowbtn" title="编辑" onclick="beginInlineEdit(\''+kind+'\','+jstr(id)+(key?','+jstr(key):'')+')">✎编辑</button>';
+  return '<button class="rowbtn" title="编辑" '+doAttrs('begin-inline-edit',[kind,id,key||''])+'>✎编辑</button>';
 }
 function favBtn(type,it){
-  return '<button class="rowbtn'+(isFav(it)?' on':'')+'" title="收藏/取消收藏" onclick="toggleFav(\''+type+'\','+jstr(it.id)+')">'+(isFav(it)?'★':'☆')+'</button>';
+  return '<button class="rowbtn'+(isFav(it)?' on':'')+'" title="收藏/取消收藏" '+doAttrs('toggle-fav',[type,it.id])+'>'+(isFav(it)?'★':'☆')+'</button>';
 }
 /* v10.8.2：所有可收藏页签统一在「主操作行」放打开收藏入口（紧邻各自添加按钮之前）。
    样式真源唯一（btn-ghost btn-sm），避免 6 处字面各写一份导致漂移；concept 页无收藏条目不渲染。 */
 function favPickerBtn(){
-  return '<button class="btn btn-ghost btn-sm" id="openFavBtn" title="打开与当前页面相关的收藏并引用" onclick="openFavPicker()">☆ 打开收藏</button>';
+  return '<button class="btn btn-ghost btn-sm" id="openFavBtn" title="打开与当前页面相关的收藏并引用" '+doAttrs('open-fav-picker')+'>☆ 打开收藏</button>';
 }
 
 /* ---- 概念 ---- */

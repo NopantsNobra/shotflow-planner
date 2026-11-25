@@ -923,3 +923,35 @@ test('配额失败明确显示诊断、保留草稿，手动重试可恢复',asy
   await expect(page.locator('#persistFailureTip')).toHaveCount(0);
   await expect.poll(()=>page.evaluate(async()=> (await idb.getProjects()).find(p=>p.id==='v108-test').shots[0].name)).toBe('未落盘草稿');
 });
+
+/* Strict-CSP Phase 2：清单/预算/协作域改为 data-do 白名单委托后的回归。 */
+test('Phase2 支持域无内联事件，委托动作在重绘后仍生效',async({page})=>{
+  await setupV108Project(page);
+  await page.locator('.ptab',{hasText:'清单'}).first().click();
+  await expect(page.locator('#f_scenes')).toBeVisible();
+  // ① 动态模板不再含可执行内联事件
+  const inline=await page.evaluate(()=>document.querySelectorAll('#tabBody [onclick],#tabBody [onkeydown],#tabBody [onchange]').length);
+  expect(inline).toBe(0);
+  // ② click 委托：添加场景 → 列表出现 → 勾选 → 再删除（每次都会 renderProject 全量重绘）
+  await page.locator('#f_scenes').fill('委托测试场景');
+  await page.locator('[data-do="add-stuff"]').first().click();
+  await expect(page.locator('#tabBody')).toContainText('委托测试场景');
+  const row=page.locator('[data-fid]').filter({hasText:'委托测试场景'}).first();
+  await row.locator('[data-do^="toggle-stuff"]').click();
+  await expect(page.locator('[data-fid]').filter({hasText:'委托测试场景'}).first().locator('.chk.on')).toBeVisible();
+  // ③ 白名单拒绝未注册 action（注入 data-do 不应触发任何业务函数）
+  const before=await page.locator('[data-fid]').count();
+  await page.evaluate(()=>{
+    const b=document.createElement('button');b.dataset.do='__evil__';b.textContent='evil';b.id='evilBtn';
+    document.getElementById('tabBody').appendChild(b);
+  });
+  await page.locator('#evilBtn').click();
+  expect(await page.locator('[data-fid]').count()).toBe(before);
+  // ④ 参数类型校验：篡改 data-a0 为非 JSON，点击不应产生新条目
+  await page.evaluate(()=>{
+    const b=document.querySelector('[data-do="add-stuff"]');if(b)b.dataset.a0='not-json';
+  });
+  await page.locator('[data-do="add-stuff"]').first().click();
+  await expect(page.locator('#tabBody')).toContainText('委托测试场景');
+  expect(await page.locator('[data-fid]').filter({hasText:'委托测试场景'}).count()).toBe(1);
+});

@@ -1,3 +1,6 @@
+/* Strict-CSP Phase 2 · 清单/预算/协作域。
+   动作属性用 03-b-project.js 的 doAttrs/enterAttrs 生成，白名单见 05-boot.js。 */
+
 /* ---- 清单（场景/服化道/器材） ---- */
 function renderStuff(p){
   /* 空状态分区块给出下一步引导，而不是干瘪的「暂无」 */
@@ -6,23 +9,23 @@ function renderStuff(p){
     items_g:'还没有器材。机位定了就写进来，避免当天缺件。'};
   const section=(title,key,arr,ph,ek)=>{
     return '<div class="card"><h2>'+title+'</h2>'
-      +'<div class="row" style="margin-bottom:10px"><input id="f_'+key+'" class="grow" placeholder="'+ph+'" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addStuff(\''+key+'\');}"><input id="fn_'+key+'" class="grow" placeholder="备注…">'
+      +'<div class="row" style="margin-bottom:10px"><input id="f_'+key+'" class="grow" placeholder="'+ph+'" '+enterAttrs('add-stuff',[key])+'><input id="fn_'+key+'" class="grow" placeholder="备注…">'
       +(key==='scenes'?favPickerBtn():'')   // 清单页入口只放首个分区，覆盖 scenes + items 两类收藏
-      +'<button class="btn btn-primary btn-sm" onclick="addStuff(\''+key+'\')">添加</button></div>'
+      +'<button class="btn btn-primary btn-sm" '+doAttrs('add-stuff',[key])+'>添加</button></div>'
       +(arr.length?arr.map(it=>{
         const editing=view.editingStuffId===it.id&&view.editingStuffKey===key;
         const body=editing
           ?'<div class="inline-edit grow"><div class="row"><input id="es_name" class="grow" value="'+esc(it.name)+'">'
             +'<input id="es_note" class="grow" value="'+esc(it.note||'')+'">'
-            +'<button class="btn btn-primary btn-sm" onclick="saveStuffEdit(\''+key+'\','+jstr(it.id)+')">保存</button>'
-            +'<button class="btn btn-ghost btn-sm" onclick="cancelInlineEdit()">取消</button></div></div>'
+            +'<button class="btn btn-primary btn-sm" '+doAttrs('save-stuff-edit',[key,it.id])+'>保存</button>'
+            +cancelBtn+'</div></div>'
           :'<span class="grow '+(it.done?'done-text':'')+'">'+esc(it.name)+'</span><span class="muted">'+esc(it.note||'')+'</span>';
         return '<div class="row" style="padding:8px 0;border-bottom:1px dashed var(--line)" data-fid="'+esc(it.id)+'">'
-          +'<button class="chk '+(it.done?'on':'')+'" style="width:22px;height:22px" onclick="toggleStuff(\''+key+'\','+jstr(it.id)+')">'+(it.done?'✓':'')+'</button>'
+          +'<button class="chk '+(it.done?'on':'')+'" style="width:22px;height:22px" '+doAttrs('toggle-stuff',[key,it.id])+'>'+(it.done?'✓':'')+'</button>'
           +body
           +editBtn('Stuff',it.id,key)
           +favBtn(key==='scenes'?'scenes':'items',it)
-          +'<button class="iconbtn" onclick="delStuff(\''+key+'\','+jstr(it.id)+')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
+          +'<button class="iconbtn" '+doAttrs('del-stuff',[key,it.id])+'><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
       }).join(''):'<p class="muted empty-hint">'+EMPTY_HINT[ek]+'</p>')+'</div>';
   };
   document.getElementById('tabBody').innerHTML=
@@ -61,14 +64,14 @@ function renderBudget(p){
     +'<div class="stat-card"><div class="num">¥'+(total-paid).toLocaleString()+'</div><div class="lbl">待支付</div></div></div>'
     +'<div class="row" style="margin-bottom:10px"><input id="b_item" class="grow" placeholder="费用项目…">'
     +'<select id="b_cat" style="max-width:120px">'+CATS.map(c=>'<option>'+c+'</option>').join('')+'</select>'
-    +'<input type="number" id="b_amt" style="max-width:120px" placeholder="金额 ¥" min="0" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addBudget();}">'
+    +'<input type="number" id="b_amt" style="max-width:120px" placeholder="金额 ¥" min="0" '+enterAttrs('add-budget')+'>'
     +favPickerBtn()
-    +'<button class="btn btn-primary btn-sm" onclick="addBudget()">添加</button></div>'
+    +'<button class="btn btn-primary btn-sm" '+doAttrs('add-budget')+'>添加</button></div>'
     +(p.budget.length?p.budget.map(b=>'<div class="brow" data-fid="'+esc(b.id)+'"><span class="grow">'+esc(b.item)+'</span><span class="tag">'+esc(b.cat)+'</span>'
       +'<span class="amount-red">¥'+(+b.amount).toLocaleString()+'</span>'
-      +'<button class="tag '+(b.paid?'green':'red')+'" style="border:none;min-height:32px" onclick="togglePaid('+jstr(b.id)+')">'+(b.paid?'已支付':'待支付')+'</button>'
+      +'<button class="tag '+(b.paid?'green':'red')+'" style="border:none;min-height:32px" '+doAttrs('toggle-paid',[b.id])+'>'+(b.paid?'已支付':'待支付')+'</button>'
       +favBtn('budget',b)
-      +'<button class="iconbtn" onclick="delBudget('+jstr(b.id)+')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>').join('')
+      +'<button class="iconbtn" '+doAttrs('del-budget',[b.id])+'><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>').join('')
       :'<p class="muted empty-hint">还没有预算条目。把场地、人员、器材等开销记进来，客户提案里的报价会自动汇总。</p>')
     +'</div>';
 }
@@ -89,11 +92,11 @@ function renderNotes(p){
   const overdue=p.todos.filter(x=>!x.done&&x.due&&x.due<t).length;
   document.getElementById('tabBody').innerHTML=
     '<div class="card"><h2>待办事项 <span class="muted" style="font-weight:400">· 未完成 '+open+(overdue?'（<span style="color:var(--red)">逾期 '+overdue+'</span>）':'')+'</span></h2>'
-    +'<div class="row" style="margin-bottom:12px"><input id="td_title" class="grow" placeholder="待办内容，如：给客户发提案确认报价" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addTodo();}">'
+    +'<div class="row" style="margin-bottom:12px"><input id="td_title" class="grow" placeholder="待办内容，如：给客户发提案确认报价" '+enterAttrs('add-todo')+'>'
     +'<input id="td_owner" style="max-width:110px" placeholder="负责人">'
     +'<input type="date" id="td_due" style="max-width:150px">'
     +favPickerBtn()
-    +'<button class="btn btn-primary" onclick="addTodo()">添加</button></div>'
+    +'<button class="btn btn-primary" '+doAttrs('add-todo')+'>添加</button></div>'
     +p.todos.map(x=>{
         const od=!x.done&&x.due&&x.due<t;
         const editing=view.editingTodoId===x.id;
@@ -102,17 +105,17 @@ function renderNotes(p){
             +'<input id="et_title" class="grow" value="'+esc(x.title)+'">'
             +'<input id="et_owner" style="max-width:110px" value="'+esc(x.owner||'')+'">'
             +'<input type="date" id="et_due" style="max-width:150px" value="'+esc(x.due||'')+'">'
-            +'<button class="btn btn-primary btn-sm" onclick="saveTodoEdit('+jstr(x.id)+')">保存</button>'
-            +'<button class="btn btn-ghost btn-sm" onclick="cancelInlineEdit()">取消</button></div></div>'
+            +'<button class="btn btn-primary btn-sm" '+doAttrs('save-todo-edit',[x.id])+'>保存</button>'
+            +cancelBtn+'</div></div>'
           :'<span class="grow '+(x.done?'done-text':'')+'">'+esc(x.title)+'</span>'
             +(x.owner?'<span class="tag gray">'+esc(x.owner)+'</span>':'')
             +(x.due?'<span class="tag '+(od?'red':'gray')+'">'+(od?'逾期 ':'')+esc(x.due)+'</span>':'');
         return '<div class="row" style="padding:8px 0;border-bottom:1px dashed var(--line)" data-fid="'+esc(x.id)+'">'
-          +'<button class="chk '+(x.done?'on':'')+'" onclick="toggleTodo('+jstr(x.id)+')">'+(x.done?'✓':'')+'</button>'
+          +'<button class="chk '+(x.done?'on':'')+'" '+doAttrs('toggle-todo',[x.id])+'>'+(x.done?'✓':'')+'</button>'
           +body
           +editBtn('Todo',x.id)
           +favBtn('todos',x)
-          +'<button class="iconbtn" onclick="delTodo('+jstr(x.id)+')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
+          +'<button class="iconbtn" '+doAttrs('del-todo',[x.id])+'><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
       }).join('')
     +(!p.todos.length?'<p class="muted">暂无待办。把「给客户发提案」「检查 SD 卡」这类事记进来，看板会汇总逾期项。</p>':'')
     +'</div>'
@@ -120,8 +123,8 @@ function renderNotes(p){
     +'<p class="muted" style="margin-bottom:10px">记录与客户、化妆师、场地等各方的沟通要点，按时间倒序排列。</p>'
     +'<div class="row" style="margin-bottom:12px">'
     +'<select id="nt_kind" style="max-width:100px">'+NOTE_KINDS.map(k=>'<option>'+k+'</option>').join('')+'</select>'
-    +'<input id="nt_text" class="grow" placeholder="沟通要点…" onkeydown="if(event.key===\'Enter\')addNote()">'
-    +'<button class="btn btn-primary" onclick="addNote()">记录</button></div>'
+    +'<input id="nt_text" class="grow" placeholder="沟通要点…" '+enterAttrs('add-note')+'>'
+    +'<button class="btn btn-primary" '+doAttrs('add-note')+'>记录</button></div>'
     +[...p.notes].sort((a,b)=>(b.ts||0)-(a.ts||0)).map(n=>{
         const d=new Date(n.ts||Date.now());
         const ds=(d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
@@ -130,15 +133,15 @@ function renderNotes(p){
           ?'<div class="inline-edit grow"><div class="row">'
             +'<select id="en_kind" style="max-width:100px">'+NOTE_KINDS.map(k=>'<option '+(n.kind===k?'selected':'')+'>'+k+'</option>').join('')+'</select>'
             +'<input id="en_content" class="grow" value="'+esc(n.content)+'">'
-            +'<button class="btn btn-primary btn-sm" onclick="saveNoteEdit('+jstr(n.id)+')">保存</button>'
-            +'<button class="btn btn-ghost btn-sm" onclick="cancelInlineEdit()">取消</button></div></div>'
+            +'<button class="btn btn-primary btn-sm" '+doAttrs('save-note-edit',[n.id])+'>保存</button>'
+            +cancelBtn+'</div></div>'
           :'<span class="note-kind tag '+(NOTE_TAG[n.kind]||'gray')+'">'+esc(n.kind)+'</span>'
             +'<div class="grow" style="min-width:0">'+esc(n.content)+'</div>';
         return '<div class="note-item" data-fid="'+esc(n.id)+'">'+body
           +'<span class="note-time">'+ds+'</span>'
           +editBtn('Note',n.id)
           +favBtn('notes',n)
-          +'<button class="iconbtn" onclick="delNote('+jstr(n.id)+')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
+          +'<button class="iconbtn" '+doAttrs('del-note',[n.id])+'><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
       }).join('')
     +(!p.notes.length?'<p class="muted empty-hint">还没有记录。客户改需求、确认档期这类信息随手记下来，翻案时有据可查。</p>':'')
     +'</div>';

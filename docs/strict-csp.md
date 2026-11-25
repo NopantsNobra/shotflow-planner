@@ -19,3 +19,17 @@ Branch: security/strict-csp. Do not merge until all acceptance checks pass. Main
 - Inline CSS is a separate decision: script strictness must not require weakening script policy to permit styles.
 - Verify both generated copies and exported proposal. Test CSP violations (including malicious injected onerror and unknown actions), file://, three browser engines, offline PWA, all user workflows and mobile devices. Add CI gate for remaining inline handlers.
 - Do not claim strict CSP enabled until the policy and functional tests pass. No changes to main's security policy until review.
+
+## Phase 2 progress (2026-11-25)
+
+**Completed — support domain + shared row buttons.**
+- Added a declarative delegation layer in `05-boot.js`: `ACTIONS` is a frozen allowlist mapping action ids to direct function references with declared argument count/types. `data-do` (click) and `data-enter` (Enter key) carry only action ids; arguments are JSON-encoded into `data-aN` via `esc(JSON.stringify(v))`, then `JSON.parse`d and type-checked by `readActionArgs`. No eval, no Function constructor, no arbitrary name lookup, no expression parsing.
+- Added shared helpers `doAttrs()` / `enterAttrs()` / `cancelBtn` in `03-b-project.js`; migrated `editBtn`, `favBtn` and `favPickerBtn` to the allowlist (these are used by every domain, so the benefit is global).
+- Migrated all inline handlers in `03-e-support.js` (stuff / budget / todos / notes): 17 click actions + 5 Enter actions. That file now has zero `onclick=` / `onkeydown=`.
+- Added E2E regression: zero inline handlers in `#tabBody` on the stuff tab; delegated add/toggle survive full `renderProject()` redraws; unknown `data-do` is ignored; malformed `data-a0` is rejected.
+
+**Remaining (not done — do not claim strict CSP).**
+- Dynamic templates in `03-b-project`, `03-c-shots`, `03-d-schedule`, `03-f-shootday`, `04-output`, `06-settings` still contain inline handlers (roughly 150 at this checkpoint). Complex cases include compound statements (`closeRefViewer();openShotRefEditor(...);...`) and state assignments that must first be extracted into named functions.
+- Phase 3 policy, exported-proposal audit, file:// + three-engine + offline + mobile acceptance are all still pending. Main retains baseline CSP.
+
+**Branch state:** `security/strict-csp` was synced with `main` at `b990d27` (merge of the v10.9.3 storage-recovery commits; the E2E file conflict was resolved by keeping both sides' tests). Branch is ahead of main, never merged.

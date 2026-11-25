@@ -86,3 +86,58 @@ document.addEventListener('click',e=>{
 document.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&e.target.dataset?.shellEnter==='create-project'){e.preventDefault();shellActions['create-project'](e,e.target);}
 });
+
+/* Strict-CSP Phase 2：动态模板 action 白名单。
+   设计约束（docs/strict-csp.md）：只用 action id + 转义后的 data 属性；禁止任意函数名查找、
+   禁止解析可执行表达式；参数按声明类型校验后才交给业务函数。注册表集中、可审计。
+   每条：{fn: 直接函数引用, argc: 参数个数, types: 每个参数类型 ['s'|'n']}。 */
+const ACTIONS=Object.freeze({
+  'add-stuff':{fn:(k)=>addStuff(k),argc:1,types:['s']},
+  'save-stuff-edit':{fn:(k,id)=>saveStuffEdit(k,id),argc:2,types:['s','s']},
+  'toggle-stuff':{fn:(k,id)=>toggleStuff(k,id),argc:2,types:['s','s']},
+  'del-stuff':{fn:(k,id)=>delStuff(k,id),argc:2,types:['s','s']},
+  'add-budget':{fn:()=>addBudget(),argc:0,types:[]},
+  'toggle-paid':{fn:(id)=>togglePaid(id),argc:1,types:['s']},
+  'del-budget':{fn:(id)=>delBudget(id),argc:1,types:['s']},
+  'add-todo':{fn:()=>addTodo(),argc:0,types:[]},
+  'save-todo-edit':{fn:(id)=>saveTodoEdit(id),argc:1,types:['s']},
+  'toggle-todo':{fn:(id)=>toggleTodo(id),argc:1,types:['s']},
+  'del-todo':{fn:(id)=>delTodo(id),argc:1,types:['s']},
+  'add-note':{fn:()=>addNote(),argc:0,types:[]},
+  'save-note-edit':{fn:(id)=>saveNoteEdit(id),argc:1,types:['s']},
+  'del-note':{fn:(id)=>delNote(id),argc:1,types:['s']},
+  'cancel-inline-edit':{fn:()=>cancelInlineEdit(),argc:0,types:[]},
+  /* 公共行按钮（editBtn / favBtn），全局共用：参数带可选 key，缺省时传空串由业务层忽略 */
+  'begin-inline-edit':{fn:(kind,id,key)=>beginInlineEdit(kind,id,key),argc:3,types:['s','s','s']},
+  'toggle-fav':{fn:(type,id)=>toggleFav(type,id),argc:2,types:['s','s']},
+  'open-fav-picker':{fn:()=>openFavPicker(),argc:0,types:[]}
+});
+/* 参数必须能 JSON.parse 成声明类型；实体 id / key 额外限长，避免超长垃圾进入业务层 */
+function readActionArgs(el,spec){
+  const out=[];
+  for(let i=0;i<spec.argc;i++){
+    const raw=el.dataset['a'+i];
+    if(raw==null) return null;
+    let v; try{ v=JSON.parse(raw); }catch(e){ return null; }
+    const ok=spec.types[i]==='n'?(typeof v==='number'&&isFinite(v)):(typeof v==='string'&&v.length>0&&v.length<=120);
+    if(!ok) return null;
+    out.push(v);
+  }
+  return out;
+}
+document.addEventListener('click',e=>{
+  const el=e.target.closest?.('[data-do]'); if(!el) return;
+  const spec=ACTIONS[el.dataset.do];
+  if(!spec||!Object.prototype.hasOwnProperty.call(ACTIONS,el.dataset.do)) return;
+  const args=readActionArgs(el,spec); if(!args) return;
+  spec.fn.apply(null,args);
+});
+/* Enter 提交：data-enter="actionId"，共用同一白名单；阻止默认后触发 */
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter') return;
+  const el=e.target.closest?.('[data-enter]'); if(!el) return;
+  const spec=ACTIONS[el.dataset.enter];
+  if(!spec||!Object.prototype.hasOwnProperty.call(ACTIONS,el.dataset.enter)) return;
+  const args=readActionArgs(el,spec); if(!args) return;
+  e.preventDefault(); spec.fn.apply(null,args);
+});
