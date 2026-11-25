@@ -102,3 +102,7 @@ Archive writer / reader（ZIP / 旧 JSON 适配）
 ## 12. 文件句柄直写
 
 支持 File System Access API 且处于安全上下文时，项目/分镜批选额外显示「直接保存到文件」。用户点击后同步请求保存目标，ZIP writer 将分块直接交给 createWritable，不构造全包 Blob；浏览器不支持时继续使用普通 ZIP 下载。取消选择不开始归档，失败不暗中改走下载；writer 在异常时 abort，成功 close 才发布文件。仍沿用 128 MiB 保守预算，暂不依据理论流式能力放宽容量；真实文件句柄、移动设备与大包验收另行测试。
+
+## 13. 容量自动化回归
+
+`tests/e2e/zip-capacity.spec.js` 使用确定性逐张生成的真实 384×256 PNG（非填充假文件），默认 100 张唯一图及 1 个重复逻辑 key，约 25–35 MiB；走实际 writer、导入预览、暂存及原子发布，抽样复核 SHA-256、刷新持久性、暂存清理和冷图片未进入 imgCache。日志 `[ZIP-CAPACITY]` 记录归档字节、写入/预检/导入耗时和最大写入块，不把 JS heap 指标当作浏览器全进程峰值内存。可用 `ZIP_SCALE_COUNT=300 E2E_BROWSERS=chromium npx playwright test tests/e2e/zip-capacity.spec.js` 运行约 90 MiB 压测；这是测试入口，尚非已验证的 300 图成绩。默认 CI 三引擎 100 图回归；真实手机与 250 MiB 及更大容量仍待验证。
