@@ -26,6 +26,11 @@ jobs:
         run: npm run lint
       - name: Prettier 格式检查
         run: npm run format:check
+      - name: 输出格式差异（仅在格式检查失败时）
+        if: failure()
+        run: |
+          npx prettier --write 'scripts/*.mjs' eslint.config.js playwright.config.js
+          git diff -- scripts eslint.config.js playwright.config.js
 
   # 纯逻辑测试：零依赖，Node 直接运行，作为最快的回归门禁
   logic:
