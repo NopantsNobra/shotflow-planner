@@ -78,7 +78,7 @@ function renderBoard(){
     +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/></svg>'
     +'<input id="boardSearch" placeholder="搜索策划案、客户、主题、分镜或沟通记录…" value="'+esc(view.boardQuery)+'" oninput="setBoardQuery(this.value)">'
     +'</div><div class="seg">'+['全部','进行中','已归档'].map(s=>'<button class="'+(view.boardScope===s?'on':'')+'" onclick="view.boardScope=\''+s+'\';renderBoard()">'+s+'</button>').join('')+'</div></div>'
-    +(view.boardPackMode?'<div class="card"><div class="row"><span id="boardPackCount" class="grow">已选 '+view.boardPackIds.length+' 个项目</span><button class="btn btn-ghost btn-sm" onclick="selectVisibleBoardPacks()">全选当前列表</button><button class="btn btn-ghost btn-sm" onclick="clearBoardPackSelection()">取消全选</button><button class="btn btn-primary btn-sm" onclick="exportBoardPacks()">导出所选项目</button></div><p class="muted">项目包包含完整策划、关联图片、客户及地点信息和执行状态；仅分享给有权限的人。导入时新增项目，不覆盖已有数据。</p></div>':'')
+    +(view.boardPackMode?'<div class="card"><div class="row"><span id="boardPackCount" class="grow">已选 '+view.boardPackIds.length+' 个项目</span><button class="btn btn-ghost btn-sm" onclick="selectVisibleBoardPacks()">全选当前列表</button><button class="btn btn-ghost btn-sm" onclick="clearBoardPackSelection()">取消全选</button><button class="btn btn-primary btn-sm" onclick="exportBoardPacks()">导出所选项目</button>'+(archiveCanSaveToFile()?'<button class="btn btn-ghost btn-sm" onclick="exportBoardPacks(true)">直接保存到文件</button>':'')+'</div><p class="muted">项目包包含完整策划、关联图片、客户及地点信息和执行状态；仅分享给有权限的人。导入时新增项目，不覆盖已有数据。</p></div>':'')
     +'<div id="boardGrid">'+boardGridHtml(all,ps,t)+'</div>';
   document.getElementById('app').innerHTML=h;
   const count=backupItemCount(all);
@@ -110,9 +110,9 @@ function selectVisibleBoardPacks(){
   view.boardPackIds=[...new Set(view.boardPackIds.concat(visible.map(p=>p.id)))];refreshBoardPackSelection();
 }
 function clearBoardPackSelection(){view.boardPackIds=[];refreshBoardPackSelection();}
-async function exportBoardPacks(){
+async function exportBoardPacks(direct=false){
   if(!view.boardPackMode)return;
-  await exportPortableProjects(buildPortableProjects(loadP(),view.boardPackIds));
+  await exportPortableProjects(buildPortableProjects(loadP(),view.boardPackIds),'projects',direct);
 }
 function statPill(icon,num,lbl,warn){
   return '<div class="metric'+(warn?' warn':'')+'"><div class="mi"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="'+icon+'"/></svg></div><div><div class="mv">'+num+'</div><div class="ml">'+lbl+'</div></div></div>';

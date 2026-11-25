@@ -1094,3 +1094,34 @@ test('ZIP 导入确认前不写入，取消暂存时项目及图片均不改变'
   await expect(page.locator('#toast')).toContainText('取消');
   expect(await page.evaluate(async()=>JSON.stringify(await idb.getProjects())===window.__archiveBaseline&&JSON.stringify(await idb.keys())===window.__archiveKeys)).toBe(true);
 });
+
+
+test('ZIP 直接保存：特性检测、分块写出、取消选择与写入失败不降级下载',async({page})=>{
+  await page.goto('/shotflow.html');await expect(page.locator('#app')).toBeVisible();
+  const result=await page.evaluate(async()=>{
+    const original=globalThis.showSaveFilePicker,parts=[];let closed=0,aborts=0,picks=0,downloads=0,writeCount=0;
+    const download=downloadBlob;downloadBlob=()=>{downloads++;};
+    const data=[{name:'流式保存测试',shots:[{name:'一张分镜'}]}];
+    try{
+      globalThis.showSaveFilePicker=async options=>{
+        picks++;
+        if(!options.suggestedName.endsWith('.stillmark.zip'))throw Error('bad filename');
+        return {createWritable:async()=>new WritableStream({
+          write(c){parts.push(c.slice());writeCount++;},close(){closed++;},abort(){aborts++;}
+        })};
+      };
+      const supported=archiveCanSaveToFile();
+      await exportArchiveProjects(data,'projects',true);
+      const saved=await openAssetArchive(new Blob(parts),globalThis.zip),name=saved.data.entries[0].name;await saved.close();
+      globalThis.showSaveFilePicker=async()=>{picks++;throw new DOMException('cancel','AbortError');};
+      await exportArchiveProjects(data,'projects',true);
+      globalThis.showSaveFilePicker=async()=>({createWritable:async()=>new WritableStream({write(){throw Error('disk failure');}})});
+      await exportArchiveProjects(data,'projects',true);
+      const errorShown=document.getElementById('toast').textContent.includes('未完成');
+      globalThis.showSaveFilePicker=async()=>({createWritable:async()=>new WritableStream({abort(){aborts++;}})});
+      await exportArchiveProjects([{bad:'schema'}],'projects',true);
+      return {supported,name,picks,closed,multiple:writeCount>1,downloads,aborts,errorShown,clean:!archiveOperation};
+    }finally{globalThis.showSaveFilePicker=original;downloadBlob=download;}
+  });
+  expect(result).toEqual({supported:true,name:'流式保存测试',picks:2,closed:1,multiple:true,downloads:0,aborts:1,errorShown:true,clean:true});
+});

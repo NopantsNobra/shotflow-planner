@@ -133,7 +133,7 @@ function batchShotControls(p){
     +'<select id="batchDuration"><option value="">时长不变</option>'+[10,15,20,30,45,60,90].map(n=>'<option value="'+n+'">'+n+' 分钟</option>').join('')+'</select>'
     +'<select id="batchScene"><option value="">场景不变</option><option value="__none">清除场景</option>'+(p.scenes||[]).map(s=>'<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>').join('')+'</select>'
     +'<button class="btn btn-primary btn-sm" onclick="applyBatchShots()">应用</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="exportBatchShots()">导出所选分镜</button></div>';
+    +'<button class="btn btn-ghost btn-sm" onclick="exportBatchShots()">导出所选分镜</button>'+(archiveCanSaveToFile()?'<button class="btn btn-ghost btn-sm" onclick="exportBatchShots(true)">直接保存到文件</button>':'')+'</div>';
 }
 function toggleBatchShot(id,checked){
   view.batchShots=checked?Array.from(new Set(view.batchShots.concat(id))):view.batchShots.filter(x=>x!==id);
@@ -143,10 +143,10 @@ function selectVisibleShots(){
   view.batchShots=Array.from(new Set(view.batchShots.concat(Array.from(document.querySelectorAll('#shotList .shot')).map(el=>el.dataset.id))));
   renderShots(cur());
 }
-async function exportBatchShots(){
+async function exportBatchShots(direct=false){
   try{
     const p=buildPortableShots(cur(),view.batchShots);
-    await exportPortableProjects(p?[p]:[],'shots');
+    await exportPortableProjects(p?[p]:[],'shots',direct);
   }catch(e){toast('分镜包未完成：'+String(e.message||e),6000);}
 }
 function applyBatchShots(){

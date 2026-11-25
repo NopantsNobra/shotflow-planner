@@ -42,10 +42,23 @@ async function archiveImageBlob(value){
   for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
   return new Blob([bytes],{type:mime});
 }
-async function exportArchiveProjects(entries,scope){
-  let op=null;
+function archiveCanSaveToFile(){
+  return typeof globalThis.showSaveFilePicker==='function'&&globalThis.isSecureContext;
+}
+async function exportArchiveProjects(entries,scope,direct=false){
+  let op=null,sink=null,committed=false;
   try{
     const codec=archiveCodec();
+    if(archiveOperation)throw Error('已有资产操作正在进行');
+    const filename='Stillmark_项目包_'+todayStr()+'.stillmark.zip';
+    // Call the picker in the original click's user activation; never await image
+    // reads or run a background task before requesting a destination.
+    let handle=null;
+    if(direct){
+      if(!archiveCanSaveToFile())throw Error('当前浏览器不支持直接保存，请使用普通导出');
+      try{handle=await globalThis.showSaveFilePicker({suggestedName:filename,types:[{description:'Stillmark ZIP 资产包',accept:{'application/zip':['.zip']}}]});}
+      catch(err){if(err.name==='AbortError'){toast('已取消保存');return;}throw err;}
+    }
     op=startArchiveOperation('导出 ZIP 资产包');
     const data={dataVersion:1,kind:scope,entries:JSON.parse(JSON.stringify(entries))};
     const poseKeys=new Map();
@@ -61,18 +74,27 @@ async function exportArchiveProjects(entries,scope){
     }
     const sourceKeys=new Map([...poseKeys].map(([a,b])=>[b,a]));
     const chunks=[];
+    sink=handle?await handle.createWritable({keepExistingData:false}):new WritableStream({write(chunk){chunks.push(chunk.slice());},abort(){chunks.length=0;}});
     const result=await writeAssetArchive(data,async key=>{
       const source=sourceKeys.get(key);
       const value=source?await ensureShiseiImage(source):((Object.prototype.hasOwnProperty.call(imgCache,key)&&imgCache[key])||await idb.get(key));
       return archiveImageBlob(value);
-    },new WritableStream({write(chunk){chunks.push(chunk.slice());},abort(){chunks.length=0;}}),codec,{
+    },sink,codec,{
       signal:op.controller.signal,onProgress:p=>archiveProgress(op,'正在打包图片 '+p.processed+'/'+p.total,p.processed,p.total)
     });
-    if(op.controller.signal.aborted)throw Error('已取消资产包导出');
-    downloadBlob(new Blob(chunks,{type:'application/zip'}),'Stillmark_项目包_'+todayStr()+'.stillmark.zip');
+    committed=true;
+    if(!handle){
+      if(op.controller.signal.aborted)throw Error('已取消资产包导出');
+      downloadBlob(new Blob(chunks,{type:'application/zip'}),filename);
+    }
     toast('已导出 '+result.projects+' 个策划案 · '+result.uniqueImages+' 张唯一图片');
   }catch(err){toast('项目包未完成：'+String(err.message||err),6000);}
-  finally{if(op)finishArchiveOperation(op);}
+  finally{
+    // The writer already aborts incomplete output; also cover failures before
+    // it acquired the sink (schema, hash or early cancellation).
+    if(sink&&!committed&&!sink.locked)await sink.abort().catch(()=>{});
+    if(op)finishArchiveOperation(op);
+  }
 }
 async function previewArchiveImport(file){
   let op=null,opened=null;

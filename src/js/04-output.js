@@ -184,9 +184,9 @@ async function imagesFor(ps){
   if(missing.length) throw new Error('缺失 '+missing.length+' 张引用图片');
   return out;
 }
-async function exportPortableProjects(entries,scope='projects'){
+async function exportPortableProjects(entries,scope='projects',direct=false){
   if(!entries.length){toast('请先选择要导出的项目或分镜');return;}
-  await exportArchiveProjects(entries,scope);
+  await exportArchiveProjects(entries,scope,direct);
 }
 async function exportSelectedAssets(){
   try{
