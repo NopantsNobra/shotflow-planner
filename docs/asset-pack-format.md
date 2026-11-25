@@ -82,3 +82,7 @@ Archive writer / reader（ZIP / 旧 JSON 适配）
 - `schemas/asset-archive-manifest-v1.schema.json` 与 `schemas/asset-archive-data-v1.schema.json` 直接对应应用内 schema 定义；逻辑测试防止漂移。首期 kind 取 projects 或 shots，dataVersion 为 1；data.json 只含 dataVersion、kind、entries，不包含 Base64。后续复用素材和整库恢复使用不同 kind，暂不识别。
 - 清单逻辑键唯一，允许多个键共享同一内容摘要/条目，文件路径必须按 SHA-256 和 MIME 构造；同摘要的大小/MIME 不一致则拒绝。清单与业务类型、引用闭包必须一致。
 - 初始 Blob 原型运行时暂设 128 MiB 归档/展开预算、16 MiB 单图/业务数据预算、4 MiB 清单预算、10000 唯一条目、20000 逻辑图片映射；这些是尚待压测调整的安全门禁，不是格式永久限制或已验证支持能力。清单验证不等于真实解压字节/CRC/摘要校验，后者由后续 archive reader 实现。真实 ZIP 仍未接入生产导入器。
+
+## 8. 精确去重实现决策（管理员补充）
+
+参考 [理巢 NetTidy duplicate.py](https://github.com/NopantsNobra/NetTidy/blob/main/nesttidy/duplicate.py) 的大小分组、首尾采样、全文复核思路；本项目归档时必须读取图片字节并生成标准 SHA-256，因此直接复用完整性摘要，避免额外采样、图像解码或视觉特征计算。逻辑引用 key 去重在读取前完成；不同 key 若字节一致仅写一次，保留所有逻辑映射；相同大小但不同摘要各自保留，不合并近似画面。不得删除用户本地图片，也不触发全库扫描。仅记录唯一摘要描述与资源统计，逐张读取，流式写入，不保留全包 Base64 对象。标准摘要为原始文件字节 SHA-256，不采用理巢内部 size 前缀口径。新增候选 writer 与严格 CSP 探测回归覆盖重复 key、异 key 相同字节、同尺寸不同内容、预算超限中止；实际 UI/reader/暂存尚待接入和验证。

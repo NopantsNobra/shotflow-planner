@@ -5,6 +5,9 @@ import { dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const bundle=readFileSync(new URL('../../src/vendor/zip-native-2.25.0.min.js',import.meta.url),'utf8');
+const core=readFileSync(new URL('../../src/js/02-core.js',import.meta.url),'utf8');
+const contracts=core.slice(core.indexOf('function portablePackSchema('),core.indexOf('function classifyTransferPackage('));
+const archiveWriter=readFileSync(new URL('../../src/js/04-b-archive.js',import.meta.url),'utf8');
 const externalFixture='UEsDBBQAAAAIAEGUeV1RpGy1IwAAACEAAAANAAAAbWFuaWZlc3QuanNvbqtWSssvyk0sUbJSKi7JzMnJTSzK1kssLk4t0S1ITM5WqgUAUEsDBBQAAAAAAEGUeV1Y+DV7BQAAAAUAAAAPAAAAaW1hZ2VzL3Rlc3QuYmluAAECA/9QSwECFAMUAAAACABBlHldUaRstSMAAAAhAAAADQAAAAAAAAAAAAAAgAEAAAAAbWFuaWZlc3QuanNvblBLAQIUAxQAAAAAAEGUeV1Y+DV7BQAAAAUAAAAPAAAAAAAAAAAAAACAAU4AAABpbWFnZXMvdGVzdC5iaW5QSwUGAAAAAAIAAgB4AAAAgAAAAAAA';
 
 async function probe(externalFixture){
@@ -31,9 +34,41 @@ async function probe(externalFixture){
   const generated=await read(resultBlob);
   const external=await read(new Blob([Uint8Array.from(atob(externalFixture),c=>c.charCodeAt(0))]));
   const sha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');
-  return {generated,external,sha,chunks:sink.length,size:resultBlob.size,secureContext:isSecureContext};
+  const a=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGNMqehhYGBgYmBgYGBgAAAQ4gFsnbDn+gAAAABJRU5ErkJggg=='),c=>c.charCodeAt(0));
+  const b=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGPsqUhhYGBgYmBgYGBgAAARMgFsgD/i+QAAAABJRU5ErkJggg=='),c=>c.charCodeAt(0));
+  const model={dataVersion:1,kind:'projects',entries:[
+    {name:'one',shots:[{name:'shot',refIds:['a','alias','b']}]},
+    {name:'two',refs:[{key:'a'}]}
+  ]};
+  const output=[],reads=[],progress=[];
+  const stats=await writeAssetArchive(model,async key=>{
+    reads.push(key);return new Blob([key==='b'?b:a],{type:'image/png'});
+  },new WritableStream({write(chunk){output.push(new Uint8Array(chunk));}}),z,{onProgress:state=>progress.push(state)});
+  const archive=new z.ZipReader(new z.BlobReader(new Blob(output)),{...options,strictness:'strict'});
+  let dedup;
+  try{
+    const entries=await archive.getEntries(),map=new Map(entries.map(e=>[e.filename,e]));
+    const manifest=JSON.parse(await map.get('manifest.json').getData(new z.TextWriter(),{...options,checkCrc32:true}));
+    const images=manifest.images,actual=[];
+    for(const im of [images[0],images[2]]){
+      const v=await map.get(im.path).getData(new z.Uint8ArrayWriter(),{...options,checkCrc32:true});
+      actual.push({sha:await archiveSha256(v),size:v.length,method:map.get(im.path).compressionMethod});
+    }
+    const restored=JSON.parse(await map.get('data.json').getData(new z.TextWriter(),{...options,checkCrc32:true}));
+    dedup={reads,progress:progress.at(-1),count:entries.length,alias:images[0].path===images[1].path,
+      sameSizeDistinct:images[0].bytes===images[2].bytes&&images[0].path!==images[2].path,
+      validHashes:actual.every((x,i)=>x.sha===images[i===0?0:2].sha256&&x.size===79&&x.method===0),
+      modelMatches:JSON.stringify(model)===JSON.stringify(restored),unique:stats.uniqueImages,saved:stats.savedImageBytes,
+      sizeMatches:stats.archiveBytes===new Blob(output).size};
+  }finally{await archive.close();}
+  let aborted=false,rejected=false;
+  try{
+    await writeAssetArchive(model,async()=>new Blob([a],{type:'image/png'}),new WritableStream({abort(){aborted=true;}}),z,
+      {limits:{...assetArchiveLimits(),maxImageBytes:78}});
+  }catch{rejected=true;}
+  return {generated,external,sha,chunks:sink.length,size:resultBlob.size,secureContext:isSecureContext,dedup,budgetRejected:rejected&&aborted};
 }
-const script=bundle+'\n('+probe.toString()+')('+JSON.stringify(externalFixture)+').then(result=>{document.getElementById("result").textContent=JSON.stringify(result);},error=>{document.getElementById("result").textContent=JSON.stringify({error:String(error),stack:error.stack});});';
+const script=bundle+'\n'+contracts+'\n'+archiveWriter+'\n('+probe.toString()+')('+JSON.stringify(externalFixture)+').then(result=>{document.getElementById("result").textContent=JSON.stringify(result);},error=>{document.getElementById("result").textContent=JSON.stringify({error:String(error),stack:error.stack});});';
 const hash=createHash('sha256').update(script).digest('base64');
 const policy="default-src 'none'; script-src 'sha256-"+hash+"'; script-src-attr 'none'; worker-src 'none'; connect-src 'none'; img-src data:; object-src 'none'; base-uri 'none'; form-action 'none'";
 const html='<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="'+policy+'"><link rel="icon" href="data:,"></head><body><pre id="result">pending</pre><script>'+script+'</script></body></html>';
@@ -63,6 +98,8 @@ for(const mode of ['local-file','localhost']){
     expect(result.sha).toBe(createHash('sha256').update(Buffer.from([0,1,2,3,255])).digest('hex'));
     expect(result.chunks).toBeGreaterThan(1);
     expect(result.secureContext).toBe(true);
+    expect(result.dedup).toEqual({reads:['a','alias','b'],progress:{processed:3,total:3,unique:2},count:4,alias:true,sameSizeDistinct:true,validHashes:true,modelMatches:true,unique:2,saved:79,sizeMatches:true});
+    expect(result.budgetRejected).toBe(true);
     violations.push(...await page.evaluate(()=>window.__zipCsp||[]));
     expect(violations).toEqual([]);expect(errors).toEqual([]);expect(requests).toEqual([]);
   });
