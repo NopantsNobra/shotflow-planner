@@ -494,7 +494,10 @@ test('v10.8.0 引用时间顺延：带时分字段的收藏条目 +10 分钟', a
   await expect(page.locator('#s_name')).toBeVisible();
   await page.locator('#openFavBtn').click();
   await expect(page.locator('#favPickerBody')).toContainText('被收藏分镜');
-  await page.locator('#favPickerBody button', { hasText:'引用收藏' }).click();
+  /* 新版示例项目自带收藏分镜，浮窗会有多条「引用收藏」；先限定到目标条目所在行再点，
+     避免 strict mode 歧义（v10.9.x 引入示例收藏后暴露的定位脆弱点）。 */
+  await page.locator('#favPickerBody .row').filter({ hasText:'被收藏分镜' })
+    .locator('button', { hasText:'引用收藏' }).click();
   await expect.poll(async()=>page.evaluate(async()=>{
     const arr=await new Promise(res=>{const r=indexedDB.open('shotflow');r.onsuccess=()=>{const d=r.result,g=d.transaction('projects').objectStore('projects').get('all');g.onsuccess=()=>{d.close();res(g.result||[])};g.onerror=()=>res([])};r.onerror=()=>res([])});
     const p=arr.find(x=>x.id==='v108-dst'); return p?p.shots.length:0;
