@@ -1185,3 +1185,61 @@ test.describe('CSP 正常业务网络与图片链路',()=>{
     expect(await page.evaluate(()=>window.__cspViolations)).toEqual([]);
   });
 });
+
+
+test('PWA 旧缓存策略升级至严格 CSP，项目与图片保持完整',async({page})=>{
+  await page.addInitScript(()=>{try{localStorage.setItem('wb_sf_shisei_sync','0');}catch{/* No storage on initial blank document. */}});
+  // Register the previous cache-version worker before loading the app.
+  await page.goto('/shotflow-manifest.json');
+  const legacyCache='shotflow-v10-18';
+  const currentCache=readFileSync(new URL('../../shotflow-sw.js',import.meta.url),'utf8').match(/const CACHE = '([^']+)'/)[1];
+  await page.evaluate(async()=>{
+    await navigator.serviceWorker.register('/shotflow-sw.js?e2e-legacy=1');
+  });
+  await expect.poll(()=>page.evaluate(()=>navigator.serviceWorker.controller?.scriptURL||''),{timeout:15000}).toContain('e2e-legacy=1');
+  const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV7sAAAAASUVORK5CYII=';
+  await page.evaluate(async({legacyCache,image})=>{
+    // Seed existing v4 user data, and make the old app cache carry the baseline policy.
+    // Runtime JS is the current build: this fixture isolates the worker/cache-policy transition.
+    const cache=await caches.open(legacyCache);
+    const url=new URL('/shotflow.html',location.origin).href;
+    const cached=await cache.match(url);
+    if(!cached)throw Error('legacy app cache missing');
+    const html=(await cached.text()).replace(/<meta http-equiv="Content-Security-Policy" content="[^"]+">/,
+      '<meta http-equiv="Content-Security-Policy" content="object-src \'none\'; base-uri \'none\'; form-action \'none\'">');
+    await cache.put(url,new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8'}}));
+    const now=Date.now(),date='2026-11-24';
+    const project={id:'legacy-csp-project',v3:1,name:'升级保留项目',status:'策划中',shootDate:date,shootDates:[date],dayInit:[date],
+      createdAt:now,updatedAt:now,concept:{},refs:[{id:'legacy-ref',key:'legacy-image',name:'旧参考图'}],
+      mood:[{id:'legacy-mood',type:'image',content:'legacy-image',fav:true}],shots:[],schedule:[],scenes:[],items:[],budget:[],notes:[],todos:[]};
+    await new Promise((res,rej)=>{
+      const r=indexedDB.open('shotflow',4);
+      r.onupgradeneeded=()=>{
+        const db=r.result;
+        for(const name of ['projects','images','shisei_meta','shisei_images','shisei_index'])db.createObjectStore(name);
+      };
+      r.onerror=()=>rej(r.error);
+      r.onsuccess=()=>{
+        const db=r.result,tx=db.transaction(['projects','images'],'readwrite');
+        tx.objectStore('projects').put([project],'all');tx.objectStore('images').put(image,'legacy-image');
+        tx.oncomplete=()=>{db.close();res();};tx.onerror=()=>{db.close();rej(tx.error);};
+      };
+    });
+    localStorage.setItem('wb_sf_seeded','1');localStorage.setItem('wb_sf_demo_v9','1');
+  },{legacyCache,image});
+  await page.goto('/shotflow.html');
+  await expect(page.locator('.pcard',{hasText:'升级保留项目'})).toBeVisible();
+  expect(await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content')).not.toContain('script-src');
+  // The app registers the new worker, which precaches the strict artifact and claims the page.
+  await expect.poll(()=>page.evaluate(()=>navigator.serviceWorker.controller?.scriptURL||''),{timeout:15000}).toMatch(/\/shotflow-sw\.js$/);
+  await expect.poll(()=>page.evaluate(async({legacyCache,currentCache})=>{
+    const keys=await caches.keys();return keys.includes(currentCache)&&!keys.includes(legacyCache);
+  },{legacyCache,currentCache})).toBe(true);
+  await page.reload();
+  await expect(page.locator('.pcard',{hasText:'升级保留项目'})).toBeVisible();
+  expect(await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content')).toContain("script-src-attr 'none'");
+  await page.locator('.pcard',{hasText:'升级保留项目'}).click();
+  await page.locator('[data-project-tab="mood"]').click();
+  await expect.poll(()=>page.locator('#moodGrid img').first().evaluate(el=>el.naturalWidth)).toBeGreaterThan(0);
+  expect(await page.evaluate(()=>idb.get('legacy-image'))).toBe(image);
+});
