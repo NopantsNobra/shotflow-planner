@@ -1022,3 +1022,31 @@ test('公开 Agent 示例可经真实导入器进入项目并显示参考图',as
   await expect(page.locator('.pcard',{hasText:'Agent 示例 · 城市漫步'})).toBeVisible();
   await expect(page.locator('.pcard',{hasText:'V108 测试案'})).toBeVisible();
 });
+
+
+test('ZIP 暂存隔离、原子发布、冲突和碰撞回滚及过期清理',async({page})=>{
+  await setupV108Project(page);
+  const result=await page.evaluate(async()=>{
+    const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==';
+    const original=await idb.getProjects(),expected=JSON.stringify(original);
+    await idb.stageArchiveImage('first','zip-new',image);
+    const isolated=!(await idb.get('zip-new'))&&(await idb.get(['archive-stage-v1','first','image','zip-new']))===image;
+    const mismatch=await idb.publishArchiveStage(original,'null','first',['zip-new'])===false;
+    const retained=!(await idb.get('zip-new'))&&!!(await idb.get(['archive-stage-v1','first','image','zip-new']));
+    const project={...original[0],id:'zip-project',name:'ZIP 原子发布',shots:[]};
+    const ok=await idb.publishArchiveStage(original.concat(project),expected,'first',['zip-new']);
+    const committed=ok&&(await idb.get('zip-new'))===image&&!(await idb.get(['archive-stage-v1','first','image','zip-new']))&&(await idb.getProjects()).some(p=>p.id==='zip-project');
+    const baseline=JSON.stringify(await idb.getProjects());
+    await idb.stageArchiveImage('collision','zip-another',image);await idb.stageArchiveImage('collision','zip-new',image);
+    let rolled=false;
+    try{await idb.publishArchiveStage([],baseline,'collision',['zip-another','zip-new']);}catch{rolled=true;}
+    const protectedData=rolled&&!(await idb.get('zip-another'))&&(await idb.get('zip-new'))===image&&JSON.stringify(await idb.getProjects())===baseline;
+    await idb.discardArchiveStage('collision');
+    const cleaned=!(await idb.get(['archive-stage-v1','collision','image','zip-another']));
+    await idb.stageArchiveImage('expired','old-image',image);
+    await idb.reapArchiveStages(Date.now()+25*60*60*1000);
+    const reaped=!(await idb.get(['archive-stage-v1','expired','image','old-image']))&&(await idb.get('zip-new'))===image;
+    return {isolated,mismatch,retained,committed,protectedData,cleaned,reaped};
+  });
+  expect(result).toEqual({isolated:true,mismatch:true,retained:true,committed:true,protectedData:true,cleaned:true,reaped:true});
+});
