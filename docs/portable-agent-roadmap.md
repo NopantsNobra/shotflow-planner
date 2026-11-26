@@ -2,7 +2,7 @@
 
 日期：2026-11-26。来源：管理员在真实摄影策划及多设备使用中的反馈。
 状态：管理员已批准按本路线自主推进；以下为实施及验收要求，未通过验收的功能不标记已交付。
-基线：main v10.9.3，已含严格脚本 CSP（Chrome、Firefox、Safari 实测通过）；`refactor/portable-agent` 正在此基线上集成 ZIP 资产包能力。
+基线：`main` 已合并 PR #3（merge commit `9124cc5`）；应用版本仍为 v10.9.3。严格脚本 CSP 已通过 Chrome、Firefox、Safari 实测，ZIP 资产包已通过 Chromium、Firefox、WebKit CI 和维护者实机复测。
 
 ## 1. 设计哲学与用户任务
 
@@ -14,18 +14,18 @@
 
 ## 2. 已有能力与差距
 
-`main` 的基线能力包括：完整备份 version 4、单项目 JSON 导出、收藏素材包、依赖校验、ID/图片键重映射、事务写入与冲突防护。开发分支 `refactor/portable-agent` 已在该基础上增加：
+`main` 当前包含：完整备份 version 4、单项目 JSON 导出、收藏素材包、依赖校验、ID/图片键重映射、事务写入与冲突防护，以及本路线实现的 ZIP 资产包能力：
 
 - 看板多选完整项目与项目内任意分镜多选，选择不依赖收藏。
 - ZIP v1 writer/reader、独立二进制图片、版本化 manifest/data Schema、精确 SHA-256 去重、旧 JSON 导入兼容。
 - ZIP 导入预览、逐图校验、分批暂存与事务发布；分镜包可新建项目或显式追加到指定项目。
-- 开发分支的 Agent 指南、Schema、JSON 数据示例和 ZIP 示例；这些示例仍需真实生产导入器验收。
+- Agent 指南、Schema、JSON 数据示例和 ZIP 示例；两个 ZIP 示例已由真实生产导入器验收。
 
 公开 JSON Schema 是 `src/js/02-schemas.js` 中版本化交换契约的生成产物；内部 Project 模型与交换格式不是同一个 schema。`npm run schemas:export` 生成公开文件，CI 的 `npm run schemas:check` 检查是否漂移。当前 ZIP v1 导入路径先做结构与语义校验，再经 `sanitizeProject()` / `migrate()` 转入当前内部模型；版本分派尚未抽成独立适配器。遇到不兼容交换格式时应增加明确的版本适配，避免把内部存储字段逐一暴露为永久外部契约。
 
 首个可直接交给外部 Agent 的任务模板为 [摄影策划生成 v1](agent-tasks/generate-shoot-plan-v1.md)。它先把任务目标、用户授权输入、输出契约、事实边界与交付验证写成可复用指引；真实 Agent 盲测通过后再扩展到参考图分析、标签建议等任务。
 
-严格 CSP 已合入 `main`，当前集成分支保留其哈希构建、委托事件与部署注入约束。外部 Agent 盲测、手机/PWA 交接和 ZIP 功能发布门禁尚未完成。继续在原项目 schema 与存储基础上渐进开发，不重建资产数据库或替换全量 schema。
+严格 CSP 与 ZIP 功能均已合入 `main`，并继续受哈希构建、委托事件与部署注入门禁约束。下一阶段是独立外部 Agent 盲测，再做 iOS/Android 真机交接；128 MiB 边界、真实设备配额与后台恢复仍未验收。继续在原项目 schema 与存储基础上渐进开发，不重建资产数据库或替换全量 schema。
 
 ## 3. PORT：精确导出与导入
 
@@ -76,18 +76,18 @@
 
 ## 5. 执行顺序与发布边界
 
-1. 严格脚本 CSP 已合入 `main`，当前分支继承其 CI 与构建门禁；ZIP 集成须保持同一 CSP 哈希脚本边界。
-2. PORT-1：以现有导出/导入为基线，确定范围、用户意图与最小包语义；先补非收藏分镜、多项目与移动端交接的验收用例。
-3. PORT-2a：优先实现 ZIP 容器、二进制图片与版本化清单，兼容旧 JSON；PORT-2b：实现导入预览、分批暂存、校验、原子提交与容量回归。AGENT-1 与正式 ZIP 契约同步交付文档、schema、示例，不等内置 AI 开发。
-4. AGENT-2：用真实外部 Agent 进行盲测，优先改善失败率、权限与低摩擦操作，不建设另一套应用 UI。
+1. DONE：严格脚本 CSP、ZIP writer/reader 和生产导入流程已合入 `main`；继续保持同一 CSP 哈希脚本边界。
+2. DONE：PORT-1 与 PORT-2 已覆盖非收藏分镜、多项目、ZIP 容器、版本化清单、旧 JSON 兼容、预览、分批暂存、校验、原子提交和容量回归。
+3. DONE：AGENT-1 的操作指南、任务提示词、Schema、数据与 ZIP 示例已交付，并由生产导入器和三引擎 CI 验证。
+4. NEXT：AGENT-2 用独立外部 Agent 盲测含图片/场景的分镜包与完整项目包，记录可复现证据；随后验证 iOS Safari/PWA、Android Chrome、离线刷新与不同 origin 的实机交接。
 5. 依据真实使用再考虑受限本地 API、CLI/MCP 扩展；实际 provider 接入保留独立决策。ZIP 容器已经列入优先轨道，不再作为后续可选项。
 
-发布门禁：构建/部署副本一致性、旧包兼容和三引擎 E2E 已通过 CI（2026-11-26）；外部 Agent 盲测及真实移动端交接仍待完成。每项分步提交，避免不必要重构。
+发布门禁：构建/部署副本一致性、旧包兼容和三引擎 E2E 已通过 CI（2026-11-26）；维护者报告桌面 Chrome、Firefox、Safari 实机复测通过。独立外部 Agent 盲测及真实移动端交接仍待完成。每项分步提交，避免不必要重构。
 
 ## 6. 执行台账
 
-- DONE in branch: DOC-1 产品方向、README/overview 与路线同步；PORT-1a 多项目/任意分镜选择与导出；PORT-2a ZIP v1、Schema、二进制图片和旧 JSON 兼容；PORT-1b/PORT-2b 指定项目追加、预览、冲突检查、分批暂存和原子提交。
+- DONE in PR #3: DOC-1 产品方向、README/overview 与路线同步；PORT-1a 多项目/任意分镜选择与导出；PORT-2a ZIP v1、Schema、二进制图片和旧 JSON 兼容；PORT-1b/PORT-2b 指定项目追加、预览、冲突检查、分批暂存和原子提交。
 - DONE in CI: AGENT-1 文档、首个任务提示词、Schema、JSON 数据示例和 ZIP 样例已整理；两份公开 ZIP 示例均经生产导入器校验、图片呈现和刷新持久化；Chromium / Firefox / WebKit 全部通过。自动化门禁覆盖 100 张真实 PNG（约 33.9 MB）完整往返、300 张真实 PNG（约 101.7 MB）Chromium 容量压力往返、导入取消/暂存清理、并发冲突与原子回滚、配额失败恢复和旧版包兼容；CI run `45755857429` 全部通过。
-- NEXT: AGENT-2 真实外部 Agent 盲测，覆盖含图片/场景的分镜包与完整项目包；之后完成 iOS Safari/PWA、Android Chrome、离线刷新和不同 origin 的实机交接。
+- NEXT: 按 [盲测记录流程](agent-blind-test.md) 完成独立外部 Agent 盲测，覆盖含图片/场景的分镜包与完整项目包；之后完成 iOS Safari/PWA、Android Chrome、离线刷新和不同 origin 的实机交接。
 - RELEASE GATES: 外部 Agent 盲测及真实移动端交接。300 张约 101.7 MB 容量压力测试已通过 Chromium CI；128 MiB 边界、真实设备配额与后台恢复仍未验证。严格脚本 CSP 在 `main` 已完成 Chrome / Firefox / Safari 验收。
 - 仅重大不可逆决策、权限或真实设备阻塞需要管理员介入。

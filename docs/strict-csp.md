@@ -1,6 +1,6 @@
 # Strict CSP migration
 
-**Current status (2026-11-26): merged into `main` via PR #2; the `security/strict-csp` branch was deleted after merge.** GitHub Actions passed all 14 checks, including Chromium, Firefox and WebKit. The maintainer also reports successful Chrome, Firefox and Safari testing and fixes from those runs. `refactor/portable-agent` now carries the CSP implementation while integrating the ZIP codec; the ZIP codec and app code must remain inside the same CSP-hashed script. Real mobile PWA upgrade and background recovery remain on the backlog.
+**Current status (2026-11-26): merged into `main` via PR #2; the `security/strict-csp` branch was deleted after merge.** GitHub Actions passed all 14 checks, including Chromium, Firefox and WebKit. The maintainer also reports successful Chrome, Firefox and Safari testing and fixes from those runs. ZIP migration was later merged via PR #3; the ZIP codec and app code remain inside the same CSP-hashed script. Real mobile PWA upgrade and background recovery remain on the backlog.
 
 The dated phase notes below are implementation history; snapshots that say “pending”, “branch only” or “do not merge” describe their date and are superseded by this status and the final acceptance section.
 

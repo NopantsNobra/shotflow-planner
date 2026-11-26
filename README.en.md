@@ -17,8 +17,8 @@ Stillmark is an AI-friendly photography planning and shoot-day workbench for ind
 **AI-friendly · Local-first · Portable by design**
 
 - Local-first: users control projects and personal images; the core workflow requires no account, network or model service.
-- Portable by design: transfer user-selected assets between devices without cloud synchronization. The `refactor/portable-agent` branch now includes strict script CSP and multi-project/arbitrary-shot ZIP export and import. Shot packages can create a project or append to an explicitly selected project; legacy JSON import remains available. ZIP entry points are still under development and have not been merged into `main`.
-- Agent-ready: external agents can use the [operation guide](docs/agent-guide.md), [shoot-plan task prompt](docs/agent-tasks/generate-shoot-plan-v1.md), schemas and ZIP examples to prepare assets for the normal import, preview and confirmation flow. External-agent blind testing and real-phone handoff remain pending on the development branch. The disabled built-in AI contract remains optional; no model API is required.
+- Portable by design: transfer user-selected assets between devices without cloud synchronization. `main` includes strict script CSP and multi-project/arbitrary-shot ZIP export and import. Shot packages can create a project or append to an explicitly selected project; legacy JSON import remains available.
+- Agent-ready: external agents can use the [operation guide](docs/agent-guide.md), [shoot-plan task prompt](docs/agent-tasks/generate-shoot-plan-v1.md), schemas and ZIP examples to prepare assets for the normal import, preview and confirmation flow. Three-engine CI and maintainer device retesting have passed; independent external-agent blind testing and real mobile/PWA handoff remain release acceptance items. The disabled built-in AI contract remains optional; no model API is required.
 
 The goal is low-friction planning, handoff and execution for humans and agents, not a larger management suite. See the [development roadmap](docs/portable-agent-roadmap.md).
 
@@ -63,7 +63,7 @@ Shot order and duration determine the schedule. Routine scheduling does not sile
 
 ### Reusable materials
 
-The moodboard contains explicitly selected images; references uploaded from the shot list do not automatically appear in a proposal. The existing favorites pack retains legacy JSON compatibility. On the development branch, project and shot handoffs use standard ZIP packages with separate binary images; a shot package can be appended to an explicitly selected project. See the [asset-pack specification](docs/asset-pack-format.md) for the format and limits. Share only authorized materials and remove confidential client information.
+The moodboard contains explicitly selected images; references uploaded from the shot list do not automatically appear in a proposal. The existing favorites pack retains legacy JSON compatibility. Project and shot handoffs use standard ZIP packages with separate binary images; a shot package can be appended to an explicitly selected project. See the [asset-pack specification](docs/asset-pack-format.md) for the format and limits. Share only authorized materials and remove confidential client information.
 
 ## Data, offline use and privacy
 
@@ -118,7 +118,7 @@ CI separately runs Chromium, Firefox and WebKit E2E, logic, performance, build a
 
 ## Scope and limitations
 
-Stillmark is not a large film production scheduler, real-time collaboration service, billing system, delivery gallery or photo editor. Scheduling uses a simple linear engine, not a complex resource optimizer. Read-only sample projects can be copied into editable projects. Strict script CSP is merged into `main`; actual mobile offline use, updates and background recovery need device testing. Per-project storage keys and remaining engineering tasks are tracked in [the backlog](docs/backlog.md). Phase 09 (live AI integration) is paused.
+Stillmark is not a large film production scheduler, real-time collaboration service, billing system, delivery gallery or photo editor. Scheduling uses a simple linear engine, not a complex resource optimizer. Read-only sample projects can be copied into editable projects. Strict script CSP and ZIP asset migration are merged into `main`; independent external-agent testing and actual mobile offline use, updates and background recovery still need acceptance. Per-project storage keys and remaining engineering tasks are tracked in [the backlog](docs/backlog.md). Phase 09 (live AI integration) is paused.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full version history.
 
