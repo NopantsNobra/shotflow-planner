@@ -6,7 +6,8 @@ import { pathToFileURL } from 'node:url';
 
 const bundle=readFileSync(new URL('../../src/vendor/zip-native-2.25.0.min.js',import.meta.url),'utf8');
 const core=readFileSync(new URL('../../src/js/02-core.js',import.meta.url),'utf8');
-const contracts=core.slice(core.indexOf('function portablePackSchema('),core.indexOf('function classifyTransferPackage('));
+const schemas=readFileSync(new URL('../../src/js/02-schemas.js',import.meta.url),'utf8');
+const contracts=schemas+'\n'+core.slice(core.indexOf('function validatePortableShape('),core.indexOf('function classifyTransferPackage('));
 const archiveWriter=readFileSync(new URL('../../src/js/04-b-archive.js',import.meta.url),'utf8');
 const externalFixture='UEsDBBQAAAAIAEGUeV1RpGy1IwAAACEAAAANAAAAbWFuaWZlc3QuanNvbqtWSssvyk0sUbJSKi7JzMnJTSzK1kssLk4t0S1ITM5WqgUAUEsDBBQAAAAAAEGUeV1Y+DV7BQAAAAUAAAAPAAAAaW1hZ2VzL3Rlc3QuYmluAAECA/9QSwECFAMUAAAACABBlHldUaRstSMAAAAhAAAADQAAAAAAAAAAAAAAgAEAAAAAbWFuaWZlc3QuanNvblBLAQIUAxQAAAAAAEGUeV1Y+DV7BQAAAAUAAAAPAAAAAAAAAAAAAACAAU4AAABpbWFnZXMvdGVzdC5iaW5QSwUGAAAAAAIAAgB4AAAAgAAAAAAA';
 
