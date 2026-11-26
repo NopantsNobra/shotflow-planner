@@ -76,12 +76,12 @@
 4. AGENT-2：用真实外部 Agent 进行盲测，优先改善失败率、权限与低摩擦操作，不建设另一套应用 UI。
 5. 依据真实使用再考虑受限本地 API、CLI/MCP 扩展；实际 provider 接入保留独立决策。ZIP 容器已经列入优先轨道，不再作为后续可选项。
 
-发布门禁：构建/部署副本一致性、旧包兼容、三引擎 E2E、CSP/file:// 与真实移动端交接。每项分步提交，避免不必要重构。此文件不承诺已经实现上述功能。
+发布门禁：构建/部署副本一致性、旧包兼容和三引擎 E2E 已通过 CI（2026-11-26）；外部 Agent 盲测及真实移动端交接仍待完成。每项分步提交，避免不必要重构。
 
 ## 6. 执行台账
 
 - DONE in branch: DOC-1 产品方向、README/overview 与路线同步；PORT-1a 多项目/任意分镜选择与导出；PORT-2a ZIP v1、Schema、二进制图片和旧 JSON 兼容；PORT-1b/PORT-2b 指定项目追加、预览、冲突检查、分批暂存和原子提交。
-- IN PROGRESS: AGENT-1 文档、Schema、JSON 数据示例和 ZIP 样例已整理；E2E 已补上两个公开 ZIP 示例经生产导入器校验、图片呈现和刷新持久化的回归，仍需在 CI 实际执行并确认部署副本与目标应用版本匹配。
+- DONE in CI: AGENT-1 文档、Schema、JSON 数据示例和 ZIP 样例已整理；两份公开 ZIP 示例均经生产导入器校验、图片呈现和刷新持久化；Chromium / Firefox / WebKit 全部通过。
 - NEXT: AGENT-2 真实外部 Agent 盲测，覆盖含图片/场景的分镜包与完整项目包；之后完成 iOS Safari/PWA、Android Chrome、离线刷新和不同 origin 的实机交接。
-- RELEASE GATES: 三引擎 E2E、容量/中断/配额与旧 JSON 回归、外部 Agent 盲测及真实移动端交接。严格脚本 CSP 已在 `main` 完成 Chrome / Firefox / Safari 验收；本地当前环境缺少 Playwright 浏览器，集成分支仍需 CI 执行三引擎回归。
+- RELEASE GATES: 自动化容量/中断/配额与旧 JSON 回归、外部 Agent 盲测及真实移动端交接。集成分支三引擎 E2E 已通过 CI；严格脚本 CSP 在 `main` 已完成 Chrome / Firefox / Safari 验收。
 - 仅重大不可逆决策、权限或真实设备阻塞需要管理员介入。
