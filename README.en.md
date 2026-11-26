@@ -8,7 +8,7 @@ Stillmark is an AI-friendly photography planning and shoot-day workbench for ind
 
 **Minimize planning overhead, maximize confidence on set, and preserve creative freedom.** Stillmark does not require exposure settings in advance, replace aesthetic judgment, or attempt to be a RAW manager, lighting simulator, editing suite or full production management system.
 
-- **v11.0.0** (current) | Review, edit, copy and reset Agent prompts; custom prompts stay in this browser.
+- **v11.0.0** (first formal release) | Review, edit, copy and reset Agent prompts; custom prompts stay in this browser.
 - Local storage, offline use and PWA installation. Project data and user-uploaded images are not automatically uploaded.
 - [Build and test status](https://github.com/NopantsNobra/shotflow-planner/actions) · MIT License
 
@@ -18,7 +18,7 @@ Stillmark is an AI-friendly photography planning and shoot-day workbench for ind
 
 - Local-first: users control projects and personal images; the core workflow requires no account, network or model service.
 - Portable by design: transfer user-selected assets between devices without cloud synchronization. `main` includes strict script CSP and multi-project/arbitrary-shot ZIP export and import. Shot packages can create a project or append to an explicitly selected project; legacy JSON import remains available.
-- Agent-ready: external agents can use the [operation guide](docs/agent-guide.md), [shoot-plan task prompt](docs/agent-tasks/generate-shoot-plan-v3.md), schemas and ZIP examples to prepare assets for the normal import, preview and confirmation flow. The Settings page exposes the complete prompt for review and editing; it never calls a model or reads project data automatically. See the [copyable independent test instructions](docs/agent-blind-test-prompt.md). Independent external-agent blind testing and real mobile/PWA handoff remain release acceptance items.
+- Agent-ready: external agents can use the [operation guide](docs/agent-guide.md), [shoot-plan task prompt](docs/agent-tasks/generate-shoot-plan-v3.md), schemas and ZIP examples to prepare assets for the normal import, preview and confirmation flow. The Settings page exposes the complete prompt for review and editing; it never calls a model or reads project data automatically. See the [copyable independent test instructions](docs/agent-blind-test-prompt.md). ZIP packages pass three-engine CI and desktop browser checks; independent-agent blind testing and real mobile/PWA handoff remain post-release validation items.
 
 The goal is low-friction planning, handoff and execution for humans and agents, not a larger management suite. See the [development roadmap](docs/portable-agent-roadmap.md).
 

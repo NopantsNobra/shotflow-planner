@@ -41,14 +41,6 @@ function safeColor(v){
   return '#c8a97e';
 }
 
-/* ===== 素材标签：常量与会话配置 ===== */
-const AI_TAGGING_ENABLED=false;                 // 编译期总开关，本期恒关闭
-const TagProviders=Object.create(null);         // 可插拔建议器注册表，默认空
-let aiConfig=(()=>{                             // 仅内存 + sessionStorage，不入库不导出
-  const def={enabled:false,endpoint:'',apiKey:'',model:'',timeoutMs:8000};
-  try{ return Object.assign(def,JSON.parse(sessionStorage.getItem('sf_ai_cfg_v1'))||{}); }
-  catch{ return def; }
-})();
 const MATERIAL_SOURCES=[
   {name:'shisei · 人像姿势参考',url:'https://github.com/wquguru/shisei',
     lic:'图片 CC0 1.0 · 代码 Apache-2.0',

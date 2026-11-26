@@ -18,20 +18,17 @@ const ctx = vm.createContext({ console, Date, Math, String, Number, Array, Objec
 /* migrateFav / collectFavorites 已复用主文件 FAV 常量（去重），vm 上下文需同步注入 */
 vm.runInContext("globalThis.FAV_KINDS=['mood','shots','schedule','scenes','items','budget','notes','todos']"
   + ";globalThis.FAV_META={mood:'情绪板',shots:'分镜',schedule:'日程',scenes:'清单',items:'清单',budget:'预算',notes:'协作',todos:'协作'};", ctx);
-/* v10.7.1：dayItems/cascadeShift 时长兑底改引 SHOT_DEFAULT_MIN（与 planDay 同源），
-   且首段用例即调用它们——排程常量必须前置注入，不能等到 v10 追加块再声明 */
+/* 排程纯函数需要与运行时代码相同的常量。 */
 vm.runInContext('const DAY_BASE="10:00",COLLECT_START="09:30",COLLECT_MIN=30,WRAP_MIN=15,SHOT_DEFAULT_MIN=10;', ctx);
 /* sanitizeProject 依赖 STATUSES 白名单与 uid（默认 id 生成器）；测试用自增桩保证 id 可断言 */
 vm.runInContext("globalThis.STATUSES=['灵感期','策划中','待拍摄','后期中','已交付','已归档'];"
   + "globalThis.__uidSeq=0;globalThis.uid=()=>'id'+(++globalThis.__uidSeq);", ctx);
-for (const n of ['addMin', 'toMin', 'fmtMin', 'dayItems', 'cascadeShift', 'tagKey', 'dedupeTags', 'parseTagsInput', 'mergeVocab', 'migrateTags', 'tagsForDisplay', 'matchByTags', 'renameTag', 'removeTag', 'shiseiItemKey', 'shiseiEntrySame', 'parseCatalog', 'diffCatalog', 'nextPendingBatch', 'mergeShiseiMeta', 'migrate']) vm.runInContext(fn(n), ctx);
-for (const n of ['workspaceModules', 'freshView', 'clearInlineEditState', 'migrateFav', 'isFav', 'favCount', 'favSummary', 'summary40', 'collectFavorites', 'backupItemCount', 'matchBoardScope', 'isActiveStatus', 'parseMultiImage', 'slugPreview', 'cloneDemo', 'demoSpecs', 'buildDemoProject']) vm.runInContext(fn(n), ctx);
+for (const n of ['addMin', 'toMin', 'fmtMin', 'dayItems', 'tagKey', 'dedupeTags', 'parseTagsInput', 'mergeVocab', 'migrateTags', 'tagsForDisplay', 'matchByTags', 'renameTag', 'removeTag', 'shiseiItemKey', 'shiseiEntrySame', 'parseCatalog', 'diffCatalog', 'nextPendingBatch', 'mergeShiseiMeta', 'migrate']) vm.runInContext(fn(n), ctx);
+for (const n of ['workspaceModules', 'freshView', 'clearInlineEditState', 'migrateFav', 'isFav', 'favSummary', 'summary40', 'collectFavorites', 'backupItemCount', 'matchBoardScope', 'isActiveStatus', 'parseMultiImage', 'slugPreview', 'cloneDemo', 'demoSpecs', 'buildDemoProject']) vm.runInContext(fn(n), ctx);
 /* v10.8.0：复制/引用共用的时间平移 + 页签→收藏类型映射 */
 vm.runInContext('const COPY_SHIFT_MIN=10;const TIME_FIELDS=["slot","start","end"];'
   + "const FAV_TYPES_BY_TAB={mood:['mood'],shots:['shots'],schedule:['schedule'],stuff:['scenes','items'],budget:['budget'],notes:['notes','todos']};", ctx);
 for (const n of ['shiftTimeFields', 'favTypesForTab']) vm.runInContext(fn(n), ctx);
-vm.runInContext(fn('suggestTags'), ctx);
-vm.runInContext('const AI_TAGGING_ENABLED=false; const TagProviders=Object.create(null);', ctx);
 vm.runInContext('globalThis.__initData = (' + fn('initData') + ')', ctx);
 
 let pass = 0, fail = 0;
@@ -56,14 +53,6 @@ check('排序正确', items.map(x => x.id).join(',') === 'a,b,c,n', items.map(x 
 check('B 被标记重叠', items.find(x => x.id === 'b')._conflict === true);
 check('C 无重叠', items.find(x => x.id === 'c')._conflict === false);
 check('节点 end 有效', items.find(x => x.id === 'n')._end === 1035);
-
-const shifted = vm.runInContext(`(() => {
-  const moved = cascadeShift(P,'2026-11-16','a',60);
-  return { moved, conflicts: dayItems(P,'2026-11-16').filter(x => x._conflict).length,
-    times: dayItems(P,'2026-11-16').map(x => x._time).join(',') };
-})()`, ctx);
-check('级联顺延后冲突归零', shifted.conflicts === 0, JSON.stringify(shifted));
-check('级联顺延移动 4 项', shifted.moved === 4, '实际 ' + shifted.moved);
 
 for (const n of ['coverData', 'cvDate', 'cvNo']) vm.runInContext(fn(n), ctx);
 const CD = vm.runInContext(`coverData({name:'光影手记',createdAt:'2026-08-15T10:00:00',shootDate:'2026-09-03',studio:'测试工作室',concept:{theme:'城市漫游',model:'小林'}})`, ctx);
@@ -103,11 +92,6 @@ const removed = vm.runInContext(`(() => {
   return {tags:p.mood[0].tags,tag:p.mood[0].tag,vocab:p.tagVocab,content:p.mood[0].content,refs:p.shots[0].refIds};
 })()`, ctx);
 check('removeTag 全局移除且不改引用', JSON.stringify(removed) === '{"tags":["中景"],"tag":"","vocab":["中景"],"content":"img1","refs":["img1"]}');
-vm.runInContext('globalThis.fetch=()=>{throw new Error("NETWORK")};globalThis.XMLHttpRequest=function(){throw new Error("NETWORK")};', ctx);
-let aiOk = false;
-try { const r = await vm.runInContext('suggestTags({})', ctx); aiOk = r.tags.length === 0 && r.source === 'ai'; } catch (e) { aiOk = false; }
-check('suggestTags 默认关闭且零网络', aiOk);
-
 // v7 shisei 图库：catalog 映射 / diff / 游标 / meta 合并
 const parsed = vm.runInContext(`parseCatalog([
   {id:'P001',class_cn:'坐姿',name_cn:'后仰坐',name_en:'Sitting',name_jp:'座り',views:{front:'std_P001_front.webp',diag:null}},
@@ -166,7 +150,6 @@ check('initData 转换 refId', captured?.[0]?.shots?.[0]?.refIds?.[0] === 'img1'
 check('initData 清理旧 localStorage key', vm.runInContext('REMOVED', ctx) === 'wb_sf_projects');
 
 // v9：fav / demo / 示例 / 收藏 / 筛选纯函数
-const v = 'wb_v9_';
 const fv = vm.runInContext('freshView({mode:"project",pid:"p1"})', ctx);
 check('v9 freshView 默认与覆盖', fv.mode === 'project' && fv.pid === 'p1' && fv.boardScope === '全部'
   && fv.allowDemoWrite === false && fv.refViewer === null && fv.focusRef === null
@@ -184,9 +167,9 @@ check('v9 migrateFav 八数组/demo 默认/true 保留且幂等', vm.runInContex
   const before=JSON.stringify(p); migrateFav(p);
   return okArrays&&p.demo===true&&p.mood[0].fav===true&&p.mood[1].fav===false&&p.v9===1&&before===JSON.stringify(p);
 })()`, ctx));
-check('v9 isFav + favCount 混合数组', vm.runInContext(`(() => {
+check('isFav 对混合数组与空值安全', vm.runInContext(`(() => {
   const list=[{fav:true},{fav:false},{fav:'true'},{},null];
-  return isFav(list[0])===true&&isFav(list[2])===false&&isFav(null)===false&&favCount(list)===1&&favCount(null)===0;
+  return isFav(list[0])===true&&isFav(list[2])===false&&isFav(null)===false;
 })()`, ctx));
 check('v9 summary40 截断与空白折叠', vm.runInContext(`(() => {
   const s=summary40('  a\\n  b   ');

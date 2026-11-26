@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-/EjUBJe9+N434llOTt2jmusPg8/3CAonmjI8j4rygDk='; script-src-attr 'none'; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net https://api.web3forms.com; worker-src 'self'; manifest-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-sxrg7k5nZr39C0aEsDGnF9LtrtJtgRPSZoGyHvcey7U='; script-src-attr 'none'; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net https://api.web3forms.com; worker-src 'self'; manifest-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>瞬刻摄影工作台 · Stillmark｜灵感·分镜·提案·实拍</title>
 <meta name="theme-color" content="#9c6b30">
@@ -715,14 +715,6 @@ function safeColor(v){
   return '#c8a97e';
 }
 
-/* ===== 素材标签：常量与会话配置 ===== */
-const AI_TAGGING_ENABLED=false;                 // 编译期总开关，本期恒关闭
-const TagProviders=Object.create(null);         // 可插拔建议器注册表，默认空
-let aiConfig=(()=>{                             // 仅内存 + sessionStorage，不入库不导出
-  const def={enabled:false,endpoint:'',apiKey:'',model:'',timeoutMs:8000};
-  try{ return Object.assign(def,JSON.parse(sessionStorage.getItem('sf_ai_cfg_v1'))||{}); }
-  catch{ return def; }
-})();
 const MATERIAL_SOURCES=[
   {name:'shisei · 人像姿势参考',url:'https://github.com/wquguru/shisei',
     lic:'图片 CC0 1.0 · 代码 Apache-2.0',
@@ -1343,10 +1335,6 @@ const FAV_TYPES_BY_TAB={mood:['mood'],shots:['shots'],schedule:['schedule'],
   stuff:['scenes','items'],budget:['budget'],notes:['notes','todos']};
 function favTypesForTab(tab){ return FAV_TYPES_BY_TAB[tab]||[]; }
 function isFav(it){ return !!(it&&it.fav===true); }
-function favCount(list){
-  if(!Array.isArray(list)) return 0;
-  return list.reduce((n,it)=>n+(isFav(it)?1:0),0);
-}
 function favSummary(type,it){
   if(!it) return '';
   if(type==='mood') return it.type==='image'?'图片':String(it.content==null?'':it.content);
@@ -3388,13 +3376,13 @@ function toggleRef(id){
   if(view.editingShotId){
     /* 更换模式：点一张即替换该下标并退出；添加模式：可连续点选最多 3 张，直到点「完成」 */
     const replacing=view.replaceIdx>=0;
-    let done=false, full=false, changed=false;
+    let full=false, changed=false;
     updateCur(p=>{
       const s=p.shots.find(x=>x.id===view.editingShotId); if(!s){ view.editingShotId=null; view.replaceIdx=-1; return; }
       s.refIds=s.refIds||[];
       if(replacing){
         if(s.refIds[view.replaceIdx]===id){ view.editingShotId=null; view.replaceIdx=-1; return; }
-        s.refIds[view.replaceIdx]=id; view.editingShotId=null; view.replaceIdx=-1; done=true; changed=true;
+        s.refIds[view.replaceIdx]=id; view.editingShotId=null; view.replaceIdx=-1; changed=true;
         return;
       }
       const i=s.refIds.indexOf(id);
@@ -4056,35 +4044,6 @@ function dayItems(p,date){
   let prevEnd=-1;
   out.forEach(it=>{ it._conflict=it._start<prevEnd; if(it._end>prevEnd) prevEnd=it._end; });
   return out;
-}
-/* 级联顺延：被点事项及其后所有事项后移，后一项不早于前一项结束
-   ⚠ v10 起 UI 不再调用本函数（拍摄日「整日顺延 1 小时」改为 sdPostpone 内 +60 后重排），
-     保留原实现仅供 tests/logic.test.mjs 抽取验证，勿删。 */
-function cascadeShift(p,date,id,delta){
-  const items=dayItems(p,date);
-  const idx=items.findIndex(x=>x.id===id); if(idx<0) return 0;
-  const base=items[idx]._start;
-  const plan=[]; let cursor=-1;
-  items.forEach(it=>{
-    const dur=it._t==='shot'?Math.max(5,+it.duration||SHOT_DEFAULT_MIN):Math.max(30,it._end-it._start);
-    if(it._start<base){ if(it._end>cursor) cursor=it._end; return; }
-    let ns=it._start+delta;
-    if(cursor>=0&&ns<cursor) ns=cursor;
-    plan.push({it,ns,dur});
-    cursor=ns+dur;
-  });
-  if(plan.some(x=>x.ns+x.dur>1440)) return -1;
-  let moved=0;
-  plan.forEach(({it,ns,dur})=>{
-    if(it._t==='shot'){
-      const s=p.shots.find(z=>z.id===it.id);
-      if(s&&s.slot){ s.slot=fmtMin(ns); moved++; }
-    } else {
-      const n=p.schedule.find(z=>z.id===it.id);
-      if(n&&n.start){ n.start=fmtMin(ns); n.end=fmtMin(ns+dur); moved++; }
-    }
-  });
-  return moved;
 }
 function timelineHtml(p,date){
   const items=dayItems(p,date);
@@ -5355,6 +5314,7 @@ function aiValidateReferences(taskId,data,context){
   return data;
 }
 function aiProjectToken(p){return p?JSON.stringify(p):null;}
+/* exported aiCandidateIsCurrent, createAiService */
 function aiCandidateIsCurrent(candidate,project){
   return !!candidate&&candidate.projectId===(project&&project.id||null)&&candidate.projectToken===aiProjectToken(project)&&!(project&&project.demo);
 }
@@ -5386,42 +5346,6 @@ function createAiService(options){
     return {taskId,projectId,projectToken,data,provider:provider.id,promptVersion:req.promptVersion};
   }
   return Object.freeze({register,prepare,run});
-}
-/* 生产服务恒关闭；未来接入必须另行实现上传确认、取消/超时及业务白名单应用。 */
-const ai=createAiService({enabled:false});
-
-/* ===== AI 打标签：兼容旧接口（本期恒关闭，零网络请求） ===== */
-function setAiConfig(k,v){
-  aiConfig[k]=v;
-  try{ sessionStorage.setItem('sf_ai_cfg_v1',JSON.stringify(aiConfig)); }catch{}
-}
-function registerTagProvider(name,provider){
-  const n=String(name==null?'':name).trim();
-  if(!n||!provider||typeof provider.suggest!=='function') return false;
-  TagProviders[n]=provider; return true;
-}
-async function suggestTags(req,cfg){
-  if(!AI_TAGGING_ENABLED) return {tags:[],source:'ai'};
-  const prov=TagProviders[(cfg&&cfg.provider)||'default'];
-  if(!prov) throw new Error('AI_TAGGING_PROVIDER_MISSING');
-  const out=await prov.suggest(req,cfg);
-  return {tags:dedupeTags(out&&out.tags),confidence:out&&out.confidence,source:'ai'};
-}
-async function requestAiTags(req,cfg){
-  try{
-    const r=await suggestTags(req,cfg);
-    return r&&Array.isArray(r.tags)?r.tags:[];
-  }catch{
-    toast('AI 打标签暂不可用，已跳过（可手动添加标签）');
-    return [];
-  }
-}
-function stashAiSuggestion(moodId,tags){
-  const list=dedupeTags(tags); if(!list.length) return;
-  updateCur(p=>{
-    const m=p.mood.find(x=>x.id===moodId); if(!m) return;
-    m.autoTags=mergeVocab(m.autoTags,list);
-  });
 }
 function applyAiSuggestion(moodId){
   const p=cur(), m=(p&&p.mood||[]).find(x=>x.id===moodId);
@@ -5544,13 +5468,10 @@ async function runShiseiSync(force){
         }):Promise.reject(new Error('CATALOG_ENTRY_MISSING'));
       }));
       let failed=0, quotaHit=false;
-      for(let i=0;i<results.length;i++){
-        const item=batch.items[i], out=results[i];
-        if(out.status==='fulfilled'&&out.value&&out.value.data){
-          // 同步只落盘；缩略图进入可见页时才读取。
-        } else {
+      for(const out of results){
+        if(out.status!=='fulfilled'||!out.value||!out.value.data){
           failed++;
-          const reason=out.reason;
+          const reason=out.status==='rejected'?out.reason:null;
           quotaHit=quotaHit||(reason&&(reason.name==='QuotaExceededError'||/quota/i.test(String(reason.message||reason.name||''))));
         }
       }

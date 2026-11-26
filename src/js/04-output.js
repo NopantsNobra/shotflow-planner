@@ -433,6 +433,7 @@ function aiValidateReferences(taskId,data,context){
   return data;
 }
 function aiProjectToken(p){return p?JSON.stringify(p):null;}
+/* exported aiCandidateIsCurrent, createAiService */
 function aiCandidateIsCurrent(candidate,project){
   return !!candidate&&candidate.projectId===(project&&project.id||null)&&candidate.projectToken===aiProjectToken(project)&&!(project&&project.demo);
 }
@@ -464,42 +465,6 @@ function createAiService(options){
     return {taskId,projectId,projectToken,data,provider:provider.id,promptVersion:req.promptVersion};
   }
   return Object.freeze({register,prepare,run});
-}
-/* 生产服务恒关闭；未来接入必须另行实现上传确认、取消/超时及业务白名单应用。 */
-const ai=createAiService({enabled:false});
-
-/* ===== AI 打标签：兼容旧接口（本期恒关闭，零网络请求） ===== */
-function setAiConfig(k,v){
-  aiConfig[k]=v;
-  try{ sessionStorage.setItem('sf_ai_cfg_v1',JSON.stringify(aiConfig)); }catch{}
-}
-function registerTagProvider(name,provider){
-  const n=String(name==null?'':name).trim();
-  if(!n||!provider||typeof provider.suggest!=='function') return false;
-  TagProviders[n]=provider; return true;
-}
-async function suggestTags(req,cfg){
-  if(!AI_TAGGING_ENABLED) return {tags:[],source:'ai'};
-  const prov=TagProviders[(cfg&&cfg.provider)||'default'];
-  if(!prov) throw new Error('AI_TAGGING_PROVIDER_MISSING');
-  const out=await prov.suggest(req,cfg);
-  return {tags:dedupeTags(out&&out.tags),confidence:out&&out.confidence,source:'ai'};
-}
-async function requestAiTags(req,cfg){
-  try{
-    const r=await suggestTags(req,cfg);
-    return r&&Array.isArray(r.tags)?r.tags:[];
-  }catch{
-    toast('AI 打标签暂不可用，已跳过（可手动添加标签）');
-    return [];
-  }
-}
-function stashAiSuggestion(moodId,tags){
-  const list=dedupeTags(tags); if(!list.length) return;
-  updateCur(p=>{
-    const m=p.mood.find(x=>x.id===moodId); if(!m) return;
-    m.autoTags=mergeVocab(m.autoTags,list);
-  });
 }
 function applyAiSuggestion(moodId){
   const p=cur(), m=(p&&p.mood||[]).find(x=>x.id===moodId);
@@ -622,13 +587,10 @@ async function runShiseiSync(force){
         }):Promise.reject(new Error('CATALOG_ENTRY_MISSING'));
       }));
       let failed=0, quotaHit=false;
-      for(let i=0;i<results.length;i++){
-        const item=batch.items[i], out=results[i];
-        if(out.status==='fulfilled'&&out.value&&out.value.data){
-          // 同步只落盘；缩略图进入可见页时才读取。
-        } else {
+      for(const out of results){
+        if(out.status!=='fulfilled'||!out.value||!out.value.data){
           failed++;
-          const reason=out.reason;
+          const reason=out.status==='rejected'?out.reason:null;
           quotaHit=quotaHit||(reason&&(reason.name==='QuotaExceededError'||/quota/i.test(String(reason.message||reason.name||''))));
         }
       }
