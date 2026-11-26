@@ -45,7 +45,12 @@ export function assembleHtml(version) {
   if (version) out = out.replace("'__APP_VERSION__'", () => JSON.stringify(String(version)));
 
   // Hash the actual classic-script bytes after all other build substitutions.
-  const hash = (value) => createHash('sha256').update(value, 'utf8').digest('base64');
+  // ⚠ 换行规范化：HTML 解析阶段会把 \r\n / \r 统一成 \n（HTML 标准预处理），浏览器对
+  // script 内容算 CSP hash 时用的是规范化后的 LF 字节。本机 Windows 上 autocrlf 会把
+  // 源文件 checkout 成 CRLF，若按磁盘原始字节算 hash，产物在本机/任何 CRLF 环境必然
+  // 不匹配 → 整个内联脚本被 CSP 阻断 → 白屏（CI 的 LF checkout 复现不了此故障）。
+  // 因此 hash 一律先归一为 LF，与浏览器行为对齐；产物文件本身的换行保持不变。
+  const hash = (value) => createHash('sha256').update(String(value).replace(/\r\n/g, '\n').replace(/\r/g, '\n'), 'utf8').digest('base64');
   const fitStart = js.indexOf('function fitCovers(){');
   const fitEnd = js.indexOf('\nfunction coverHtml(', fitStart);
   if (fitStart < 0 || fitEnd <= fitStart) throw new Error('[assemble] missing proposal script boundaries');
