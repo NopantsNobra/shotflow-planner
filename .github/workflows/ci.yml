@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master, 'refactor/**', 'release/**', 'perf/**']
+    branches: [main, master, 'refactor/**', 'release/**', 'perf/**', 'security/**']
   pull_request:
 
 jobs:
@@ -20,12 +20,19 @@ jobs:
         run: npm ci
       - name: 构建产物一致性
         run: npm run verify:build
+      - name: 部署注入安全回归
+        run: npm run test:deploy
       - name: 版本号一致性
         run: npm run verify:version
       - name: ESLint
         run: npm run lint
       - name: Prettier 格式检查
         run: npm run format:check
+      - name: 输出格式差异（仅在格式检查失败时）
+        if: failure()
+        run: |
+          npx prettier --write 'scripts/*.mjs' eslint.config.js playwright.config.js
+          git diff -- scripts eslint.config.js playwright.config.js
 
   # 纯逻辑测试：零依赖，Node 直接运行，作为最快的回归门禁
   logic:

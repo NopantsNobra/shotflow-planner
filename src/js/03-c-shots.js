@@ -25,72 +25,72 @@ async function renderShots(p){
   const galleryRows=categoryRows.slice(view.posePage*pageSize,(view.posePage+1)*pageSize);
   const editing=p.shots.find(x=>x.id===view.editingShotId);
   const selRefsBar=editing?'':selectedRefsHtml();
-  const editBar=editing?'<div class="edit-bar"><span>正在编辑「'+esc(editing.name)+'」的参考图 — '+(view.replaceIdx>=0?'点击下方图片替换第 '+(view.replaceIdx+1)+' 张，点一张即完成。':'可连续点选添加（当前 '+((editing.refIds||[]).length)+'/3 张），再点已选可取消；完成后点「完成」。')+'</span><button class="btn btn-primary btn-sm" onclick="exitShotRefEditor()">完成</button></div>':'';
+  const editBar=editing?'<div class="edit-bar"><span>正在编辑「'+esc(editing.name)+'」的参考图 — '+(view.replaceIdx>=0?'点击下方图片替换第 '+(view.replaceIdx+1)+' 张，点一张即完成。':'可连续点选添加（当前 '+((editing.refIds||[]).length)+'/3 张），再点已选可取消；完成后点「完成」。')+'</span><button class="btn btn-primary btn-sm" '+doAttrs('exit-shot-ref-editor')+'>完成</button></div>':'';
   const mineHead='<div class="ref-group-head"><span>我的素材</span><div class="chips">'
-    +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'s_img\').click()">上传图片</button>'
-    +'<input type="file" id="s_img" accept="image/*" multiple style="display:none" onchange="addShotImg(event)">'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('pick-shot-image')+'>上传图片</button>'
+    +'<input type="file" id="s_img" accept="image/*" multiple style="display:none" data-change="shot-images">'
     +'<span class="muted" style="margin-left:2px">一次最多 3 张</span></div></div>';
-  const mineHtml='<div class="ref-group">'+mineHead+'<div class="image-drop" ondragover="allowImageDrop(event)" ondrop="dropImages(event)">拖入或粘贴图片 · 自动存入参考图库</div>'
+  const mineHtml='<div class="ref-group">'+mineHead+'<div class="image-drop" data-image-drop="true">拖入或粘贴图片 · 自动存入参考图库</div>'
     +(moodImgs.length?'<div class="ref-picker">'
       +moodImgs.map(m=>
-        '<button type="button" class="ref-opt '+(selRefs.includes(m.content)?'on':'')+'" data-ref-key="'+esc(m.content)+'" aria-pressed="'+selRefs.includes(m.content)+'" aria-label="'+esc('选择参考图 '+(tagsForDisplay(m).join(' / ')||m.id))+'" title="'+esc(tagsForDisplay(m).join(' / '))+'" onclick="toggleRef('+jstr(m.content)+')"><img alt="" src="'+esc(imgCache[m.content]||'')+'">'
+        '<button type="button" class="ref-opt '+(selRefs.includes(m.content)?'on':'')+'" data-ref-key="'+esc(m.content)+'" aria-pressed="'+selRefs.includes(m.content)+'" aria-label="'+esc('选择参考图 '+(tagsForDisplay(m).join(' / ')||m.id))+'" title="'+esc(tagsForDisplay(m).join(' / '))+'" '+doAttrs('toggle-ref',[m.content])+'><img alt="" src="'+esc(imgCache[m.content]||'')+'">'
         +(tagsForDisplay(m).length?'<span class="ref-tag">'+tagsForDisplay(m).map(t=>'#'+esc(t)).join(' ')+'</span>':'')
         +(selRefs.includes(m.content)?'<span class="ord">'+(selRefs.indexOf(m.content)+1)+'</span>':'')+'</button>').join('')
       +'<span class="muted" style="align-self:center">点击选参考图（最多 3 张）</span></div>'
       :'<p class="muted" style="margin:6px 2px">'+(view.moodFilter.length?'没有素材命中所选标签，可清空筛选或直接上传。':'还没有图片素材。可直接「上传图片」，或到情绪板 / 姿势图库获取。')+'</p>')
     +'</div>';
   const galleryHead='<div class="ref-group-head"><span>姿势图库</span><div class="chips">'
-    +cats.map(c=>'<button class="chip '+(view.poseCat===c?'on':'')+'" onclick="setShiseiCat('+jstr(c)+')">'+esc(c)+'</button>').join('')
+    +cats.map(c=>'<button class="chip '+(view.poseCat===c?'on':'')+'" '+doAttrs('set-pose-cat',[c])+'>'+esc(c)+'</button>').join('')
     +(gallery.length?'<span class="muted" style="margin-left:2px">'+gallery.length+' 张</span>':'')+'</div></div>';
   const galleryHtml=!gallery.length?'<div class="ref-group">'+galleryHead+'<p class="muted" style="margin:6px 2px">图库尚未同步。到下方「素材来源」开启姿势图库同步，空闲时会自动下载到本机。</p></div>'
     :!view.poseCat?'<div class="ref-group">'+galleryHead+'<p class="muted" style="margin:6px 2px">点击上方分类查看对应姿势参考图，再点一次收起。</p></div>'
     :!galleryRows.length?'<div class="ref-group">'+galleryHead+'<p class="muted" style="margin:6px 2px">该分类暂无图片。</p></div>'
     :'<div class="ref-group">'+galleryHead+'<div class="ref-picker">'+galleryRows.map(r=>
-        '<button type="button" class="ref-opt '+(selRefs.includes(r.key)?'on':'')+'" data-ref-key="'+esc(r.key)+'" data-shisei-key="'+esc(r.key)+'" aria-pressed="'+selRefs.includes(r.key)+'" aria-label="'+esc('选择 '+r.zh+' · '+r.cat)+'" title="'+esc(r.zh+' · '+r.cat)+'" onclick="toggleRef('+jstr(r.key)+')">'
+        '<button type="button" class="ref-opt '+(selRefs.includes(r.key)?'on':'')+'" data-ref-key="'+esc(r.key)+'" data-shisei-key="'+esc(r.key)+'" aria-pressed="'+selRefs.includes(r.key)+'" aria-label="'+esc('选择 '+r.zh+' · '+r.cat)+'" title="'+esc(r.zh+' · '+r.cat)+'" '+doAttrs('toggle-ref',[r.key])+'>'
         +'<img src="'+esc(imgCache[r.key]||'')+'" alt="'+esc(r.zh)+'">'
         +'<span class="ref-tag">#'+esc(r.cat)+' · '+esc(r.zh)+'</span>'
         +(selRefs.includes(r.key)?'<span class="ord">'+(selRefs.indexOf(r.key)+1)+'</span>':'')+'</button>').join('')
       +'<span class="muted" style="align-self:center">图库引用同样最多 3 张</span></div>'
-      +(pageCount>1?'<div class="row"><button class="btn btn-ghost btn-sm" '+(view.posePage===0?'disabled':'')+' onclick="changePosePage(-1)">上一页</button><span class="muted">'+(view.posePage+1)+' / '+pageCount+' 页 · '+categoryRows.length+' 张</span><button class="btn btn-ghost btn-sm" '+(view.posePage===pageCount-1?'disabled':'')+' onclick="changePosePage(1)">下一页</button></div>':'')+'</div>';
+      +(pageCount>1?'<div class="row"><button class="btn btn-ghost btn-sm" '+(view.posePage===0?'disabled':'')+' '+doAttrs('change-pose-page',[-1])+'>上一页</button><span class="muted">'+(view.posePage+1)+' / '+pageCount+' 页 · '+categoryRows.length+' 张</span><button class="btn btn-ghost btn-sm" '+(view.posePage===pageCount-1?'disabled':'')+' '+doAttrs('change-pose-page',[1])+'>下一页</button></div>':'')+'</div>';
   document.getElementById('tabBody').innerHTML=(editBar?'<div class="card" style="padding:14px 18px">'+editBar+'</div>':'')
     +'<div class="card"><h2>分镜表 · 数据中枢</h2>'
     +'<p class="muted" style="margin-bottom:12px">每条分镜可挂 1-3 张参考图（我的素材 + 姿势图库）+ 场景 + 机位 + 光线。分镜按顺序自动排入日程，无需手填时间；拖动左侧手柄排序，拖到另一日期分组会自动改期。</p>'
     +'<div class="row" style="margin-bottom:6px">'
-    +'<input id="s_name" class="grow" placeholder="分镜内容，如：巷口逆光回眸（中景）" value="'+esc(D.name||'')+'" oninput="saveShotDraft(\'name\',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addShot();}">'
-    +'<select id="s_date" style="max-width:180px" onchange="pickShotDate(this.value)">'
+    +'<input id="s_name" class="grow" placeholder="分镜内容，如：巷口逆光回眸（中景）" value="'+esc(D.name||'')+'" data-input="shot-draft" data-field="name" '+enterAttrs('add-shot')+'>'
+    +'<select id="s_date" style="max-width:180px" data-change="shot-date">'
       +dayOpts.map(function(d){
         const gi=days.indexOf(d);
         return '<option value="'+d+'" '+(curDay===d?'selected':'')+'>'+(gi>=0?'Day '+(gi+1)+' · ':'Day – · ')+mmdd(d)+'</option>';
       }).join('')
       +'<option value="__new" '+(curDay==='__new'?'selected':'')+'>＋ 新日期…</option></select>'
-    +'<select id="s_dur" style="max-width:105px" onchange="saveShotDraft(\'duration\',this.value)">'+[10,15,20,30,45,60,90].map(d=>'<option value="'+d+'" '+((+D.duration||10)===d?'selected':'')+'>'+d+' 分钟</option>').join('')+'</select>'
-    +'<select id="s_scene" style="max-width:150px" onchange="pickShotScene(this.value)">'
+    +'<select id="s_dur" style="max-width:105px" data-change="shot-draft" data-field="duration">'+[10,15,20,30,45,60,90].map(d=>'<option value="'+d+'" '+((+D.duration||10)===d?'selected':'')+'>'+d+' 分钟</option>').join('')+'</select>'
+    +'<select id="s_scene" style="max-width:150px" data-change="shot-scene">'
       +'<option value="">'+(p.scenes.length?'— 场景 —':'还没有场景，点「＋ 新建场景」添加')+'</option>'
       +p.scenes.map(s=>'<option value="'+esc(s.id)+'" '+(D.scene===s.id?'selected':'')+'>'+esc(s.name)+'</option>').join('')
       +'<option value="__new" '+(D.scene==='__new'?'selected':'')+'>＋ 新建场景…</option></select>'
-    +'<select id="s_pos" style="max-width:108px" onchange="saveShotDraft(\'position\',this.value)"><option value="">— 机位 —</option>'+POSITION_OPTS.map(o=>'<option value="'+o+'" '+(D.position===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
-    +'<select id="s_light" style="max-width:108px" onchange="saveShotDraft(\'light\',this.value)"><option value="">— 光线 —</option>'+LIGHT_OPTS.map(o=>'<option value="'+o+'" '+(D.light===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
-    +'<input id="s_note" class="grow" placeholder="补充描述（姿势 / 构图 / 道具…）" value="'+esc(D.note||'')+'" oninput="saveShotDraft(\'note\',this.value)">'
+    +'<select id="s_pos" style="max-width:108px" data-change="shot-draft" data-field="position"><option value="">— 机位 —</option>'+POSITION_OPTS.map(o=>'<option value="'+o+'" '+(D.position===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
+    +'<select id="s_light" style="max-width:108px" data-change="shot-draft" data-field="light"><option value="">— 光线 —</option>'+LIGHT_OPTS.map(o=>'<option value="'+o+'" '+(D.light===o?'selected':'')+'>'+o+'</option>').join('')+'</select>'
+    +'<input id="s_note" class="grow" placeholder="补充描述（姿势 / 构图 / 道具…）" value="'+esc(D.note||'')+'" data-input="shot-draft" data-field="note">'
     +favPickerBtn()
-    +'<button class="btn btn-primary" onclick="addShot()">添加分镜</button></div>'
+    +'<button class="btn btn-primary" '+doAttrs('add-shot')+'>添加分镜</button></div>'
     +(curDay==='__new'
       ?'<div class="new-scene"><span class="muted">新拍摄日</span>'
         +'<input type="date" id="new_shot_date" value="'+esc(addDays(days[days.length-1]||p.shootDate||todayStr(),1))+'">'
-        +'<button class="btn btn-primary btn-sm" onclick="confirmNewShotDate()">加入并选中</button>'
-        +'<button class="btn btn-ghost btn-sm" onclick="cancelNewShotDate()">取消</button></div>'
+        +'<button class="btn btn-primary btn-sm" '+doAttrs('confirm-new-shot-date')+'>加入并选中</button>'
+        +'<button class="btn btn-ghost btn-sm" '+doAttrs('cancel-new-shot-date')+'>取消</button></div>'
       :'')
     +(D.scene==='__new'
       ?'<div class="new-scene"><span class="muted">新建场景</span>'
-        +'<input id="new_scene_name" placeholder="场景名称，如：老门东巷口" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addSceneInline();}">'
-        +'<button class="btn btn-primary btn-sm" onclick="addSceneInline()">添加并选中</button>'
-        +'<button class="btn btn-ghost btn-sm" onclick="cancelSceneInline()">取消</button></div>'
+        +'<input id="new_scene_name" placeholder="场景名称，如：老门东巷口" '+enterAttrs('add-scene-inline')+'>'
+        +'<button class="btn btn-primary btn-sm" '+doAttrs('add-scene-inline')+'>添加并选中</button>'
+        +'<button class="btn btn-ghost btn-sm" '+doAttrs('cancel-scene-inline')+'>取消</button></div>'
       :'')
     +'<div id="selectedRefsBar" aria-live="polite">'+selRefsBar+'</div>'
     +(mineHtml||galleryHtml?'':'<p class="muted" style="margin-bottom:10px">还没有任何参考图来源。上传图片、到情绪板添加，或在下方「素材来源」开启姿势图库同步。</p>')
     +mineHtml+galleryHtml
-    +'<div class="row" style="margin-bottom:12px"><input id="s_filter" class="grow" placeholder="搜索分镜 / 场景 / 备注…" value="'+esc(view.shotFilter)+'" oninput="setShotFilter(this.value)">'
-      +'<button class="btn btn-ghost btn-sm" onclick="toggleBatchMode()">'+(view.batchMode?'退出批量':'批量编辑')+'</button>'
-      +'<button class="btn btn-ghost btn-sm" id="reschedAllBtn" title="对所有拍摄日统一重排一次（复制 / 调整完成后点此）" onclick="rescheduleAllDays()">↻ 重新排程</button></div>'
+    +'<div class="row" style="margin-bottom:12px"><input id="s_filter" class="grow" placeholder="搜索分镜 / 场景 / 备注…" value="'+esc(view.shotFilter)+'" data-input="shot-filter">'
+      +'<button class="btn btn-ghost btn-sm" '+doAttrs('toggle-batch-mode')+'>'+(view.batchMode?'退出批量':'批量编辑')+'</button>'
+      +'<button class="btn btn-ghost btn-sm" id="reschedAllBtn" title="对所有拍摄日统一重排一次（复制 / 调整完成后点此）" '+doAttrs('reschedule-all-days')+'>↻ 重新排程</button></div>'
     +(view.batchMode?batchShotControls(p):'')
     +'<div id="shotListWrap">'+shotListHtml(p,days)+'</div></div>';
   // 仅加载当前页，避免一次性启动整个分类的 IDB 读取。
@@ -128,11 +128,11 @@ function restoreFocus(snap){
 function toggleBatchMode(){view.batchMode=!view.batchMode;view.batchShots=[];renderShots(cur());}
 function batchShotControls(p){
   return '<div class="batch-bar"><span id="batchCount">已选 '+view.batchShots.length+' 条</span>'
-    +'<button class="btn btn-ghost btn-sm" onclick="selectVisibleShots()">全选当前列表</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('select-visible-shots')+'>全选当前列表</button>'
     +'<select id="batchDate"><option value="">日期不变</option>'+shootDatesOf(p).map(d=>'<option value="'+esc(d)+'">'+esc(d)+'</option>').join('')+'</select>'
     +'<select id="batchDuration"><option value="">时长不变</option>'+[10,15,20,30,45,60,90].map(n=>'<option value="'+n+'">'+n+' 分钟</option>').join('')+'</select>'
     +'<select id="batchScene"><option value="">场景不变</option><option value="__none">清除场景</option>'+(p.scenes||[]).map(s=>'<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>').join('')+'</select>'
-    +'<button class="btn btn-primary btn-sm" onclick="applyBatchShots()">应用</button></div>';
+    +'<button class="btn btn-primary btn-sm" '+doAttrs('apply-batch-shots')+'>应用</button></div>';
 }
 function toggleBatchShot(id,checked){
   view.batchShots=checked?Array.from(new Set(view.batchShots.concat(id))):view.batchShots.filter(x=>x!==id);
@@ -186,16 +186,16 @@ function shotListHtml(p,days){
           +'（'+g.items.length+' 条 · 合计 '+mins+' 分钟）';
         return '<div class="day-group"><div class="day-head">'+esc(ghead)+'</div>'+g.items.map(function(s){
         const scene=sceneMap.get(s.sceneId);
-        const sid=esc(s.id), jsid=jstr(s.id);
+        const sid=esc(s.id), encodedId=jstr(s.id), id0=' data-a0="'+encodedId+'"', id1=' data-a1="'+encodedId+'"';
         const clash=!!conflictMap[s.id];
         const refs=s.refIds||[];
         const refHtml=refs.length? refs.map((r,ri)=>{
             const img=imgCache[r];
             const inner=img?'<img src="'+esc(img)+'">':'<div class="noref">图库原图已更新</div>';
-            return '<div class="ref-thumb'+(img?'':' ghost')+'"><button class="ref-open" aria-label="查看参考图 '+(ri+1)+'" title="点击查看大图" onclick="openRefViewer('+jsid+','+ri+')">'+inner+'</button>'
-              +'<button class="ref-del" aria-label="移除参考图 '+(ri+1)+'" title="从本分镜移除该参考图" onclick="removeShotRef('+jsid+','+ri+')">×</button></div>';
+            return '<div class="ref-thumb'+(img?'':' ghost')+'"><button class="ref-open" aria-label="查看参考图 '+(ri+1)+'" title="点击查看大图" data-do="open-ref-viewer"'+id0+' data-a1="'+ri+'">'+inner+'</button>'
+              +'<button class="ref-del" aria-label="移除参考图 '+(ri+1)+'" title="从本分镜移除该参考图" data-do="remove-shot-ref"'+id0+' data-a1="'+ri+'">×</button></div>';
           }).join('')
-          :'<button class="noref-add" onclick="openShotRefEditor('+jsid+')">+ 添加参考图</button>';
+          :'<button class="noref-add" data-do="open-shot-ref-editor"'+id0+'>+ 添加参考图</button>';
         const editingThis=view.editingShotEditId===s.id;    // v10：行内编辑文字（与参考图选图态 editingShotId 正交）
         const meta=[s.date||'未定','约 '+(+s.duration||10)+' 分钟',
           scene?scene.name:'',s.position||'',s.light||'',s.note||''].filter(Boolean).join(' · ');
@@ -204,18 +204,18 @@ function shotListHtml(p,days){
           :'<div class="grow" style="min-width:150px"><div class="'+(s.done?'done-text':'')+'" style="font-weight:600">'+esc(s.name)+(s.mustShoot?' <span class="tag blue">必拍</span>':'')+(clash?' <span class="tag red">时间重叠</span>':'')+'</div>'
             +'<div class="muted" style="font-size:12px;margin-top:2px">'+esc(meta)+'</div></div>';
         return '<div class="shot '+(s.done?'done':'')+(editingThis?' editing':'')+'" data-id="'+sid+'" data-fid="'+sid+'">'
-          +(view.batchMode?'<input class="batch-check" type="checkbox" aria-label="选择分镜" '+(selected.has(s.id)?'checked':'')+' onchange="toggleBatchShot('+jsid+',this.checked)">':'')
+          +(view.batchMode?'<input class="batch-check" type="checkbox" aria-label="选择分镜" '+(selected.has(s.id)?'checked':'')+' data-change="batch-shot" data-shot-id="'+sid+'">':'')
           +'<span class="drag-handle" title="拖拽排序"><svg width="12" height="18" viewBox="0 0 12 18" fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></svg></span>'
-          +'<button class="chk '+(s.done?'on':'')+'" aria-label="完成分镜" aria-pressed="'+!!s.done+'" onclick="toggleShot('+jsid+')">'+(s.done?'✓':'')+'</button>'
+          +'<button class="chk '+(s.done?'on':'')+'" aria-label="完成分镜" aria-pressed="'+!!s.done+'" data-do="toggle-shot"'+id0+'>'+(s.done?'✓':'')+'</button>'
           +'<div class="refs">'+refHtml+'</div>'
           +body
-          +'<button class="rowbtn'+(isFav(s)?' on':'')+'" title="收藏/取消收藏" onclick="toggleFav(\'shots\','+jsid+')">'+(isFav(s)?'★':'☆')+'</button>'
-          +'<button class="rowbtn" title="复制分镜（时间顺延 '+COPY_SHIFT_MIN+' 分钟）" onclick="copyShot('+jsid+')">⧉复制</button>'
-          +'<button class="rowbtn" title="标记必拍" onclick="toggleMustShoot('+jsid+')">'+(s.mustShoot?'取消必拍':'必拍')+'</button>'
-          +'<button class="rowbtn" title="上移分镜" aria-label="上移分镜" onclick="moveShotBy('+jsid+',-1)">↑</button>'
-          +'<button class="rowbtn" title="下移分镜" aria-label="下移分镜" onclick="moveShotBy('+jsid+',1)">↓</button>'
-          +editBtn('Shot',s.id)
-          +'<button class="iconbtn" title="删除分镜" onclick="delShot('+jsid+')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
+          +'<button class="rowbtn'+(isFav(s)?' on':'')+'" title="收藏/取消收藏" data-do="toggle-fav" data-a0="&quot;shots&quot;"'+id1+'>'+(isFav(s)?'★':'☆')+'</button>'
+          +'<button class="rowbtn" title="复制分镜（时间顺延 '+COPY_SHIFT_MIN+' 分钟）" data-do="copy-shot"'+id0+'>⧉复制</button>'
+          +'<button class="rowbtn" title="标记必拍" data-do="toggle-must-shoot"'+id0+'>'+(s.mustShoot?'取消必拍':'必拍')+'</button>'
+          +'<button class="rowbtn" title="上移分镜" aria-label="上移分镜" data-do="move-shot-by"'+id0+' data-a1="-1">↑</button>'
+          +'<button class="rowbtn" title="下移分镜" aria-label="下移分镜" data-do="move-shot-by"'+id0+' data-a1="1">↓</button>'
+          +'<button class="rowbtn" title="编辑" data-do="begin-inline-edit" data-a0="&quot;Shot&quot;"'+id1+' data-a2="&quot;&quot;">✎编辑</button>'
+          +'<button class="iconbtn" title="删除分镜" data-do="del-shot"'+id0+'><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
         }).join('')+'</div>'; }).join('')+'</div>' : '<p class="muted">'+(kw?'没有匹配的分镜。':'还没有分镜。添加第一条，把素材挂上来。')+'</p>');
 }
 /* v10.8.0：复制分镜——完整复制原分镜（含参考图 / 场景 / 时长 / 机位 / 光线 / 备注），
@@ -294,8 +294,8 @@ async function loadVisiblePoseImages(keys,pid,cat,page){
 }
 function selectedRefsHtml(){
   return selRefs.length?'<div class="selrefs"><span class="muted">已选参考图（'+selRefs.length+'/3）</span>'
-    +selRefs.map((key,i)=>'<span class="sr"><img src="'+esc(imgCache[key]||'')+'" alt="参考图 '+(i+1)+'"><i>'+(i+1)+'</i><button aria-label="取消参考图 '+(i+1)+'" onclick="removeSelRef('+i+')">×</button></span>').join('')
-    +'<button class="btn btn-ghost btn-sm" onclick="clearSelRefs()">清空选择</button></div>':'';
+    +selRefs.map((key,i)=>'<span class="sr"><img src="'+esc(imgCache[key]||'')+'" alt="参考图 '+(i+1)+'"><i>'+(i+1)+'</i><button aria-label="取消参考图 '+(i+1)+'" '+doAttrs('remove-sel-ref',[i])+'>×</button></span>').join('')
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('clear-sel-refs')+'>清空选择</button></div>':'';
 }
 function refreshSelectedRefs(){
   const bar=document.getElementById('selectedRefsBar');if(!bar)return;
@@ -357,8 +357,8 @@ function shotEditPanel(s,p){
     +'</div>'
     +'<div class="se-fld"><label>备注</label><input id="esh_note" value="'+esc(s.note||'')+'" placeholder="姿势 / 构图 / 道具 / 注意事项…"></div>'
     +'<div class="se-actions">'
-    +'<button class="btn btn-ghost btn-sm" onclick="cancelShotEdit()">取消</button>'
-    +'<button class="btn btn-primary btn-sm" onclick="saveShotEdit('+jstr(s.id)+')">保存修改</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('cancel-shot-edit')+'>取消</button>'
+    +'<button class="btn btn-primary btn-sm" '+doAttrs('save-shot-edit',[s.id])+'>保存修改</button>'
     +'</div></div>';
 }
 function saveShotEdit(id){
@@ -433,11 +433,11 @@ function openRefViewer(shotId,ri){
     +(img?'<img class="rv-img" src="'+esc(img)+'" alt="参考图大图">'
          :'<div class="rv-placeholder">'+(isSh?'图库原图已更新，可「更换」为其它参考图或移除。':'原图缺失，可「更换」或移除。')+'</div>')
     +'<div class="row" style="justify-content:center;margin-top:16px">'
-    +'<button class="btn btn-ghost btn-sm" onclick="refNav(-1)">‹ 上一张</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="refNav(1)">下一张 ›</button>'
-    +(!document.getElementById('sdOverlay')?.classList.contains('show')?'<button class="btn btn-ghost btn-sm" onclick="closeRefViewer();openShotRefEditor('+jstr(shotId)+');view.replaceIdx='+idx+'">更换这张</button>'
-    +'<button class="btn btn-danger btn-sm" onclick="removeShotRef('+jstr(shotId)+','+idx+')">从分镜移除</button>':'')
-    +'<button class="btn btn-ghost btn-sm" onclick="closeRefViewer()">关闭</button></div>';
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('ref-nav',[-1])+'>‹ 上一张</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('ref-nav',[1])+'>下一张 ›</button>'
+    +(!document.getElementById('sdOverlay')?.classList.contains('show')?'<button class="btn btn-ghost btn-sm" '+doAttrs('replace-shot-ref',[shotId,idx])+'>更换这张</button>'
+    +'<button class="btn btn-danger btn-sm" '+doAttrs('remove-shot-ref',[shotId,idx])+'>从分镜移除</button>':'')
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('close-ref-viewer')+'>关闭</button></div>';
   document.getElementById('refViewer').classList.add('show');
   if(!img){const token=view.refViewer;const load=isSh?ensureShiseiImage(r):idb.get(r);Promise.resolve(load).then(data=>{if(data&&view.refViewer===token&&cur()?.id===p.id){imgCache[r]=data;openRefViewer(shotId,idx);}}).catch(()=>{});}
 }

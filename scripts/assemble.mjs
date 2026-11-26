@@ -7,6 +7,7 @@
    与 <!--__STYLES__--> / <!--__JS__--> 同一替换层（src → 产物阶段），verify-build 用同一函数
    计算期望产物，天然一致。 */
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -43,5 +44,32 @@ export function assembleHtml(version) {
   // 版本注入：仅替换含引号的完整字面量，函数形式避免 $ 特殊模式
   if (version) out = out.replace("'__APP_VERSION__'", () => JSON.stringify(String(version)));
 
-  return out;
+  // Hash the actual classic-script bytes after all other build substitutions.
+  // ⚠ 换行规范化：HTML 解析阶段会把 \r\n / \r 统一成 \n（HTML 标准预处理），浏览器对
+  // script 内容算 CSP hash 时用的是规范化后的 LF 字节。本机 Windows 上 autocrlf 会把
+  // 源文件 checkout 成 CRLF，若按磁盘原始字节算 hash，产物在本机/任何 CRLF 环境必然
+  // 不匹配 → 整个内联脚本被 CSP 阻断 → 白屏（CI 的 LF checkout 复现不了此故障）。
+  // 因此 hash 一律先归一为 LF，与浏览器行为对齐；产物文件本身的换行保持不变。
+  const hash = (value) =>
+    createHash('sha256').update(String(value).replace(/\r\n/g, '\n').replace(/\r/g, '\n'), 'utf8').digest('base64');
+  const fitStart = js.indexOf('function fitCovers(){');
+  const fitEnd = js.indexOf('\nfunction coverHtml(', fitStart);
+  if (fitStart < 0 || fitEnd <= fitStart) throw new Error('[assemble] missing proposal script boundaries');
+  const fit = js.slice(fitStart, fitEnd).trimEnd();
+  const proposal = fit + '\nwindow.addEventListener("resize",fitCovers);fitCovers();';
+  if (out.split("'__PROPOSAL_SCRIPT_HASH__'").length !== 2)
+    throw new Error('[assemble] expected exactly one proposal script hash placeholder');
+  out = out.replace("'__PROPOSAL_SCRIPT_HASH__'", () => JSON.stringify(hash(proposal)));
+  const match = out.match(/<script>([\s\S]*?)<\/script>/);
+  if (!match || out.split('__APP_SCRIPT_HASH__').length !== 2)
+    throw new Error('[assemble] missing CSP script or ambiguous placeholder');
+
+  // Check quoted attributes and unquoted attributes in literal HTML tags.
+  // Runtime DOM assignments such as request.onsuccess are not HTML attributes.
+  const templateSource = shell + js;
+  const quotedHandler = /\s(?:on[a-z]+)\s*=\s*["']/i;
+  const unquotedHandler = /<[a-z][^<>]*\son[a-z]+\s*=\s*[^\s"'`=<>]+(?=[\s/>])/i;
+  if (quotedHandler.test(templateSource) || unquotedHandler.test(templateSource))
+    throw new Error('[assemble] inline HTML event attribute is forbidden');
+  return out.replace('__APP_SCRIPT_HASH__', () => hash(match[1]));
 }
