@@ -116,7 +116,7 @@ CI separately runs Chromium, Firefox and WebKit E2E, logic, performance, build a
 
 ## Scope and limitations
 
-Stillmark is not a large film production scheduler, real-time collaboration service, billing system, delivery gallery or photo editor. Scheduling uses a simple linear engine, not a complex resource optimizer. Read-only sample projects can be copied into editable projects. Actual mobile offline use, updates and background recovery need device testing. Stricter CSP, per-project storage keys and remaining engineering tasks are tracked in [the backlog](docs/backlog.md). Phase 09 (live AI integration) is paused.
+Stillmark is not a large film production scheduler, real-time collaboration service, billing system, delivery gallery or photo editor. Scheduling uses a simple linear engine, not a complex resource optimizer. Read-only sample projects can be copied into editable projects. Strict script CSP is enabled; inline styles remain a separate exception. Actual mobile offline use, updates, background recovery, per-project storage keys and remaining engineering tasks are tracked in [the backlog](docs/backlog.md). Phase 09 (live AI integration) is paused.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full version history.
 
