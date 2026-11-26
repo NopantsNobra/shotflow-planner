@@ -18,7 +18,7 @@ Stillmark 是一款 AI 友好的个人摄影策划与现场执行工作台：从
 
 - 本地优先：项目及个人图片由用户控制，核心工作流无需联网、账户或模型服务。
 - 原生可迁移：以用户主动传输的资产包连接桌面、平板与手机，不依赖云同步。`main` 已包含严格脚本 CSP 与多项目、任意分镜 ZIP 导出/导入；分镜包可新建项目或追加至明确选择的项目，并兼容旧 JSON。
-- 面向 Agent 开放：外部 Agent 可按[操作指南](docs/agent-guide.md)、[策划生成任务提示词](docs/agent-tasks/generate-shoot-plan-v1.md)、Schema 与 ZIP 示例生成资产，再经正常导入、预览和确认。ZIP 的 CI 三引擎回归与维护者实机复测已通过；独立外部 Agent 盲测及真实手机/PWA 交接仍是发布验收项。默认关闭的内置 AI 接口不要求配置模型 API。
+- 面向 Agent 开放：外部 Agent 可按[操作指南](docs/agent-guide.md)、[策划生成任务提示词](docs/agent-tasks/generate-shoot-plan-v2.md)、Schema 与 ZIP 示例生成资产，再经正常导入、预览和确认。ZIP 的 CI 三引擎回归与维护者实机复测已通过；独立外部 Agent 盲测及真实手机/PWA 交接仍是发布验收项。默认关闭的内置 AI 接口不要求配置模型 API。
 
 目标不是增加更多摄影管理功能，而是让人类和 Agent 都能以低摩擦方式组织、交接与执行摄影方案。详细范围及验收见 [开发路线](docs/portable-agent-roadmap.md)。
 

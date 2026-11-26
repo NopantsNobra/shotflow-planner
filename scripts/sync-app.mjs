@@ -19,6 +19,7 @@ const FILES = [
   'docs/agent-guide.md',
   'docs/agent-blind-test.md',
   'docs/agent-tasks/generate-shoot-plan-v1.md',
+  'docs/agent-tasks/generate-shoot-plan-v2.md',
   'docs/asset-pack-format.md',
   'schemas/project-pack-v1.schema.json',
   'schemas/asset-archive-manifest-v1.schema.json',

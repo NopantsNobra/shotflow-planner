@@ -18,7 +18,7 @@ Stillmark is an AI-friendly photography planning and shoot-day workbench for ind
 
 - Local-first: users control projects and personal images; the core workflow requires no account, network or model service.
 - Portable by design: transfer user-selected assets between devices without cloud synchronization. `main` includes strict script CSP and multi-project/arbitrary-shot ZIP export and import. Shot packages can create a project or append to an explicitly selected project; legacy JSON import remains available.
-- Agent-ready: external agents can use the [operation guide](docs/agent-guide.md), [shoot-plan task prompt](docs/agent-tasks/generate-shoot-plan-v1.md), schemas and ZIP examples to prepare assets for the normal import, preview and confirmation flow. Three-engine CI and maintainer device retesting have passed; independent external-agent blind testing and real mobile/PWA handoff remain release acceptance items. The disabled built-in AI contract remains optional; no model API is required.
+- Agent-ready: external agents can use the [operation guide](docs/agent-guide.md), [shoot-plan task prompt](docs/agent-tasks/generate-shoot-plan-v2.md), schemas and ZIP examples to prepare assets for the normal import, preview and confirmation flow. Three-engine CI and maintainer device retesting have passed; independent external-agent blind testing and real mobile/PWA handoff remain release acceptance items. The disabled built-in AI contract remains optional; no model API is required.
 
 The goal is low-friction planning, handoff and execution for humans and agents, not a larger management suite. See the [development roadmap](docs/portable-agent-roadmap.md).
 

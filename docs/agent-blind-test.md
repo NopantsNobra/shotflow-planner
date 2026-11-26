@@ -9,7 +9,7 @@
 只向 Agent 提供以下材料，不提供仓库、源码、开发者工具、IndexedDB 内容或私有实现：
 
 - [外部 Agent 操作指南](agent-guide.md)
-- [摄影策划生成任务 v1](agent-tasks/generate-shoot-plan-v1.md)
+- [摄影策划生成任务 v2](agent-tasks/generate-shoot-plan-v2.md)
 - [ZIP v1 规范](asset-pack-format.md)
 - [数据 Schema](../schemas/asset-archive-data-v1.schema.json) 与 [清单 Schema](../schemas/asset-archive-manifest-v1.schema.json)
 - [分镜数据示例](../examples/agent-shot-data-v1.json)、[完整项目数据示例](../examples/agent-project-data-v1.json)和两份公开 ZIP 示例

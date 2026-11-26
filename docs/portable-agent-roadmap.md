@@ -23,7 +23,7 @@
 
 公开 JSON Schema 是 `src/js/02-schemas.js` 中版本化交换契约的生成产物；内部 Project 模型与交换格式不是同一个 schema。`npm run schemas:export` 生成公开文件，CI 的 `npm run schemas:check` 检查是否漂移。当前 ZIP v1 导入路径先做结构与语义校验，再经 `sanitizeProject()` / `migrate()` 转入当前内部模型；版本分派尚未抽成独立适配器。遇到不兼容交换格式时应增加明确的版本适配，避免把内部存储字段逐一暴露为永久外部契约。
 
-首个可直接交给外部 Agent 的任务模板为 [摄影策划生成 v1](agent-tasks/generate-shoot-plan-v1.md)。它先把任务目标、用户授权输入、输出契约、事实边界与交付验证写成可复用指引；真实 Agent 盲测通过后再扩展到参考图分析、标签建议等任务。
+首个可直接交给外部 Agent 的任务模板为 [摄影策划生成 v2](agent-tasks/generate-shoot-plan-v2.md)，v1 保留为历史版本。它把任务目标、用户授权输入、输出契约、事实与假设边界、安全注意事项及交付验证写成可复用指引；严格盲测通过后再扩展到参考图分析、标签建议等任务。
 
 严格 CSP 与 ZIP 功能均已合入 `main`，并继续受哈希构建、委托事件与部署注入门禁约束。下一阶段是独立外部 Agent 盲测，再做 iOS/Android 真机交接；128 MiB 边界、真实设备配额与后台恢复仍未验收。继续在原项目 schema 与存储基础上渐进开发，不重建资产数据库或替换全量 schema。
 
@@ -88,6 +88,7 @@
 
 - DONE in PR #3: DOC-1 产品方向、README/overview 与路线同步；PORT-1a 多项目/任意分镜选择与导出；PORT-2a ZIP v1、Schema、二进制图片和旧 JSON 兼容；PORT-1b/PORT-2b 指定项目追加、预览、冲突检查、分批暂存和原子提交。
 - DONE in CI: AGENT-1 文档、首个任务提示词、Schema、JSON 数据示例和 ZIP 样例已整理；两份公开 ZIP 示例均经生产导入器校验、图片呈现和刷新持久化；Chromium / Firefox / WebKit 全部通过。自动化门禁覆盖 100 张真实 PNG（约 33.9 MB）完整往返、300 张真实 PNG（约 101.7 MB）Chromium 容量压力往返、导入取消/暂存清理、并发冲突与原子回滚、配额失败恢复和旧版包兼容；CI run `45755857429` 全部通过。
-- NEXT: 按 [盲测记录流程](agent-blind-test.md) 完成独立外部 Agent 盲测，覆盖含图片/场景的分镜包与完整项目包；之后完成 iOS Safari/PWA、Android Chrome、离线刷新和不同 origin 的实机交接。
+- REHEARSAL DONE (2026-11-26): WorkBuddy 基于用户授权的参考图与“模仿拍摄”需求，交付含图片/场景的三分镜包和完整项目包；用户提供的记录称两包经生产导入器、刷新、图片呈现和场景/日程检查通过。当前工作区对两包独立复核了 JSON Schema、清单/数据/图片摘要、图片签名及引用闭包，均通过。由于 Agent 同时获得了源码，本次明确只记为流程演练，不满足盲测隔离条件；原包含第三方平台截图，不纳入仓库示例。内容复核另发现用途/受众应显式标为创作假设，激光等安全敏感效果应默认提供安全模拟方案；已补入首个任务契约。
+- NEXT: 按 [盲测记录流程](agent-blind-test.md) 在不提供源码的独立会话中重复测试，材料限于公开指南、任务说明、Schema、示例、用户需求与授权参考图；重点确认假设标注和安全替代方案。通过后再完成 iOS Safari/PWA、Android Chrome、离线刷新和不同 origin 的实机交接。
 - RELEASE GATES: 外部 Agent 盲测及真实移动端交接。300 张约 101.7 MB 容量压力测试已通过 Chromium CI；128 MiB 边界、真实设备配额与后台恢复仍未验证。严格脚本 CSP 在 `main` 已完成 Chrome / Firefox / Safari 验收。
 - 仅重大不可逆决策、权限或真实设备阻塞需要管理员介入。
