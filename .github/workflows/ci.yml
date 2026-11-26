@@ -100,3 +100,23 @@ jobs:
           name: playwright-trace-${{ matrix.browser }}
           path: test-results/
           retention-days: 7
+
+  # ZIP 容量压力：300 张真实 PNG 约 90 MiB，单独使用 Chromium runner，避免挤占三引擎回归资源。
+  zip-capacity-stress:
+    name: ZIP 容量压力 · 300 张 PNG
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: 安装依赖
+        run: npm ci
+      - name: 安装 Chromium 及系统依赖
+        run: npx playwright install --with-deps chromium
+      - name: 运行 300 张真实图片往返
+        run: npx playwright test tests/e2e/zip-capacity.spec.js --project=chromium
+        env:
+          ZIP_SCALE_COUNT: 300
+          E2E_BROWSERS: chromium
