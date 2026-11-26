@@ -1045,7 +1045,7 @@ test('公开 Agent ZIP 示例经生产导入器校验图片并刷新持久化',a
   await expect(page.locator('#confirmModal')).toHaveClass(/show/);
   await expect(page.locator('#confirmDesc')).toContainText('城市漫步人像');
   await page.locator('#confirmOk').click();
-  await expect(page.locator('.toast')).toContainText('导入成功');
+  await expect(page.locator('.pcard',{hasText:'城市漫步人像'})).toBeVisible();
   await page.reload();
   await expect(page.locator('.pcard',{hasText:'窗边人像策划'})).toBeVisible();
   await expect(page.locator('.pcard',{hasText:'城市漫步人像'})).toBeVisible();
