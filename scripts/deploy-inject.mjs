@@ -14,14 +14,17 @@ if (!SC) {
   console.error('[deploy-inject] 用法: node scripts/deploy-inject.mjs <sharecode>');
   process.exit(1);
 }
-const q = '?sharecode=' + SC;
+// The value lands in HTML attributes, JSON strings and a JavaScript string.
+// Encode it as a URL component, including encodeURIComponent's five exceptions.
+const encodedSC = encodeURIComponent(SC).replace(/[!'()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+const q = '?sharecode=' + encodedSC;
 const file = 'shotflow-app/shotflow.html';
 
 let s = fs.readFileSync(file, 'utf8');
 const pairs = [
   ['href="shotflow-manifest.json"', 'href="shotflow-manifest.json' + q + '"'],
   ['href="icon-192.png"', 'href="icon-192.png' + q + '"'],
-  ["register('shotflow-sw.js')", "register('shotflow-sw.js" + q + "')"],
+  ["register('shotflow-sw.js')", "register('shotflow-sw.js" + q + "')"]
 ];
 for (const [a, b] of pairs) {
   if (!s.includes(a)) throw new Error('[deploy-inject] 缺少注入锚点: ' + a);
@@ -37,34 +40,38 @@ const before = (s.match(/script-src 'sha256-([A-Za-z0-9+/=]+)'/) || [])[1];
 if (!before) throw new Error('[deploy-inject] 未找到 CSP script-src hash');
 s = s.replace(
   /(Content-Security-Policy" content="[^"]*script-src 'sha256-)[A-Za-z0-9+/=]+(')/,
-  (whole, p1, p2) => p1 + h + p2,
+  (whole, p1, p2) => p1 + h + p2
 );
-fs.writeFileSync(file, s);
-
 // manifest / SW 的静态资源注入
 const man = 'shotflow-app/shotflow-manifest.json';
 let m1 = fs.readFileSync(man, 'utf8');
 for (const [a, b] of [
   ['"start_url": "./shotflow.html"', '"start_url": "./shotflow.html' + q + '"'],
   ['"src": "icon-192.png"', '"src": "icon-192.png' + q + '"'],
-  ['"src": "icon-512.png"', '"src": "icon-512.png' + q + '"'],
+  ['"src": "icon-512.png"', '"src": "icon-512.png' + q + '"']
 ]) {
   if (!m1.includes(a)) throw new Error('[deploy-inject] manifest 缺少锚点: ' + a);
   m1 = m1.split(a).join(b);
 }
-fs.writeFileSync(man, m1);
-
 const sw = 'shotflow-app/shotflow-sw.js';
 let s1 = fs.readFileSync(sw, 'utf8');
 for (const [a, b] of [
   ["'./shotflow.html'", "'./shotflow.html" + q + "'"],
   ["'./shotflow-manifest.json'", "'./shotflow-manifest.json" + q + "'"],
   ["'./icon-192.png'", "'./icon-192.png" + q + "'"],
-  ["'./icon-512.png'", "'./icon-512.png" + q + "'"],
+  ["'./icon-512.png'", "'./icon-512.png" + q + "'"]
 ]) {
   if (!s1.includes(a)) throw new Error('[deploy-inject] sw 缺少锚点: ' + a);
   s1 = s1.split(a).join(b);
 }
+
+// Validate all transformed outputs before writing any of them.
+JSON.parse(m1);
+if (!s.includes("script-src 'sha256-" + h + "'") || !s1.includes(q))
+  throw new Error('[deploy-inject] 注入结果校验失败');
+
+fs.writeFileSync(file, s);
+fs.writeFileSync(man, m1);
 fs.writeFileSync(sw, s1);
 
 console.log('[deploy-inject] 注入完成；主脚本 CSP hash:', before, '→', h);
