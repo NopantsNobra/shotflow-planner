@@ -96,6 +96,9 @@ async function exportArchiveProjects(entries,scope,direct=false){
     if(op)finishArchiveOperation(op);
   }
 }
+function archiveTargetLabel(p){
+  return (p.name||'未命名项目')+(p.client?' · 客户 '+p.client:'')+(p.shootDate?' · '+p.shootDate:'')+' · ID '+String(p.id||'').slice(0,8);
+}
 async function previewArchiveImport(file){
   let op=null,opened=null;
   try{
@@ -107,8 +110,11 @@ async function previewArchiveImport(file){
     const s=opened.stats,session=opened,controller=op.controller;
     finishArchiveOperation(op);op=null;opened=null;
     const summary=s.shots+' 条分镜、'+s.images+' 个图片引用（'+s.uniqueImages+' 张唯一图片），'+(s.archiveBytes/1048576).toFixed(2)+' MiB。确认后校验全部图片并写入。';
+    const privacy=session.data.kind==='projects'
+      ?'完整项目可能包含客户、拍摄地点、日程、预算、备注和执行状态；确认前请核对是否为授权内容。'
+      :'分镜包只包含所选分镜及依赖；追加到现有项目时，不会覆盖其他项目资料或日程。';
     const cancel=()=>{controller.abort();session.close().catch(()=>{});};
-    askConfirm('导入 ZIP 资产包？','将新增 '+s.projects+' 个策划案：'+names+'；'+summary+' 保留现有数据与收藏。',()=>{
+    askConfirm('导入 ZIP 资产包？','将新增 '+s.projects+' 个策划案：'+names+'；'+summary+' 保留现有数据与收藏。'+privacy,()=>{
       const target=document.getElementById('archiveImportTarget').value;
       applyArchiveImport(session,controller,target);
     },cancel);
@@ -116,11 +122,11 @@ async function previewArchiveImport(file){
     if(session.data.kind==='shots'){
       const targets=loadP().filter(p=>!p.demo&&!p.assetPack);
       picker.replaceChildren(new Option('创建新的策划案',''));
-      for(const p of targets)picker.add(new Option(p.name,p.id));
+      for(const p of targets)picker.add(new Option(archiveTargetLabel(p),p.id));
       row.hidden=false;
       picker.onchange=()=>{
         const target=targets.find(p=>p.id===picker.value);
-        document.getElementById('confirmDesc').textContent=target?'向「'+target.name+'」追加 '+summary+' 保留原项目资料、日程及既有分镜。':'将新增 1 个策划案：'+names+'；'+summary+' 保留现有数据与收藏。';
+        document.getElementById('confirmDesc').textContent=target?'向「'+archiveTargetLabel(target)+'」追加 '+summary+' 保留原项目资料、日程及既有分镜。'+privacy:'将新增 1 个策划案：'+names+'；'+summary+' 保留现有数据与收藏。'+privacy;
       };
     }
   }catch(err){if(opened)await opened.close().catch(()=>{});toast('导入失败：'+String(err.message||err),6000);}

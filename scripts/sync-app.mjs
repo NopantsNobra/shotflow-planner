@@ -27,6 +27,9 @@ const FILES = [
   'examples/agent-project-v1.stillmark.zip',
   'examples/fixtures/reference-2x2.png'
 ];
+// Retired v5 JSON examples were copied by older syncs and are no longer the
+// public interchange examples. Remove only these known obsolete files.
+const STALE_FILES = ['examples/agent-shot.json', 'examples/agent-project.json'];
 const checkOnly = process.argv.includes('--check');
 
 if (!fs.existsSync(TARGET)) {
@@ -64,6 +67,15 @@ for (const name of FILES) {
   } else {
     fs.mkdirSync(path.dirname(dst), { recursive: true });
     fs.copyFileSync(src, dst);
+  }
+}
+
+for (const name of STALE_FILES) {
+  const dst = path.join(TARGET, name);
+  if (checkOnly) {
+    if (fs.existsSync(dst)) drift.push(`${name} (obsolete)`);
+  } else if (fs.existsSync(dst)) {
+    fs.rmSync(dst);
   }
 }
 
