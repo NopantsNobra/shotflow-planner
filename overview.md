@@ -6,7 +6,7 @@
 
 ## 设计方向
 
-本地优先、原生可迁移、面向 Agent 开放。浏览器存储是本地真源，版本化资产包是跨设备及外部 Agent 的交换边界，正常导入器是统一的校验与写入入口。`refactor/portable-agent` 分支实现了多项目、任意分镜 ZIP 导出及分镜包新建/追加导入；旧 JSON 读入仍兼容。此分支尚未合入 `main`，真实外部 Agent 与手机/PWA 验收待完成。内置模型接入继续暂停。格式和运行时限制见[资产包规范](docs/asset-pack-format.md)，操作入口见[Agent 指南](docs/agent-guide.md)。
+本地优先、原生可迁移、面向 Agent 开放。浏览器存储是本地真源，版本化资产包是跨设备及外部 Agent 的交换边界，正常导入器是统一的校验与写入入口。`refactor/portable-agent` 分支集成了已合入 `main` 的严格脚本 CSP，以及多项目、任意分镜 ZIP 导出和分镜包新建/追加导入；旧 JSON 读入仍兼容。ZIP 能力尚未合入 `main`；真实外部 Agent 与手机/PWA 验收待完成。内置模型接入继续暂停。格式和运行时限制见[资产包规范](docs/asset-pack-format.md)，操作入口见[Agent 指南](docs/agent-guide.md)。
 
 ## 产品流程
 
@@ -60,4 +60,4 @@ verify:build 校验逐字节构建一致性；verify:version 校验版本；sync
 
 ## 部署与限制
 
-静态 HTTPS 托管，无后端；本地文件可直接打开，PWA 与存储取决于浏览器。数据库仍为集合单 key，非实时多人协作；基础 CSP 尚未限制内联脚本。剩余事项见 [backlog](docs/backlog.md)，AI 接口见 [ai-contract](docs/ai-contract.md)。历史技术细节见 [CHANGELOG](CHANGELOG.md) 与 [系统设计](docs/system_design.md)。
+静态 HTTPS 托管，无后端；本地文件可直接打开，PWA 与存储取决于浏览器。数据库仍为集合单 key，非实时多人协作；严格脚本 CSP 已合入 `main`。剩余事项见 [backlog](docs/backlog.md)，AI 接口见 [ai-contract](docs/ai-contract.md)。历史技术细节见 [CHANGELOG](CHANGELOG.md) 与 [系统设计](docs/system_design.md)。

@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-__APP_SCRIPT_HASH__'; script-src-attr 'none'; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net https://api.web3forms.com; worker-src 'self'; manifest-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>瞬刻摄影工作台 · Stillmark｜灵感·分镜·提案·实拍</title>
 <meta name="theme-color" content="#9c6b30">
@@ -32,9 +32,9 @@
     <div class="doc-bar no-print">
       <span class="doc-bar-title">文档预览</span>
       <div class="row">
-        <button class="btn btn-ghost btn-sm" id="docExportBtn" style="display:none" title="生成可直接发送给客户的单文件 HTML（图片内嵌）" onclick="exportProposalFile()">导出 HTML 文件</button>
-        <button class="btn btn-primary btn-sm" onclick="window.print()">打印 / 存为 PDF</button>
-        <button class="btn btn-ghost btn-sm" onclick="closeDoc()">关闭</button>
+        <button class="btn btn-ghost btn-sm" id="docExportBtn" style="display:none" title="生成可直接发送给客户的单文件 HTML（图片内嵌）" data-shell-action="export-proposal">导出 HTML 文件</button>
+        <button class="btn btn-primary btn-sm" data-shell-action="print">打印 / 存为 PDF</button>
+        <button class="btn btn-ghost btn-sm" data-shell-action="close-doc">关闭</button>
       </div>
     </div>
     <div class="doc" id="docBody"></div>
@@ -48,12 +48,12 @@
 
 <!-- 设置弹窗（置于 confirmModal 之前：所有 modal-mask 同为 z-index:300，DOM 序靠后的覆盖靠前的——
      clearShiseiGallery 会在设置弹窗之上唤起 askConfirm，confirmModal 必须盖住本弹窗） -->
-<div class="modal-mask" id="settingsModal" onclick="if(event.target===this)closeSettings()">
+<div class="modal-mask" id="settingsModal" data-shell-action="settings-backdrop">
   <div class="modal doc-modal">
     <div class="doc-bar no-print">
       <span class="doc-bar-title">设置</span>
       <div class="row">
-        <button class="btn btn-ghost btn-sm" onclick="closeSettings()">关闭</button>
+        <button class="btn btn-ghost btn-sm" data-shell-action="close-settings">关闭</button>
       </div>
     </div>
     <div class="settings-body" id="settingsBody"></div>
@@ -61,13 +61,13 @@
 </div>
 
 <!-- 部署说明弹窗（v10.6.x）：与其它 modal-mask 同 z-index，DOM 位于 settingsModal 之后 → 叠在其上；
-     点遮罩关闭用内联 onclick（仅当点在遮罩本身），不新增全局监听器 -->
-<div class="modal-mask" id="deployModal" onclick="if(event.target===this)closeDeployModal()">
+     遮罩关闭由静态 shell action 委托处理，仅响应遮罩本身的点击。 -->
+<div class="modal-mask" id="deployModal" data-shell-action="deploy-backdrop">
   <div class="modal doc-modal" style="max-width:620px">
     <div class="doc-bar no-print">
       <span class="doc-bar-title">部署说明</span>
       <div class="row">
-        <button class="btn btn-ghost btn-sm" onclick="closeDeployModal()">关闭</button>
+        <button class="btn btn-ghost btn-sm" data-shell-action="close-deploy">关闭</button>
       </div>
     </div>
     <div class="deploy-body">
@@ -97,7 +97,7 @@
     <p class="muted" id="confirmDesc" style="margin-bottom:18px"></p>
     <div id="archiveImportTargetRow" hidden style="margin-bottom:16px;text-align:left"><label for="archiveImportTarget" class="muted">导入目标</label><select id="archiveImportTarget" style="width:100%"><option value="">创建新的策划案</option></select></div>
     <div class="row" style="justify-content:center">
-      <button class="btn btn-ghost" onclick="closeConfirm()">取消</button>
+      <button class="btn btn-ghost" data-shell-action="close-confirm">取消</button>
       <button class="btn btn-danger" style="background:var(--red);color:#fff" id="confirmOk">确认</button>
     </div>
   </div>
@@ -108,23 +108,23 @@
   <div class="modal confirm-box" style="text-align:left">
     <h3 style="margin-bottom:14px">新建策划案</h3>
     <div class="fld"><label>项目名称</label>
-      <input id="nameInput" maxlength="40" placeholder="如：城市漫游者 · 人像写真" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmNewProject();}"></div>
+      <input id="nameInput" maxlength="40" placeholder="如：城市漫游者 · 人像写真" data-shell-enter="create-project"></div>
     <div class="fld" style="margin-top:12px"><label for="newWorkspace">策划模式</label><select id="newWorkspace"><option value="casual">随拍模式 · 轻量创作</option><option value="portrait">写真模式 · 主题人像</option><option value="professional" selected>专业模式 · 完整工作台</option></select></div>
     <p class="muted" style="margin:8px 0 18px">建好后可补充信息，或随时切换策划模式；隐藏模块不会删除数据。</p>
     <div class="row" style="justify-content:flex-end">
-      <button class="btn btn-ghost" onclick="closeNameModal()">取消</button>
-      <button class="btn btn-primary" onclick="confirmNewProject()">创建</button>
+      <button class="btn btn-ghost" data-shell-action="close-name">取消</button>
+      <button class="btn btn-primary" data-shell-action="create-project">创建</button>
     </div>
   </div>
 </div>
 
 <!-- 收藏引用浮窗（v10.8.0）：按当前页签只列相关类型的收藏，点「引用」把条目追加到当前项目。
      DOM 序放在 confirmModal 之后：引用只读无需确认，但保留层级惯例（后覆盖前）。 -->
-<div class="modal-mask" id="favPickerModal" onclick="if(event.target===this)closeFavPicker()">
+<div class="modal-mask" id="favPickerModal" data-shell-action="favorites-backdrop">
   <div class="modal doc-modal" style="max-width:560px">
     <div class="doc-bar no-print">
       <span class="doc-bar-title" id="favPickerTitle">打开收藏</span>
-      <div class="row"><button class="btn btn-ghost btn-sm" onclick="closeFavPicker()">关闭</button></div>
+      <div class="row"><button class="btn btn-ghost btn-sm" data-shell-action="close-favorites">关闭</button></div>
     </div>
     <div class="settings-body" id="favPickerBody"></div>
   </div>

@@ -17,7 +17,7 @@ Stillmark is a lightweight photography planning and shoot-day workbench for inde
 **Local-first · Portable by design · Agent-ready**
 
 - Local-first: users control projects and personal images; the core workflow requires no account, network or model service.
-- Portable by design: transfer user-selected assets between devices without cloud synchronization. The `refactor/portable-agent` branch implements multi-project and arbitrary-shot ZIP export, plus shot-package import as a new project or an explicit append to an existing project. Legacy JSON import remains available. This branch has not been merged into `main`; the current release does not include its ZIP entry points.
+- Portable by design: transfer user-selected assets between devices without cloud synchronization. The `refactor/portable-agent` branch now includes strict script CSP and multi-project/arbitrary-shot ZIP export and import. Shot packages can create a project or append to an explicitly selected project; legacy JSON import remains available. ZIP entry points are still under development and have not been merged into `main`.
 - Agent-ready: external agents can use the [operation guide](docs/agent-guide.md), schemas and ZIP examples to prepare assets for the normal import, preview and confirmation flow. External-agent blind testing and real-phone handoff remain pending on the development branch. The disabled built-in AI contract remains optional; no model API is required.
 
 The goal is low-friction planning, handoff and execution for humans and agents, not a larger management suite. See the [development roadmap](docs/portable-agent-roadmap.md).
@@ -118,7 +118,7 @@ CI separately runs Chromium, Firefox and WebKit E2E, logic, performance, build a
 
 ## Scope and limitations
 
-Stillmark is not a large film production scheduler, real-time collaboration service, billing system, delivery gallery or photo editor. Scheduling uses a simple linear engine, not a complex resource optimizer. Read-only sample projects can be copied into editable projects. Actual mobile offline use, updates and background recovery need device testing. Stricter CSP, per-project storage keys and remaining engineering tasks are tracked in [the backlog](docs/backlog.md). Phase 09 (live AI integration) is paused.
+Stillmark is not a large film production scheduler, real-time collaboration service, billing system, delivery gallery or photo editor. Scheduling uses a simple linear engine, not a complex resource optimizer. Read-only sample projects can be copied into editable projects. Strict script CSP is merged into `main`; actual mobile offline use, updates and background recovery need device testing. Per-project storage keys and remaining engineering tasks are tracked in [the backlog](docs/backlog.md). Phase 09 (live AI integration) is paused.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full version history.
 

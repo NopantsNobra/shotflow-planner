@@ -22,8 +22,8 @@ function toggleWorkspaceModule(key,enabled){
 function workspacePanel(p,modules){
   const mode=p.workspaceMode||'professional';
   const labels=TABS.map(t=>[t[0],t[1]]).concat([['proposal','客户提案'],['callsheet','拍摄通告单'],['manual','执行手册'],['shootday','拍摄日模式']]);
-  return '<div class="workspace-control"><label for="workspaceMode">策划模式</label><select id="workspaceMode" onchange="setWorkspaceMode(this.value)"'+(p.demo?' disabled':'')+'>'+workspaceOptions(mode)+'</select>'
-    +(mode==='custom'?'<details open><summary>配置可见模块</summary><div class="workspace-checks">'+labels.map(x=>'<label><input type="checkbox" '+(modules.includes(x[0])?'checked':'')+(x[0]==='shots'||p.demo?' disabled':'')+' onchange="toggleWorkspaceModule('+jstr(x[0])+',this.checked)">'+x[1]+'</label>').join('')+'</div></details>':'')
+  return '<div class="workspace-control"><label for="workspaceMode">策划模式</label><select id="workspaceMode" data-change="workspace-mode"'+(p.demo?' disabled':'')+'>'+workspaceOptions(mode)+'</select>'
+    +(mode==='custom'?'<details open><summary>配置可见模块</summary><div class="workspace-checks">'+labels.map(x=>'<label><input type="checkbox" '+(modules.includes(x[0])?'checked':'')+(x[0]==='shots'||p.demo?' disabled':'')+' data-change="workspace-module" data-module="'+esc(x[0])+'">'+x[1]+'</label>').join('')+'</div></details>':'')
     +'<span class="muted">切换仅改变显示，不删除数据。</span></div>';
 }
 function renderProject(){
@@ -39,38 +39,38 @@ function renderProject(){
   const openTodos=p.todos.filter(x=>!x.done).length;
   const dis=p.demo?' disabled':'';
   let h='<div class="phead">'
-    +'<button class="crumb" onclick="view.mode=\'board\';renderBoard()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 18l-6-6 6-6"/></svg>返回看板</button>'
+    +'<button class="crumb" '+doAttrs('back-project-board')+'><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 18l-6-6 6-6"/></svg>返回看板</button>'
     +'<div class="phead-row"><div><h1>'+demoBadge(p)+esc(p.name)+'</h1>'
     +'<div class="pchips"><span class="tag '+STATUS_TAG[STATUSES.indexOf(p.status)]+'">'+esc(p.status)+'</span>'+cd
-    +(openTodos&&modules.includes('notes')?'<button class="tag purple" style="border:none;cursor:pointer;font-family:inherit" onclick="view.tab=\'notes\';renderProject()">待办 '+openTodos+'</button>':'')
+    +(openTodos&&modules.includes('notes')?'<button class="tag purple" style="border:none;cursor:pointer;font-family:inherit" '+doAttrs('show-project-notes')+'>待办 '+openTodos+'</button>':'')
     +(p.shootDate?'<span class="muted" style="font-size:12px">拍摄日 '+esc(p.shootDate)+'</span>':'')
     +'</div></div>'
     +'<div class="pactions">'
-    +'<button class="btn btn-ghost btn-sm" onclick="exportProject('+jstr(p.id)+')">导出此案</button>'
-    +(p.demo?'<button class="btn btn-primary" onclick="copyDemoToMine('+jstr(p.id)+')">复制为我的项目</button>'
-            :(modules.includes('shootday')?'<button class="btn btn-primary" onclick="openShootDay()">进入拍摄日模式</button>':''))
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('export-project',[p.id])+'>导出此案</button>'
+    +(p.demo?'<button class="btn btn-primary" '+doAttrs('copy-demo',[p.id])+'>复制为我的项目</button>'
+            :(modules.includes('shootday')?'<button class="btn btn-primary" '+doAttrs('open-shoot-day')+'>进入拍摄日模式</button>':''))
     +favoritesButton()
     +'</div></div></div>'
     +workspacePanel(p,modules)
     +'<div class="metacard"><div class="mgrid">'
-    +'<div class="fld"><label>客户</label><input value="'+esc(p.client)+'" onchange="setP(\'client\',this.value)"'+dis+'></div>'
-    +'<div class="fld"><label>工作室署名 · 封面落款</label><input value="'+esc(p.studio||'')+'" onchange="setP(\'studio\',this.value)" placeholder="如：瞬刻摄影工作室"'+dis+'></div>'
-    +'<div class="fld"><label>项目阶段</label><select onchange="setP(\'status\',this.value)"'+dis+'>'+STATUSES.map(s=>'<option '+(p.status===s?'selected':'')+'>'+s+'</option>').join('')+'</select></div>'
-    +'<div class="fld"><label>Day 1 · 首个拍摄日</label><input type="date" id="p_shootdate" value="'+esc(p.shootDate)+'" onchange="setShootDate(this.value)"'+dis+'></div>'
-    +'<div class="fld"><label>拍摄地点</label><input value="'+esc(p.location||'')+'" onchange="setP(\'location\',this.value)" placeholder="如：南京 · 老门东"'+dis+'></div>'
+    +'<div class="fld"><label>客户</label><input value="'+esc(p.client)+'" data-change="project-field" data-field="client"'+dis+'></div>'
+    +'<div class="fld"><label>工作室署名 · 封面落款</label><input value="'+esc(p.studio||'')+'" data-change="project-field" data-field="studio" placeholder="如：瞬刻摄影工作室"'+dis+'></div>'
+    +'<div class="fld"><label>项目阶段</label><select data-change="project-field" data-field="status"'+dis+'>'+STATUSES.map(s=>'<option '+(p.status===s?'selected':'')+'>'+s+'</option>').join('')+'</select></div>'
+    +'<div class="fld"><label>Day 1 · 首个拍摄日</label><input type="date" id="p_shootdate" value="'+esc(p.shootDate)+'" data-change="shoot-date"'+dis+'></div>'
+    +'<div class="fld"><label>拍摄地点</label><input value="'+esc(p.location||'')+'" data-change="project-field" data-field="location" placeholder="如：南京 · 老门东"'+dis+'></div>'
     /* 经纬度合并为一格（消除第三行单列空洞）；标签中文化并说明用途。
        width:0 + flex:1 让 flexbox 完全接管宽度，避免 input intrinsic 尺寸把 grid 列 min-content 撑爆（移动端溢出） */
     +'<div class="fld"><label>经纬度 · 用于估算日落</label><div class="row" style="gap:8px;flex-wrap:nowrap">'
-      +'<input id="p_lat" style="min-width:0;width:0;flex:1" value="'+esc(p.lat==null?'':p.lat)+'" onchange="setP(\'lat\',this.value)" placeholder="纬度 32.06"'+dis+'>'
-      +'<input id="p_lng" style="min-width:0;width:0;flex:1" value="'+esc(p.lng==null?'':p.lng)+'" onchange="setP(\'lng\',this.value)" placeholder="经度 118.78"'+dis+'></div></div>'
-    +'<div class="fld"><label>拍摄地点时区 · IANA（可选）</label><input id="p_timezone" value="'+esc(p.timeZone||'')+'" placeholder="'+esc(projectTimeZone(p))+'" onchange="setProjectTimeZone(this.value)"'+dis+'></div>'
+      +'<input id="p_lat" style="min-width:0;width:0;flex:1" value="'+esc(p.lat==null?'':p.lat)+'" data-change="project-field" data-field="lat" placeholder="纬度 32.06"'+dis+'>'
+      +'<input id="p_lng" style="min-width:0;width:0;flex:1" value="'+esc(p.lng==null?'':p.lng)+'" data-change="project-field" data-field="lng" placeholder="经度 118.78"'+dis+'></div></div>'
+    +'<div class="fld"><label>拍摄地点时区 · IANA（可选）</label><input id="p_timezone" value="'+esc(p.timeZone||'')+'" placeholder="'+esc(projectTimeZone(p))+'" data-change="project-time-zone"'+dis+'></div>'
     +'</div><div class="cityrow">'
-    +CITIES.map(c=>'<button class="chip" title="'+c[0]+'（'+c[1]+', '+c[2]+'）" onclick="setLL(\''+c[1]+'\',\''+c[2]+'\')"'+dis+'>'+c[0]+'</button>').join('')
+    +CITIES.map(c=>'<button class="chip" title="'+c[0]+'（'+c[1]+', '+c[2]+'）" '+doAttrs('set-coordinates',[String(c[1]),String(c[2])])+''+dis+'>'+c[0]+'</button>').join('')
     /* 城市下拉：全部省会/直辖市/港澳/主要二线（按大区分组）+ 自定义地点；回显当前坐标匹配项 */
     +(function(){
       const m=cityMatch(p);
       const sel=m?m[0]:((String(p.lat==null?'':p.lat).trim()!==''||String(p.lng==null?'':p.lng).trim()!=='')?'__custom':'');
-      return '<select id="cityPick" style="max-width:150px;height:34px;font-size:12.5px;padding:4px 8px" onchange="pickCity(this.value)" title="选择城市自动填入坐标，或选自定义地点后手输经纬度"'+dis+'>'
+      return '<select id="cityPick" style="max-width:150px;height:34px;font-size:12.5px;padding:4px 8px" data-change="pick-city" title="选择城市自动填入坐标，或选自定义地点后手输经纬度"'+dis+'>'
         +'<option value="" disabled hidden>'+(m?'城市 ▾':'选择城市…')+'</option>'
         +CITY_GROUPS.map(g=>'<optgroup label="'+g[0]+'">'+g[1].map(c=>'<option value="'+c[0]+'" '+(sel===c[0]?'selected':'')+'>'+c[0]+' '+c[1]+'</option>').join('')+'</optgroup>').join('')
         +'<option value="__custom" '+(sel==='__custom'?'selected':'')+'>自定义地点 · 手输经纬度</option>'
@@ -86,12 +86,12 @@ function renderProject(){
       '<div class="tab-seg'+(g.tabs.some(t=>t[0]===view.tab)?' on':'')+'">'
       +'<span class="tab-group">'+g.name+'</span>'
       +'<div class="tab-row">'
-      +g.tabs.map(tb=>'<button class="ptab '+(view.tab===tb[0]?'active':'')+'" data-project-tab="'+tb[0]+'" aria-pressed="'+(view.tab===tb[0])+'" onclick="switchProjectTab('+jstr(tb[0])+')">'+tb[1]+'</button>').join('')
+      +g.tabs.map(tb=>'<button class="ptab '+(view.tab===tb[0]?'active':'')+'" data-project-tab="'+tb[0]+'" aria-pressed="'+(view.tab===tb[0])+'" '+doAttrs('switch-project-tab',[tb[0]])+'>'+tb[1]+'</button>').join('')
       +'</div></div>').join('')
     +'</div>'
     +(modules.some(x=>['proposal','callsheet','manual'].includes(x))?'<div class="subbar">'
     +'<span class="muted" style="font-size:10px;letter-spacing:.14em">文档输出 ▸</span>'
-    +[['proposal','客户提案'],['callsheet','拍摄通告单'],['manual','执行手册']].filter(x=>modules.includes(x[0])).map(x=>'<button class="btn btn-ghost btn-sm" onclick="openDoc('+jstr(x[0])+')">'+x[1]+'</button>').join('')+'</div>':'')
+    +[['proposal','客户提案'],['callsheet','拍摄通告单'],['manual','执行手册']].filter(x=>modules.includes(x[0])).map(x=>'<button class="btn btn-ghost btn-sm" '+doAttrs('open-doc',[x[0]])+'>'+x[1]+'</button>').join('')+'</div>':'')
     +'<div id="tabBody"></div>';
   document.getElementById('app').innerHTML=h;
   ({concept:renderConcept,mood:renderMood,shots:renderShots,schedule:renderSchedule,stuff:renderStuff,budget:renderBudget,notes:renderNotes})[view.tab](p);
@@ -134,16 +134,29 @@ function cancelInlineEdit(){
   if(!has) return false;
   clearInlineEditState(view); renderProject(); return true;
 }
+/* Strict-CSP Phase 2：动作属性统一由 doAttrs/enterAttrs 生成，参数 JSON 编码后 esc 入 data-aN，
+   委派层（05-boot.js）按白名单解析调用。禁止解析可执行表达式。 */
+function doAttrs(action,args){
+  let h='data-do="'+esc(action)+'"';
+  (args||[]).forEach((v,i)=>{ h+=' data-a'+i+'="'+esc(JSON.stringify(v))+'"'; });
+  return h;
+}
+function enterAttrs(action,args){
+  let h='data-enter="'+esc(action)+'"';
+  (args||[]).forEach((v,i)=>{ h+=' data-a'+i+'="'+esc(JSON.stringify(v))+'"'; });
+  return h;
+}
+const cancelBtn='<button class="btn btn-ghost btn-sm" '+doAttrs('cancel-inline-edit')+'>取消</button>';
 function editBtn(kind,id,key){
-  return '<button class="rowbtn" title="编辑" onclick="beginInlineEdit(\''+kind+'\','+jstr(id)+(key?','+jstr(key):'')+')">✎编辑</button>';
+  return '<button class="rowbtn" title="编辑" '+doAttrs('begin-inline-edit',[kind,id,key||''])+'>✎编辑</button>';
 }
 function favBtn(type,it){
-  return '<button class="rowbtn'+(isFav(it)?' on':'')+'" title="收藏/取消收藏" onclick="toggleFav(\''+type+'\','+jstr(it.id)+')">'+(isFav(it)?'★':'☆')+'</button>';
+  return '<button class="rowbtn'+(isFav(it)?' on':'')+'" title="收藏/取消收藏" '+doAttrs('toggle-fav',[type,it.id])+'>'+(isFav(it)?'★':'☆')+'</button>';
 }
 /* v10.8.2：所有可收藏页签统一在「主操作行」放打开收藏入口（紧邻各自添加按钮之前）。
    样式真源唯一（btn-ghost btn-sm），避免 6 处字面各写一份导致漂移；concept 页无收藏条目不渲染。 */
 function favPickerBtn(){
-  return '<button class="btn btn-ghost btn-sm" id="openFavBtn" title="打开与当前页面相关的收藏并引用" onclick="openFavPicker()">☆ 打开收藏</button>';
+  return '<button class="btn btn-ghost btn-sm" id="openFavBtn" title="打开与当前页面相关的收藏并引用" '+doAttrs('open-fav-picker')+'>☆ 打开收藏</button>';
 }
 
 /* ---- 概念 ---- */
@@ -168,21 +181,21 @@ function renderConcept(p){
 function renderMood(p){
   document.getElementById('tabBody').innerHTML='<div class="card"><h2>情绪板</h2>'
     +'<p class="muted" style="margin-bottom:10px">图片存于本地 IndexedDB，自动压缩至 800px。图片可在分镜里引用为参考图（每条分镜最多 3 张）；文字 / 色彩 / 图片均可打多标签。</p>'
-    +'<div class="row"><input id="m_text" class="grow" placeholder="文字灵感…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addMood(\'text\');}"><input id="m_tag" style="max-width:230px" placeholder="标签：逆光, 中景, golden hour（逗号分隔）" onkeydown="if(event.key===\'Enter\'){event.preventDefault();document.getElementById(\'m_text\').focus();}">'
+    +'<div class="row"><input id="m_text" class="grow" placeholder="文字灵感…" '+enterAttrs('add-mood',['text'])+'><input id="m_tag" style="max-width:230px" placeholder="标签：逆光, 中景, golden hour（逗号分隔）" '+enterAttrs('focus-mood-text')+'>'
     +'<input type="color" id="m_color" value="#c8a97e" style="width:54px;height:44px;padding:4px">'
-    +'<button class="btn btn-ghost" onclick="addMood(\'text\')">加文字</button>'
-    +'<button class="btn btn-ghost" onclick="addMood(\'color\')">加色彩</button>'
+    +'<button class="btn btn-ghost" '+doAttrs('add-mood',['text'])+'>加文字</button>'
+    +'<button class="btn btn-ghost" '+doAttrs('add-mood',['color'])+'>加色彩</button>'
     +favPickerBtn()
-    +'<button class="btn btn-primary" onclick="document.getElementById(\'m_img\').click()">上传精选图</button>'
-    +'<button class="btn btn-ghost" onclick="toggleRefPicker()">'+(view.moodRefPicker?'收起参考图库':'＋ 从参考图库精选')+'</button>'
-    +'<input type="file" id="m_img" accept="image/*" multiple style="display:none" onchange="addMoodImg(event)"></div>'
-    +'<div class="image-drop" ondragover="allowImageDrop(event)" ondrop="dropImages(event)">拖入图片，或直接粘贴剪贴板图片</div>'
+    +'<button class="btn btn-primary" '+doAttrs('pick-mood-image')+'>上传精选图</button>'
+    +'<button class="btn btn-ghost" '+doAttrs('toggle-ref-picker')+'>'+(view.moodRefPicker?'收起参考图库':'＋ 从参考图库精选')+'</button>'
+    +'<input type="file" id="m_img" accept="image/*" multiple style="display:none" data-change="mood-images"></div>'
+    +'<div class="image-drop" data-image-drop="true">拖入图片，或直接粘贴剪贴板图片</div>'
     +(view.moodRefPicker?refPickerHtml(p):'')
     +'<div id="tagEditor"></div>'
-    +'<div class="tag-filter"><input id="m_filter" placeholder="按标签筛选，逗号分隔…" value="'+esc(view.moodFilter.join(', '))+'" oninput="setMoodFilter(this.value)">'
-    +'<div class="seg"><button class="'+(view.moodFilterMode==='any'?'on':'')+'" onclick="setMoodFilterMode(\'any\')">任一命中</button>'
-    +'<button class="'+(view.moodFilterMode==='all'?'on':'')+'" onclick="setMoodFilterMode(\'all\')">全部命中</button></div>'
-    +'<button class="btn btn-ghost btn-sm" onclick="clearMoodFilter()">清空筛选</button>'
+    +'<div class="tag-filter"><input id="m_filter" placeholder="按标签筛选，逗号分隔…" value="'+esc(view.moodFilter.join(', '))+'" data-input="mood-filter">'
+    +'<div class="seg"><button class="'+(view.moodFilterMode==='any'?'on':'')+'" '+doAttrs('mood-filter-mode',['any'])+'>任一命中</button>'
+    +'<button class="'+(view.moodFilterMode==='all'?'on':'')+'" '+doAttrs('mood-filter-mode',['all'])+'>全部命中</button></div>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('clear-mood-filter')+'>清空筛选</button>'
     +'<span class="muted" id="moodCount"></span></div>'
     +'<div id="tagCloud" class="tag-cloud"></div>'
     +'<div id="moodGrid" class="mood-grid"></div>'
@@ -191,7 +204,7 @@ function renderMood(p){
     +'<div class="src-list">'+MATERIAL_SOURCES.map(s=>'<div><a href="'+esc(s.url)+'" target="_blank" rel="noopener">'+esc(s.name)+'</a>'
       +'<span class="src-lic">'+esc(s.lic)+'</span><div class="muted">'+esc(s.note)+'</div></div>').join('')+'</div>'
     +'<div id="shiseiSyncBox"></div>'
-    +'<div class="src-words">'+TAG_SUGGESTIONS.map(t=>'<button class="chip" onclick="addTagWord('+jstr(t)+')">+ '+esc(t)+'</button>').join('')+'</div>'
+    +'<div class="src-words">'+TAG_SUGGESTIONS.map(t=>'<button class="chip" '+doAttrs('add-tag-word',[t])+'>+ '+esc(t)+'</button>').join('')+'</div>'
     +'</details></div>';
   renderMoodGrid(p);
   renderShiseiSyncStatus();
@@ -212,9 +225,9 @@ function renderMoodGrid(p){
   const active=new Set(view.moodFilter.map(tagKey));
   document.getElementById('tagCloud').innerHTML=cloud.length?cloud.map(x=>
       '<span class="tagchip'+(active.has(x.key)?' on':'')+'">#'+esc(x.label)+' ×'+x.count
-      +'<button title="按此标签筛选" onclick="toggleMoodFilterKey('+jstr(x.key)+')">'+(active.has(x.key)?'✓':'筛')+'</button>'
-      +'<button title="重命名标签" onclick="startRenameTag('+jstr(x.label)+')">✎</button>'
-      +'<button title="删除标签" onclick="delTagFromVocab('+jstr(x.label)+')">×</button></span>').join('')
+      +'<button title="按此标签筛选" '+doAttrs('toggle-mood-filter-key',[x.key])+'>'+(active.has(x.key)?'✓':'筛')+'</button>'
+      +'<button title="重命名标签" '+doAttrs('start-rename-tag',[x.label])+'>✎</button>'
+      +'<button title="删除标签" '+doAttrs('del-tag-from-vocab',[x.label])+'>×</button></span>').join('')
     :'<span class="muted">还没有标签。可在上方输入框添加，或从下方常用词里点选。</span>';
   const filtered=all.filter(m=>matchByTags(m,view.moodFilter,view.moodFilterMode));
   const countEl=document.getElementById('moodCount'); if(countEl) countEl.textContent=filtered.length+'/'+all.length+' 张';
@@ -234,12 +247,12 @@ function renderMoodGrid(p){
       else if(m.type==='color') body='<div class="mcolor" style="background:'+esc(safeColor(m.content))+'"></div>';
       else body='<div class="mtext">'+esc(m.content)+'</div>';
       const tags=tagsForDisplay(m);
-      const chips=tags.length?tags.map(t=>'<button class="tagchip" title="编辑标签" onclick="openTagEditor('+jstr(m.id)+')">#'+esc(t)+'</button>').join(''):'<span class="muted">无标签</span>';
-      const suggest=(m.autoTags&&m.autoTags.length)?'<button class="tagchip" onclick="applyAiSuggestion('+jstr(m.id)+')">采纳建议</button>':'';
-      return '<div class="mood-item" data-fid="'+esc(m.id)+'">'+body+'<button class="del" aria-label="删除素材" onclick="delMood('+jstr(m.id)+')">×</button>'
+      const chips=tags.length?tags.map(t=>'<button class="tagchip" title="编辑标签" '+doAttrs('open-tag-editor',[m.id])+'>#'+esc(t)+'</button>').join(''):'<span class="muted">无标签</span>';
+      const suggest=(m.autoTags&&m.autoTags.length)?'<button class="tagchip" '+doAttrs('apply-ai-suggestion',[m.id])+'>采纳建议</button>':'';
+      return '<div class="mood-item" data-fid="'+esc(m.id)+'">'+body+'<button class="del" aria-label="删除素材" '+doAttrs('del-mood',[m.id])+'>×</button>'
         +'<div class="mfoot"><span class="tagchips">'+chips+'</span>'+suggest
-        +'<button class="rowbtn'+(isFav(m)?' on':'')+'" title="收藏/取消收藏" onclick="toggleFav(\'mood\','+jstr(m.id)+')">'+(isFav(m)?'★':'☆')+'</button>'
-        +'<button class="iconbtn" title="编辑标签" onclick="openTagEditor('+jstr(m.id)+')">✎</button></div></div>';
+        +'<button class="rowbtn'+(isFav(m)?' on':'')+'" title="收藏/取消收藏" '+doAttrs('toggle-fav',['mood',m.id])+'>'+(isFav(m)?'★':'☆')+'</button>'
+        +'<button class="iconbtn" title="编辑标签" '+doAttrs('open-tag-editor',[m.id])+'>✎</button></div></div>';
     }).join('');
   }
   grid.innerHTML=html;
@@ -260,8 +273,8 @@ function openTagEditor(moodId){
   const box=document.getElementById('tagEditor'), p=cur(); if(!box||!p) return;
   const m=p.mood.find(x=>x.id===moodId); if(!m) return;
   box.innerHTML='<div class="tag-editor"><div class="row"><input id="tgEdit" class="grow" value="'+esc(tagsForDisplay(m).join(', '))+'" placeholder="标签：逆光, 中景, golden hour">'
-    +'<button class="btn btn-primary btn-sm" onclick="saveTagEditor('+jstr(moodId)+')">保存</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="cancelTagEditor()">取消</button></div>'
+    +'<button class="btn btn-primary btn-sm" '+doAttrs('save-tag-editor',[moodId])+'>保存</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('cancel-tag-editor')+'>取消</button></div>'
     +'<div class="muted">用逗号 / 分号分隔；空格不拆分，便于保留「golden hour」。</div></div>';
   document.getElementById('tgEdit').focus();
 }
@@ -277,8 +290,8 @@ function saveTagEditor(moodId){
 function startRenameTag(from){
   const box=document.getElementById('tagEditor'); if(!box) return;
   box.innerHTML='<div class="tag-editor"><div class="row"><input id="tgRename" class="tag-rename grow" value="'+esc(from)+'" placeholder="新标签名">'
-    +'<button class="btn btn-primary btn-sm" onclick="commitRenameTag('+jstr(from)+')">确认重命名</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="cancelTagEditor()">取消</button></div>'
+    +'<button class="btn btn-primary btn-sm" '+doAttrs('commit-rename-tag',[from])+'>确认重命名</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('cancel-tag-editor')+'>取消</button></div>'
     +'<div class="muted">将同步更新所有素材与词表；不影响分镜里已引用的参考图。</div></div>';
   document.getElementById('tgRename').focus();
 }
@@ -394,7 +407,7 @@ function refPickerHtml(p){
         +'<div class="muted" style="font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.name||key)+'">'+esc(r.name||'参考图')+'</div>'
         +'<div style="font-size:9.5px;color:var(--accent-ink);margin:2px 0 5px">'+esc(tags.map(function(t){return '#'+t;}).join(' ')||'—')+'</div>'
         +'<button class="btn '+(has?'btn-ghost':'btn-primary')+' btn-sm" style="width:100%" '+((has||p.demo)?'disabled':'')
-          +' onclick="selectRefToMood('+jstr(r.id||key)+')">'+(has?'已在情绪板':'加入情绪板')+'</button></div>';
+          +' '+doAttrs('select-ref-to-mood',[r.id||key])+'>'+(has?'已在情绪板':'加入情绪板')+'</button></div>';
     }).join('')+'</div></div>';
 }
 function selectRefToMood(refId){

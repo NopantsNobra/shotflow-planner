@@ -35,6 +35,13 @@ const server = http.createServer((req, res) => {
   if (!file.startsWith(ROOT + path.sep) && file !== ROOT) { res.writeHead(403); res.end('forbidden'); return; }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('not found'); return; }
+    // Test-only legacy worker: v10-18 differs from the strict-CSP candidate only by cache name.
+    // Use an alternate script URL with the same scope, then let the app register the current worker.
+    if(urlPath==='/shotflow-sw.js'&&new URL(req.url,'http://localhost').searchParams.get('e2e-legacy')==='1'){
+      const legacy=data.toString('utf8').replace(/const CACHE = '[^']+';/,"const CACHE = 'shotflow-v10-18';");
+      res.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8','Cache-Control':'no-store'});
+      res.end(legacy);return;
+    }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' });
     res.end(data);
   });

@@ -26,11 +26,7 @@ function projectCardHtml(p,i,t){
   const overdue=p.todos.filter(x=>!x.done&&x.due&&x.due<t).length;
   const cd=shootCountdown(p,t);
   const selecting=!!view.boardPackMode,selected=selecting&&(view.boardPackIds||[]).includes(p.id);
-  const attrs=selecting?(p.demo?'aria-disabled="true" aria-label="'+esc('示例不可打包 '+p.name)+'"':
-    'role="button" tabindex="0" aria-pressed="'+selected+'" aria-label="'+esc('选择项目 '+p.name)+'" onclick="toggleBoardPackProject('+jstr(p.id)+')"'):
-    'role="button" tabindex="0" aria-label="'+esc('打开项目 '+p.name)+'" onclick="openProject('+jstr(p.id)+')"';
-  return '<article class="pcard st-'+i+'" '+attrs+'>'
-    +(selecting?'<div class="muted" style="font-weight:600">'+(p.demo?'示例不可选':selected?'✓ 已选择':'○ 选择项目')+'</div>':'')
+  return '<article class="pcard st-'+i+(selected?' selected':'')+'" role="button" tabindex="0" aria-pressed="'+selected+'" aria-label="'+esc((selecting?'选择项目 ':'打开项目 ')+p.name)+'" '+doAttrs(selecting?'select-board-pack':'open-project',[p.id])+'>'
     +'<div class="pname">'+demoBadge(p)+esc(p.name)+'</div>'
     +'<div class="pmeta">'+esc(p.client||'个人项目')+' · '+(p.shootDate?'拍摄 '+esc(p.shootDate)+cd.text:'未定拍摄日')+'</div>'
     +'<div class="pmeta">分镜 '+done+' / '+total+(openT?' · 待办 '+openT:'')+'</div>'
@@ -51,14 +47,14 @@ function renderBoard(){
   const ps=all.filter(p=>matchBoardScope(p,view.boardScope)&&searchHit(p,q));
   let h='<header class="masthead"><div class="brand"><span class="eyebrow">Stillmark · 摄影策划</span><h1>瞬刻摄影工作台</h1><span class="tagline">定格一瞬，刻下永恒。</span></div><div class="sp"></div>'
     +'<div class="mast-actions">'
-    +'<button class="btn btn-ghost btn-sm" id="installBtn" style="display:none" onclick="installApp()">安装到桌面</button>'
+    +'<button class="btn btn-ghost btn-sm" id="installBtn" style="display:none" '+doAttrs('install-app')+'>安装到桌面</button>'
     +favoritesButton()
-    +'<button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙ 设置</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'importFile\').click()">导入</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="toggleBoardPackMode()">'+(view.boardPackMode?'退出打包':'打包项目')+'</button>'
-    +'<button class="btn btn-danger btn-sm" onclick="clearAll()">清空</button>'
-    +'<button class="btn btn-primary" onclick="newProject()">新建策划案</button>'
-    +'<input type="file" id="importFile" accept=".json,.zip,application/zip" style="display:none" onchange="importJSON(event)"></div></header>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('open-settings')+'>⚙ 设置</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('pick-backup',['importFile'])+'>导入</button>'
+    +'<button class="btn btn-danger btn-sm" '+doAttrs('clear-all')+'>清空</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('toggle-board-pack-mode')+'>'+(view.boardPackMode?'退出打包':'打包项目')+'</button>'
+    +'<button class="btn btn-primary" '+doAttrs('new-project')+'>新建策划案</button>'
+    +'<input type="file" id="importFile" accept=".json,.zip,.stillmark.zip" style="display:none" data-change="import-backup"></div></header>'
     +'<div class="backup-tip" id="backupTip"><span>数据较多，建议在「⚙ 设置」中定期导出备份留档。</span></div>'
     +(storageDegraded?'<div class="backup-tip show"><span>⚠ 存储不可用（IndexedDB 未能打开）：本次会话的数据不会被保存，请及时「导出备份」，并检查浏览器隐私模式 / 存储设置。</span></div>':'');
   const t=todayStr();
@@ -76,9 +72,9 @@ function renderBoard(){
     +'</div>'
     +'<div class="toolbar"><div class="searchbox">'
     +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/></svg>'
-    +'<input id="boardSearch" placeholder="搜索策划案、客户、主题、分镜或沟通记录…" value="'+esc(view.boardQuery)+'" oninput="setBoardQuery(this.value)">'
-    +'</div><div class="seg">'+['全部','进行中','已归档'].map(s=>'<button class="'+(view.boardScope===s?'on':'')+'" onclick="view.boardScope=\''+s+'\';renderBoard()">'+s+'</button>').join('')+'</div></div>'
-    +(view.boardPackMode?'<div class="card"><div class="row"><span id="boardPackCount" class="grow">已选 '+view.boardPackIds.length+' 个项目</span><button class="btn btn-ghost btn-sm" onclick="selectVisibleBoardPacks()">全选当前列表</button><button class="btn btn-ghost btn-sm" onclick="clearBoardPackSelection()">取消全选</button><button class="btn btn-primary btn-sm" onclick="exportBoardPacks()">导出所选项目</button>'+(archiveCanSaveToFile()?'<button class="btn btn-ghost btn-sm" onclick="exportBoardPacks(true)">直接保存到文件</button>':'')+'</div><p class="muted">项目包包含完整策划、关联图片、客户及地点信息和执行状态；仅分享给有权限的人。导入时新增项目，不覆盖已有数据。</p></div>':'')
+    +'<input id="boardSearch" placeholder="搜索策划案、客户、主题、分镜或沟通记录…" value="'+esc(view.boardQuery)+'" data-input="board-query">'
+    +'</div><div class="seg">'+['全部','进行中','已归档'].map(s=>'<button class="'+(view.boardScope===s?'on':'')+'" '+doAttrs('board-scope',[s])+'>'+s+'</button>').join('')+'</div></div>'
+    +(view.boardPackMode?'<div class="card"><div class="row"><span id="boardPackCount" class="grow">已选 '+view.boardPackIds.length+' 个项目</span><button class="btn btn-ghost btn-sm" '+doAttrs('select-visible-board-packs')+'>全选当前列表</button><button class="btn btn-ghost btn-sm" '+doAttrs('clear-board-pack-selection')+'>取消全选</button><button class="btn btn-primary btn-sm" '+doAttrs('export-board-packs')+'>导出所选项目</button>'+(archiveCanSaveToFile()?'<button class="btn btn-ghost btn-sm" '+doAttrs('export-board-packs-direct')+'>直接保存到文件</button>':'')+'</div><p class="muted">项目包包含完整策划、关联图片、客户及地点信息和执行状态；分享前请确认已获授权。导入时新增项目，不覆盖已有数据。</p></div>':'')
     +'<div id="boardGrid">'+boardGridHtml(all,ps,t)+'</div>';
   document.getElementById('app').innerHTML=h;
   const count=backupItemCount(all);
@@ -95,8 +91,12 @@ function refreshBoardGrid(){
 }
 function toggleBoardPackMode(){view.boardPackMode=!view.boardPackMode;view.boardPackIds=[];renderBoard();}
 function refreshBoardPackSelection(){
+  document.querySelectorAll('#boardGrid .pcard').forEach(el=>{
+    const selected=(view.boardPackIds||[]).includes(el.dataset.a0?JSON.parse(el.dataset.a0):'');
+    el.classList.toggle('selected',selected);el.setAttribute('aria-pressed',String(selected));
+    el.setAttribute('aria-label',(selected?'取消选择项目 ':'选择项目 ')+el.querySelector('.pname')?.textContent.trim());
+  });
   const count=document.getElementById('boardPackCount');if(count)count.textContent='已选 '+view.boardPackIds.length+' 个项目';
-  refreshBoardGrid();
 }
 function toggleBoardPackProject(id){
   if(!view.boardPackMode||!loadP().some(p=>p.id===id&&!p.demo&&!p.assetPack))return;
@@ -105,14 +105,14 @@ function toggleBoardPackProject(id){
 }
 function selectVisibleBoardPacks(){
   if(!view.boardPackMode)return;
-  const q=(view.boardQuery||'').trim().toLowerCase();
-  const visible=loadP().filter(p=>!p.demo&&!p.assetPack&&matchBoardScope(p,view.boardScope)&&searchHit(p,q));
+  const all=loadP().filter(p=>!p.assetPack),q=(view.boardQuery||'').trim().toLowerCase();
+  const visible=all.filter(p=>!p.demo&&matchBoardScope(p,view.boardScope)&&searchHit(p,q));
   view.boardPackIds=[...new Set(view.boardPackIds.concat(visible.map(p=>p.id)))];refreshBoardPackSelection();
 }
 function clearBoardPackSelection(){view.boardPackIds=[];refreshBoardPackSelection();}
 async function exportBoardPacks(direct=false){
-  if(!view.boardPackMode)return;
-  await exportPortableProjects(buildPortableProjects(loadP(),view.boardPackIds),'projects',direct);
+  try{await exportPortableProjects(buildPortableProjects(loadP(),view.boardPackIds),'projects',direct);}
+  catch(e){toast('项目包未完成：'+String(e.message||e),6000);}
 }
 function statPill(icon,num,lbl,warn){
   return '<div class="metric'+(warn?' warn':'')+'"><div class="mi"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="'+icon+'"/></svg></div><div><div class="mv">'+num+'</div><div class="ml">'+lbl+'</div></div></div>';
@@ -124,11 +124,11 @@ function renderFavorites(){
   const all=loadP(), entries=collectFavorites(all);
   let h='<header class="masthead"><div class="brand"><span class="eyebrow">Stillmark · 收藏夹</span><h1>★ 已收藏</h1>'
     +'<span class="tagline">按项目与模块分组 · 共 '+entries.length+' 条</span></div><div class="sp"></div>'
-    +'<div class="mast-actions"><button class="btn btn-ghost btn-sm" onclick="view=freshView();renderBoard()">返回看板</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'assetImportFile\').click()">导入素材包</button>'
-    +'<button class="btn btn-ghost btn-sm" onclick="toggleAllAssets()">全选 / 取消</button>'
-    +'<button class="btn btn-primary btn-sm" onclick="exportSelectedAssets()">导出所选素材</button>'
-    +'<input type="file" id="assetImportFile" accept=".json" hidden onchange="importJSON(event)"></div></header>'
+    +'<div class="mast-actions"><button class="btn btn-ghost btn-sm" '+doAttrs('return-board')+'>返回看板</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('pick-backup',['assetImportFile'])+'>导入素材包</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('toggle-all-assets')+'>全选 / 取消</button>'
+    +'<button class="btn btn-primary btn-sm" '+doAttrs('export-selected-assets')+'>导出所选素材</button>'
+    +'<input type="file" id="assetImportFile" accept=".json" hidden data-change="import-backup"></div></header>'
     +'<p class="muted">选中收藏即可打包，包含引用图片和场景。素材包导入后仅出现在收藏夹，不占项目看板；请勿分享含客户隐私或无授权的素材。</p>';
   if(!entries.length){
     h+='<div class="card" style="text-align:center;padding:56px 24px"><p class="muted">还没有收藏。在情绪板、分镜、日程、清单、预算或协作条目上点 ☆ 即可收藏。</p></div>';
@@ -136,7 +136,7 @@ function renderFavorites(){
     all.forEach(p=>{
       const list=entries.filter(e=>e.pid===p.id); if(!list.length) return;
       h+='<div class="card"><h2>'+demoBadge(p)+esc(p.name)+' <span class="muted" style="font-weight:400">· '+list.length+' 条'+(p.assetPack?' · 导入素材包':'')+'</span></h2>'
-        +(p.assetPack?'<button class="btn btn-ghost btn-sm" onclick="removeAssetPack('+jstr(p.id)+')">移除素材包</button>':'');
+        +(p.assetPack?'<button class="btn btn-ghost btn-sm" '+doAttrs('remove-asset-pack',[p.id])+'>移除素材包</button>':'');
       FAV_KINDS.forEach(type=>{
         const rows=list.filter(e=>e.type===type); if(!rows.length) return;
         h+='<div style="margin-bottom:12px"><div class="muted" style="margin-bottom:4px">'+FAV_ICON[type]+' '+FAV_META[type]+'</div>';
@@ -146,7 +146,7 @@ function renderFavorites(){
             +'<span>'+FAV_ICON[e.type]+'</span>'
             +'<span class="grow">'+esc(e.summary||'（无摘要）')+'</span>'
             +'<span class="muted">'+esc(e.module)+'</span>'
-            +(p.assetPack?'':'<button class="btn btn-ghost btn-sm" onclick="jumpToFav('+jstr(e.type)+','+jstr(e.pid)+','+jstr(e.id)+')">定位 ›</button>')+'</div>';
+            +(p.assetPack?'':'<button class="btn btn-ghost btn-sm" '+doAttrs('jump-to-fav',[e.type,e.pid,e.id])+'>定位 ›</button>')+'</div>';
         });
         h+='</div>';
       });
@@ -232,7 +232,7 @@ function renderFavPicker(){
         +'<span>'+FAV_ICON[e.type]+'</span>'
         +'<span class="grow" style="min-width:0"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.summary||'（无摘要）')+'</span>'
           +'<span class="muted" style="font-size:11px">'+esc(e.module)+' · '+esc(src?src.name:'来源已删除')+(same?' · 本案':'')+'</span></span>'
-        +'<button class="btn btn-ghost btn-sm" onclick="referenceFav('+jstr(e.type)+','+jstr(e.pid)+','+jstr(e.id)+')">引用收藏 ›</button></div>';
+        +'<button class="btn btn-ghost btn-sm" '+doAttrs('reference-fav',[e.type,e.pid,e.id])+'>引用收藏 ›</button></div>';
     }).join('')+'</div>';
   }
   document.getElementById('favPickerBody').innerHTML=h;

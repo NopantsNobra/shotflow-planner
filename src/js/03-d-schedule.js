@@ -115,17 +115,17 @@ function dayTabsHtml(p){
   const days=shootDatesOf(p);
   const cnt=d=>(p.shots||[]).filter(s=>s.date===d).length+(p.schedule||[]).filter(n=>(n.date||d)===d).length;
   let h='<div class="day-tabs">'+days.map(function(d,i){
-    return '<button class="day-tab'+(d===schedDate?' on':'')+'" onclick="setSchedDate('+jstr(d)+')">Day '+(i+1)+' · '+mmdd(d)+' '+weekdayCN(d)+'（'+cnt(d)+' 条）</button>';
+    return '<button class="day-tab'+(d===schedDate?' on':'')+'" '+doAttrs('set-sched-date',[d])+'>Day '+(i+1)+' · '+mmdd(d)+' '+weekdayCN(d)+'（'+cnt(d)+' 条）</button>';
   }).join('')
-    +'<button class="day-tab add" onclick="toggleNewDay()">＋ 添加拍摄日</button>'
-    +(days.length?'<button class="day-tab del" onclick="removeShootDay('+jstr(schedDate)+')">删除本日</button>':'')
+    +'<button class="day-tab add" '+doAttrs('toggle-new-day')+'>＋ 添加拍摄日</button>'
+    +(days.length?'<button class="day-tab del" '+doAttrs('remove-shoot-day',[schedDate])+'>删除本日</button>':'')
     +'</div>';
   if(view.newDay){
     const base=days.length?days[days.length-1]:(p.shootDate||todayStr());
     h+='<div class="new-scene"><span class="muted">新拍摄日</span>'
       +'<input type="date" id="new_day_date" value="'+esc(addDays(base,1))+'">'
-      +'<button class="btn btn-primary btn-sm" onclick="confirmNewDay()">添加并切换</button>'
-      +'<button class="btn btn-ghost btn-sm" onclick="toggleNewDay()">取消</button></div>';
+      +'<button class="btn btn-primary btn-sm" '+doAttrs('confirm-new-day')+'>添加并切换</button>'
+      +'<button class="btn btn-ghost btn-sm" '+doAttrs('toggle-new-day')+'>取消</button></div>';
   }
   return h;
 }
@@ -149,16 +149,16 @@ function renderSchedule(p){
   document.getElementById('tabBody').innerHTML='<div class="card"><h2>拍摄日流程 · 时间轴</h2>'
     +sunHtml
     +dayTabsHtml(p)
-    +'<div class="row" style="margin-bottom:14px"><input type="date" id="sc_date" style="max-width:170px" value="'+schedDate+'" onchange="chooseSchedDate(this.value)">'
+    +'<div class="row" style="margin-bottom:14px"><input type="date" id="sc_date" style="max-width:170px" value="'+schedDate+'" data-change="choose-sched-date">'
     +'<span class="muted">点上方 Day 切换日期；选任意日期会并入拍摄日清单。集合、收工自动生成，新增环节会顺延其后环节并重排分镜</span></div>'
     +'<div class="row" style="margin-bottom:6px">'
     +'<select id="n_type" style="max-width:120px">'+NODE_TYPES.map(t=>'<option>'+t+'</option>').join('')+'</select>'
-    +'<input id="n_title" class="grow" placeholder="环节内容，如：化妆师到场妆造" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addNode();}">'
+    +'<input id="n_title" class="grow" placeholder="环节内容，如：化妆师到场妆造" '+enterAttrs('add-node')+'>'
     +'<input type="time" id="n_start" style="max-width:105px" value="10:00">'
     +'<input type="time" id="n_end" style="max-width:105px" value="10:30">'
     +'<input id="n_note" class="grow" placeholder="备注…">'
     +favPickerBtn()
-    +'<button class="btn btn-primary" onclick="addNode()">添加环节</button></div>'
+    +'<button class="btn btn-primary" '+doAttrs('add-node')+'>添加环节</button></div>'
     +timelineHtml(p,schedDate)
     +'</div>';
 }
@@ -510,8 +510,8 @@ function timelineHtml(p,date){
           ? shotEditPanel(it,p)
           : '<div class="tl-body"><div class="tl-title"><span class="tag">分镜</span> '+esc(it.name)+' <span class="muted" style="font-weight:400">· 约 '+(+it.duration||0)+' 分钟</span>'+cflag+'</div>'
             +'<div class="tl-note">'+extra+'</div></div>')
-        +'<button class="chk '+(it.done?'on':'')+'" onclick="toggleShot('+jstr(it.id)+')">'+(it.done?'✓':'')+'</button>'
-        +(sdEditing?'':'<button class="rowbtn" title="编辑本分镜" onclick="beginInlineEdit(\'Shot\','+jstr(it.id)+')">✎编辑</button>')
+        +'<button class="chk '+(it.done?'on':'')+'" '+doAttrs('toggle-shot',[it.id])+'>'+(it.done?'✓':'')+'</button>'
+        +(sdEditing?'':'<button class="rowbtn" title="编辑本分镜" '+doAttrs('begin-inline-edit',['Shot',it.id,''])+'>✎编辑</button>')
         +'</div>';
     }
     const editing=view.editingNodeId===it.id;
@@ -524,18 +524,18 @@ function timelineHtml(p,date){
         +'<input type="time" id="en_start" style="max-width:100px" value="'+esc(it.start)+'"'+(autoN?' disabled':'')+'>'
         +'<input type="time" id="en_end" style="max-width:100px" value="'+esc(it.end)+'"'+(autoN?' disabled':'')+'>'
         +'<input id="en_note" class="grow" value="'+esc(it.note||'')+'">'
-        +'<button class="btn btn-primary btn-sm" onclick="saveNodeEdit('+jstr(it.id)+')">保存</button>'
-        +'<button class="btn btn-ghost btn-sm" onclick="cancelInlineEdit()">取消</button></div>'
+        +'<button class="btn btn-primary btn-sm" '+doAttrs('save-node-edit',[it.id])+'>保存</button>'
+        +'<button class="btn btn-ghost btn-sm" '+doAttrs('cancel-inline-edit')+'>取消</button></div>'
         +(autoN?'<div class="muted" style="margin-top:6px">收工时间由排程引擎接管（当天最晚结束 +15 分钟），此处只能改名称与备注。</div>':'')+'</div>'
       :'<div class="tl-body"><div class="tl-title '+(it.done?'done-text':'')+'">'+nodeTag(it.type)+' '+esc(it.title)+autoPill+(it.timeLocked?'<span class="tag blue">时间锁定</span>':'')+cflag+shiftedFlag(it.id)+'</div>'
         +(it.note?'<div class="tl-note">'+esc(it.note)+'</div>':'')+'</div>';
     return '<div class="tl-item" data-fid="'+esc(it.id)+'"><div class="tl-time">'+esc(time)+'</div><div class="tl-dot" style="background:'+(it.type==='拍摄'?'var(--accent)':'#b4b2a9')+'"></div>'
       +body
-      +'<button class="chk '+(it.done?'on':'')+'" onclick="toggleNode('+jstr(it.id)+')">'+(it.done?'✓':'')+'</button>'
+      +'<button class="chk '+(it.done?'on':'')+'" '+doAttrs('toggle-node',[it.id])+'>'+(it.done?'✓':'')+'</button>'
       +editBtn('Node',it.id)
       +favBtn('schedule',it)
-      +(!it.auto?'<button class="rowbtn" title="锁定或解锁时间" onclick="toggleNodeLock('+jstr(it.id)+')">'+(it.timeLocked?'解锁':'锁时')+'</button>':'')
-      +'<button class="iconbtn" onclick="delNode('+jstr(it.id)+')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
+      +(!it.auto?'<button class="rowbtn" title="锁定或解锁时间" '+doAttrs('toggle-node-lock',[it.id])+'>'+(it.timeLocked?'解锁':'锁时')+'</button>':'')
+      +'<button class="iconbtn" '+doAttrs('del-node',[it.id])+'><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18 M8 6V4h8v2 M6 6l1 14h10l1-14"/></svg></button></div>';
   }).join('');
   return h;
 }

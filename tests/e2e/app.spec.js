@@ -5,6 +5,8 @@
         ③ P0 持久化：页面隐藏时冲刷未落盘数据 */
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 
 /* 版本断言取 package.json 真源：写死版本号会在每次发版时误报
    （v10.7.2 的 CI 首跑就因为断言里写死 v10.7.0 而失败）。 */
@@ -639,7 +641,7 @@ test('P0 备份导入：缺失图片拒绝，合法图片独立重映射',async(
   await importPack();
   await expect(page.locator('.toast')).toContainText('图片依赖缺失');
   await expect(page.locator('.pcard',{hasText:'导入前项目'})).toBeVisible();
-  pack.images.same='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV7sAAAAASUVORK5CYII=';
+  pack.images.same='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==';
   await importPack();
   await expect(page.locator('.pcard',{hasText:'素材迁移'})).toBeVisible();
   const state=await page.evaluate(async()=>{
@@ -663,6 +665,8 @@ test('策划模式切换只隐藏模块，不删除预算或分镜',async({page}
 test('批量修改分镜时长并保留原名称',async({page})=>{
   await setupV108Project(page);
   await page.getByRole('button',{name:'批量编辑'}).click();
+  await expect(page.locator('#tabBody [onclick],#tabBody [onchange]')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'导出所选分镜'})).toBeVisible();
   await page.locator('.batch-check').check();
   await page.locator('#batchDuration').selectOption('30');
   await page.getByRole('button',{name:'应用',exact:true}).click();
@@ -676,7 +680,7 @@ test('素材包追加导入、依赖重映射、引用到项目且不进入看�
   await createProject(page,'素材接续项目');
   await waitProjectPersisted(page,'素材接续项目');
   await page.keyboard.press('Escape');
-  const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV7sAAAAASUVORK5CYII=';
+  const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==';
   const pack={app:'stillmark',version:4,type:'assets',assetVersion:1,assets:[{
     name:'迁移收藏组',shots:[{id:'s',name:'迁移分镜',fav:true,sceneId:'c',refIds:['old']}],
     scenes:[{id:'c',name:'迁移场景'}],refs:[{id:'r',key:'old',name:'样片'}]
@@ -888,6 +892,14 @@ test('看板支持键盘打开项目，切页保留项目头部',async({page})=>
   expect(await page.evaluate(()=>window.__meta===document.querySelector('.metacard'))).toBe(true);
 });
 
+test('静态 shell 不依赖内联事件，委托动作仍可键盘创建项目',async({page})=>{
+  await openFreshApp(page);
+  expect(await page.locator('#nameModal [onclick],#nameModal [onkeydown],#settingsModal[onclick],#deployModal[onclick],#favPickerModal[onclick]').count()).toBe(0);
+  await page.getByRole('button',{name:'新建策划案'}).click();
+  await page.locator('#nameInput').fill('CSP 委托测试');
+  await page.locator('#nameInput').press('Enter');
+  await expect(page.locator('.phead h1')).toContainText('CSP 委托测试');
+});
 test('持久化连接失效后恢复，修改分镜与日程并刷新仍保留',async({page})=>{
   await setupV108Project(page);
   await page.evaluate(()=>{
@@ -951,6 +963,7 @@ test('看板选择两个完整项目打包，保留各自执行状态',async({pa
   await page.keyboard.press('Escape');
   await createProject(page,'第二策划');
   await page.keyboard.press('Escape');
+  await expect(page.locator('#app [onclick],#app [onchange]')).toHaveCount(0);
   await page.getByRole('button',{name:'打包项目'}).click();
   await page.getByRole('button',{name:'选择项目 V108 测试案'}).click();
   await page.getByRole('button',{name:'选择项目 第二策划'}).click();
@@ -1031,6 +1044,31 @@ test('公开 Agent 示例可经真实导入器进入项目并显示参考图',as
   await expect(page.locator('.pcard',{hasText:'Agent 示例 · 窗边人像'})).toBeVisible();
   await expect(page.locator('.pcard',{hasText:'Agent 示例 · 城市漫步'})).toBeVisible();
   await expect(page.locator('.pcard',{hasText:'V108 测试案'})).toBeVisible();
+});
+
+test('公开 Agent ZIP 示例经生产导入器校验图片并刷新持久化',async({page})=>{
+  await openFreshApp(page);
+  const shotPack=readFileSync(new URL('../../examples/agent-shot-with-image-v1.stillmark.zip',import.meta.url));
+  await page.locator('#importFile').setInputFiles({name:'agent-shot-with-image-v1.stillmark.zip',mimeType:'application/zip',buffer:shotPack});
+  await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  await expect(page.locator('#confirmDesc')).toContainText('窗边人像策划');
+  await expect(page.locator('#confirmDesc')).toContainText('1 个图片引用');
+  await page.locator('#confirmOk').click();
+  await expect(page.locator('.toast')).toContainText('导入成功');
+  await page.locator('.pcard',{hasText:'窗边人像策划'}).click();
+  await expect(page.locator('.shot')).toContainText('窗边侧光半身');
+  await expect.poll(()=>page.locator('.shot img').first().evaluate(el=>el.naturalWidth)).toBeGreaterThan(0);
+  await page.keyboard.press('Escape');
+
+  const projectPack=readFileSync(new URL('../../examples/agent-project-v1.stillmark.zip',import.meta.url));
+  await page.locator('#importFile').setInputFiles({name:'agent-project-v1.stillmark.zip',mimeType:'application/zip',buffer:projectPack});
+  await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  await expect(page.locator('#confirmDesc')).toContainText('城市漫步人像');
+  await page.locator('#confirmOk').click();
+  await expect(page.locator('.toast')).toContainText('导入成功');
+  await page.reload();
+  await expect(page.locator('.pcard',{hasText:'窗边人像策划'})).toBeVisible();
+  await expect(page.locator('.pcard',{hasText:'城市漫步人像'})).toBeVisible();
 });
 
 
@@ -1151,4 +1189,355 @@ test('分镜 ZIP 指定目标追加：保留客户资料与旧分镜，只新增
   expect(result).toMatchObject({count:1,client:'原客户',old:true,added:true,scenes:2,linked:true,notes:['原备注'],refs:1,dates:['2026-11-24','2026-12-01'],exists:true,imageCount:1});
   await page.reload();await page.locator('.pcard',{hasText:'V108 测试案'}).click();
   await expect(page.locator('.shot',{hasText:'新增分镜'})).toBeVisible();
+});
+
+/* Strict-CSP Phase 2：清单/预算/协作域改为 data-do 白名单委托后的回归。 */
+test('Phase2 支持域无内联事件，委托动作在重绘后仍生效',async({page})=>{
+  await setupV108Project(page);
+  await page.locator('.ptab',{hasText:'清单'}).first().click();
+  await expect(page.locator('#f_scenes')).toBeVisible();
+  // ① 动态模板不再含可执行内联事件
+  const inline=await page.evaluate(()=>document.querySelectorAll('#tabBody [onclick],#tabBody [onkeydown],#tabBody [onchange]').length);
+  expect(inline).toBe(0);
+  // ② click 委托：添加场景 → 列表出现 → 勾选 → 再删除（每次都会 renderProject 全量重绘）
+  await page.locator('#f_scenes').fill('委托测试场景');
+  await page.locator('[data-do="add-stuff"]').first().click();
+  await expect(page.locator('#tabBody')).toContainText('委托测试场景');
+  const row=page.locator('[data-fid]').filter({hasText:'委托测试场景'}).first();
+  await row.locator('[data-do^="toggle-stuff"]').click();
+  await expect(page.locator('[data-fid]').filter({hasText:'委托测试场景'}).first().locator('.chk.on')).toBeVisible();
+  // ③ 白名单拒绝未注册 action（注入 data-do 不应触发任何业务函数）
+  const before=await page.locator('[data-fid]').count();
+  await page.evaluate(()=>{
+    const b=document.createElement('button');b.dataset.do='__evil__';b.textContent='evil';b.id='evilBtn';
+    document.getElementById('tabBody').appendChild(b);
+  });
+  await page.locator('#evilBtn').click();
+  expect(await page.locator('[data-fid]').count()).toBe(before);
+  // ④ 参数类型校验：篡改 data-a0 为非 JSON，点击不应产生新条目
+  await page.evaluate(()=>{
+    const b=document.querySelector('[data-do="add-stuff"]');if(b)b.dataset.a0='not-json';
+  });
+  await page.locator('[data-do="add-stuff"]').first().click();
+  await expect(page.locator('#tabBody')).toContainText('委托测试场景');
+  expect(await page.locator('[data-fid]').filter({hasText:'委托测试场景'}).count()).toBe(1);
+});
+
+test('CSP 公共编辑按钮接受可选空 key，严格拒绝空必填参数',async({page})=>{
+  await setupV108Project(page);
+  const edit=page.locator('.shot [data-do="begin-inline-edit"]').first();
+  await edit.click();
+  await expect.poll(()=>page.evaluate(()=>view.editingShotEditId)).toBe('shot-a');
+  const validation=await page.evaluate(()=>{
+    const spec=ACTIONS['begin-inline-edit'];
+    return {optional:readActionArgs({dataset:{a0:'"Shot"',a1:'"shot-a"',a2:'""'}},spec),
+      required:readActionArgs({dataset:{a0:'"Shot"',a1:'""',a2:'""'}},spec)};
+  });
+  expect(validation.optional).toEqual(['Shot','shot-a','']);
+  expect(validation.required).toBeNull();
+});
+
+test('CSP 日程与拍摄日无内联事件，键盘添加、锁时及现场状态有效',async({page})=>{
+  await setupV108Project(page);
+  await page.locator('[data-project-tab="schedule"]').click();
+  await expect(page.locator('#tabBody [onclick],#tabBody [onchange],#tabBody [onkeydown]')).toHaveCount(0);
+  await page.locator('#n_title').fill('委托日程');
+  await page.locator('#n_start').fill('12:00');
+  await page.locator('#n_end').fill('12:30');
+  await page.locator('#n_title').press('Enter');
+  await expect(page.locator('#tabBody')).toContainText('委托日程');
+  const id=await page.evaluate(()=>cur().schedule.find(n=>n.title==='委托日程').id);
+  const button=page.locator('[data-do="toggle-node-lock"]').filter({hasText:'锁时'});
+  // The only non-auto event is the one added above.
+  await button.click();
+  expect(await page.evaluate(id=>cur().schedule.find(n=>n.id===id).timeLocked,id)).toBe(true);
+  await page.getByRole('button',{name:'进入拍摄日模式'}).click();
+  await expect(page.locator('#sdOverlay')).toHaveClass(/show/);
+  await expect(page.locator('#sdBody [onclick],#sdBody [onchange],#sdBody [onkeydown]')).toHaveCount(0);
+  await page.getByRole('button',{name:'稍后补拍'}).first().click();
+  await expect(page.locator('#sdBody')).toContainText('待补拍');
+  await page.getByRole('button',{name:'取消补拍'}).first().click();
+  await expect(page.locator('#sdBody')).not.toContainText('待补拍');
+  await page.locator('[data-do="close-shoot-day"]').click();
+  await expect(page.locator('#sdOverlay')).not.toHaveClass(/show/);
+});
+
+test('CSP 看板、收藏与设置动作不依赖内联事件',async({page})=>{
+  await openFreshApp(page);
+  await expect(page.locator('#app [onclick],#app [oninput],#app [onchange]')).toHaveCount(0);
+  await createProject(page,'委托看板回归');
+  await page.keyboard.press('Escape');
+  await page.locator('#boardSearch').fill('委托看板回归');
+  await expect(page.locator('.pcard')).toHaveCount(1);
+  await page.locator('.pcard').click();
+  await expect(page.locator('#s_name')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:'设置',exact:false}).click();
+  await expect(page.locator('#settingsModal')).toHaveClass(/show/);
+  await expect(page.locator('#settingsModal [onclick],#settingsModal [onchange]')).toHaveCount(0);
+  await page.getByRole('button',{name:'为自己部署'}).click();
+  await expect(page.locator('#deployModal')).toHaveClass(/show/);
+  await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+  await page.locator('[data-do="open-favorites"]').click();
+  await expect(page.locator('#app [onclick],#app [onchange]')).toHaveCount(0);
+  await page.getByRole('button',{name:'返回看板'}).click();
+  await expect(page.locator('.masthead h1')).toHaveText('瞬刻摄影工作台');
+});
+
+test('CSP 项目资料与情绪板委托输入、上传及筛选',async({page})=>{
+  await setupV108Project(page);
+  await expect(page.locator('.metacard [onchange],.workspace-control [onchange],.ptabs [onclick]')).toHaveCount(0);
+  const client=page.locator('[data-field="client"]');await client.fill('委托客户');await client.press('Tab');
+  expect(await page.evaluate(()=>cur().client)).toBe('委托客户');
+  await page.locator('[data-project-tab="mood"]').click();
+  await expect(page.locator('#tabBody [onclick],#tabBody [onchange],#tabBody [oninput],#tabBody [onkeydown],#tabBody [ondrop]')).toHaveCount(0);
+  await page.locator('#m_text').fill('委托灵感');await page.locator('#m_tag').fill('测试标签');await page.locator('#m_text').press('Enter');
+  await expect(page.locator('#tabBody')).toContainText('委托灵感');
+  await page.locator('#m_filter').fill('不存在的标签');
+  await expect(page.locator('.mood-item')).toHaveCount(0);
+  await page.locator('[data-do="clear-mood-filter"]').click();
+  await expect(page.locator('.mood-item')).toHaveCount(1);
+});
+
+test('CSP 分镜委托输入与操作保留草稿、筛选及批量选择',async({page})=>{
+  await setupV108Project(page);
+  await expect(page.locator('#tabBody [onclick],#tabBody [onchange],#tabBody [oninput],#tabBody [onkeydown],#tabBody [ondrop]')).toHaveCount(0);
+  await page.locator('#s_name').fill('委托分镜');
+  await page.locator('#s_dur').selectOption('30');
+  await page.locator('#s_name').press('Enter');
+  await expect(page.locator('.shot').filter({hasText:'委托分镜'})).toBeVisible();
+  await page.locator('#s_filter').fill('委托分镜');
+  await expect(page.locator('.shot')).toHaveCount(1);
+  await page.getByRole('button',{name:'批量编辑'}).click();
+  await page.locator('.batch-check').check();
+  await expect(page.locator('#batchCount')).toContainText('1');
+  await page.locator('.shot [data-do="toggle-must-shoot"]').click();
+  await expect(page.locator('.shot')).toContainText('必拍');
+});
+
+test('严格脚本 CSP：阻止未授权脚本和事件属性，正常动作可用',async({page})=>{
+  await openFreshApp(page);
+  const result=await page.evaluate(()=>{
+    const policy=document.querySelector('meta[http-equiv="Content-Security-Policy"]').content;
+    window.__cspInline=0;window.__cspScript=0;
+    const button=document.createElement('button');button.setAttribute('onclick','window.__cspInline=1');
+    document.body.append(button);button.click();button.remove();
+    const script=document.createElement('script');script.textContent='window.__cspScript=1';document.body.append(script);script.remove();
+    return {policy,inline:window.__cspInline,script:window.__cspScript};
+  });
+  expect(result.policy).toContain("script-src-attr 'none'");
+  expect(result.inline).toBe(0);expect(result.script).toBe(0);
+  await createProject(page,'严格 CSP 项目');
+  await page.locator('#s_name').fill('正常委托分镜');
+  await page.locator('#s_name').press('Enter');
+  await expect(page.locator('.shot')).toContainText('正常委托分镜');
+});
+test('独立提案脚本哈希与实际导出内容一致，离线打开仍可缩放且拒绝注入',async({page},testInfo)=>{
+  await setupV108Project(page);
+  await page.locator('[data-do="open-doc"]').filter({hasText:'客户提案'}).click();
+  await expect(page.locator('#docExportBtn')).toBeVisible();
+  const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#docExportBtn').click()]);
+  const proposalPath=testInfo.outputPath('proposal.html');
+  await download.saveAs(proposalPath);
+  const html=readFileSync(proposalPath,'utf8');
+  const script=html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const hash=createHash('sha256').update(script,'utf8').digest('base64');
+  expect(html).toContain("script-src 'sha256-"+hash+"'");
+  expect(html).toContain("script-src-attr 'none'");
+  expect(html).not.toMatch(/\s(?:on[a-z]+)\s*=\s*["']/i);
+
+  // Opening the actual download checks the browser's enforcement, not only a string hash.
+  await page.setViewportSize({width:900,height:1000});
+  await page.goto(pathToFileURL(proposalPath).href);
+  const sheet=page.locator('.cv-sheet');
+  await expect(sheet).toBeVisible();
+  await expect.poll(()=>sheet.evaluate(el=>el.style.transform)).toMatch(/^scale\(/);
+  const wide=await sheet.evaluate(el=>el.style.transform);
+  await page.setViewportSize({width:390,height:844});
+  await expect.poll(()=>sheet.evaluate(el=>el.style.transform)).not.toBe(wide);
+  const result=await page.evaluate(()=>{
+    window.__proposalInjected=0;
+    const button=document.createElement('button');
+    button.setAttribute('onclick','window.__proposalInjected=1');
+    document.body.append(button);button.click();button.remove();
+    const script=document.createElement('script');
+    script.textContent='window.__proposalInjected=2';
+    document.body.append(script);script.remove();
+    return window.__proposalInjected;
+  });
+  expect(result).toBe(0);
+});
+
+
+/* Use actual browser fetch + intercepted HTTP responses, not a replacement window.fetch.
+   The isolated context disables service workers so they cannot bypass request interception. */
+test.describe('CSP 正常业务网络与图片链路',()=>{
+  test.use({serviceWorkers:'block'});
+
+  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==','base64');
+
+  async function watchCsp(page){
+    await page.addInitScript(()=>{
+      window.__cspViolations=[];
+      document.addEventListener('securitypolicyviolation',e=>{
+        if(e.disposition==='enforce')window.__cspViolations.push({directive:e.effectiveDirective,blocked:e.blockedURI});
+      });
+      try{localStorage.setItem('wb_sf_shisei_sync','0');}catch{/* No storage on initial blank document. */}
+    });
+  }
+
+  test('允许图库目录与图片请求、反馈 POST，且无 CSP 违规',async({page,context})=>{
+    await watchCsp(page);
+    const requests=[];
+    const cors={'access-control-allow-origin':'*','access-control-allow-methods':'GET, POST, OPTIONS','access-control-allow-headers':'content-type, accept'};
+    await context.route('https://cdn.jsdelivr.net/**',async route=>{
+      const url=new URL(route.request().url());
+      if(url.pathname.endsWith('/data/catalog.json')){
+        requests.push('catalog');
+        await route.fulfill({status:200,headers:cors,contentType:'application/json',
+          body:JSON.stringify([{id:'csp-pose',class_cn:'CSP 测试',name_cn:'测试姿势',views:{front:'fixture.png'}}])});
+      }else if(url.pathname.endsWith('/images/line/w300/fixture.png')){
+        requests.push('image');
+        await route.fulfill({status:200,headers:cors,contentType:'image/png',body:png});
+      }else await route.abort();
+    });
+    await context.route('https://api.web3forms.com/submit',async route=>{
+      const method=route.request().method();
+      if(method==='OPTIONS'){await route.fulfill({status:204,headers:cors});return;}
+      requests.push(method);
+      await route.fulfill({status:200,headers:cors,contentType:'application/json',body:JSON.stringify({success:true})});
+    });
+    await openFreshApp(page);
+    await expect.poll(()=>page.evaluate(()=>!pendingPersist&&!persistFailed)).toBe(true);
+    // Manual one-off sync must work with Settings open and automatic sync paused.
+    await page.getByRole('button',{name:'⚙ 设置'}).click();
+    const status=page.locator('#settingsShiseiBox');
+    await expect(status).toContainText('已暂停');
+    await status.getByRole('button',{name:'立即同步'}).click();
+    await expect.poll(()=>page.evaluate(async()=>!!(await idb.getShiseiImg('shisei:csp-pose:front'))&&!shiseiState.running)).toBe(true);
+    await expect(status).toContainText('1 张');
+    await expect(status).toContainText('已暂停');
+    expect(await page.evaluate(()=>localStorage.getItem('wb_sf_shisei_sync'))).toBe('0');
+    const pose=await page.evaluate(()=>idb.getShiseiImg('shisei:csp-pose:front'));
+    expect(pose.data).toBe('data:image/png;base64,'+png.toString('base64'));
+    expect(requests).toContain('catalog');expect(requests).toContain('image');
+
+    await page.locator('#fbTitle').fill('仅测试，不实际发送');
+    await page.getByRole('button',{name:'提交反馈'}).click();
+    await expect(page.locator('.toast')).toContainText('反馈已提交，感谢！');
+    expect(requests).toContain('POST');
+    expect(await page.evaluate(()=>window.__cspViolations)).toEqual([]);
+  });
+
+  test('本地图片上传、压缩、导出和再次导入均无 CSP 违规',async({page})=>{
+    await watchCsp(page);
+    await openFreshApp(page);
+    await createProject(page,'CSP 图片迁移');
+    await page.locator('[data-project-tab="mood"]').click();
+    await page.locator('#m_img').setInputFiles({name:'fixture.png',mimeType:'image/png',buffer:png});
+    await expect.poll(()=>page.evaluate(()=>cur().mood.filter(m=>m.type==='image').length)).toBe(1);
+    const image=page.locator('#moodGrid img').first();
+    await expect.poll(()=>image.evaluate(el=>el.naturalWidth)).toBeGreaterThan(0);
+    await waitProjectPersisted(page,'CSP 图片迁移');
+    const [download]=await Promise.all([page.waitForEvent('download'),page.locator('[data-do="export-project"]').click()]);
+    const pack=JSON.parse(readFileSync(await download.path(),'utf8'));
+    const key=pack.project.mood.find(m=>m.type==='image').content;
+    expect(pack.images[key]).toMatch(/^data:image\/jpeg;base64,/);
+    await page.keyboard.press('Escape');
+    await page.locator('#importFile').setInputFiles({name:'roundtrip.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(pack))});
+    await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+    await page.locator('#confirmOk').click();
+    await expect.poll(()=>page.evaluate(async()=>{
+      const ps=(await idb.getProjects()).filter(p=>p.name.includes('CSP 图片迁移'));
+      if(ps.length!==2)return false;
+      const keys=ps.map(p=>p.mood.find(m=>m.type==='image')?.content);
+      return keys.every(Boolean)&&keys[0]!==keys[1]&&(await idb.get(keys[0]))===(await idb.get(keys[1]));
+    })).toBe(true);
+    expect(await page.evaluate(()=>window.__cspViolations)).toEqual([]);
+  });
+});
+
+
+test('PWA 旧缓存策略升级至严格 CSP，项目与图片保持完整',async({page})=>{
+  await page.addInitScript(()=>{try{localStorage.setItem('wb_sf_shisei_sync','0');}catch{/* No storage on initial blank document. */}});
+  // Register the previous cache-version worker before loading the app.
+  await page.goto('/shotflow-manifest.json');
+  const legacyCache='shotflow-v10-18';
+  const currentCache=readFileSync(new URL('../../shotflow-sw.js',import.meta.url),'utf8').match(/const CACHE = '([^']+)'/)[1];
+  await page.evaluate(async()=>{
+    await navigator.serviceWorker.register('/shotflow-sw.js?e2e-legacy=1');
+  });
+  await expect.poll(()=>page.evaluate(()=>navigator.serviceWorker.controller?.scriptURL||''),{timeout:15000}).toContain('e2e-legacy=1');
+  const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==';
+  await page.evaluate(async({legacyCache,image})=>{
+    // Seed existing v4 user data, and make the old app cache carry the baseline policy.
+    // Runtime JS is the current build: this fixture isolates the worker/cache-policy transition.
+    const cache=await caches.open(legacyCache);
+    const url=new URL('/shotflow.html',location.origin).href;
+    const cached=await cache.match(url);
+    if(!cached)throw Error('legacy app cache missing');
+    const html=(await cached.text()).replace(/<meta http-equiv="Content-Security-Policy" content="[^"]+">/,
+      '<meta http-equiv="Content-Security-Policy" content="object-src \'none\'; base-uri \'none\'; form-action \'none\'">');
+    await cache.put(url,new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8'}}));
+    const now=Date.now(),date='2026-11-24';
+    const project={id:'legacy-csp-project',v3:1,name:'升级保留项目',status:'策划中',shootDate:date,shootDates:[date],dayInit:[date],
+      createdAt:now,updatedAt:now,concept:{},refs:[{id:'legacy-ref',key:'legacy-image',name:'旧参考图'}],
+      mood:[{id:'legacy-mood',type:'image',content:'legacy-image',fav:true}],shots:[],schedule:[],scenes:[],items:[],budget:[],notes:[],todos:[]};
+    await new Promise((res,rej)=>{
+      const r=indexedDB.open('shotflow',4);
+      r.onupgradeneeded=()=>{
+        const db=r.result;
+        for(const name of ['projects','images','shisei_meta','shisei_images','shisei_index'])db.createObjectStore(name);
+      };
+      r.onerror=()=>rej(r.error);
+      r.onsuccess=()=>{
+        const db=r.result,tx=db.transaction(['projects','images'],'readwrite');
+        tx.objectStore('projects').put([project],'all');tx.objectStore('images').put(image,'legacy-image');
+        tx.oncomplete=()=>{db.close();res();};tx.onerror=()=>{db.close();rej(tx.error);};
+      };
+    });
+    localStorage.setItem('wb_sf_seeded','1');localStorage.setItem('wb_sf_demo_v9','1');
+  },{legacyCache,image});
+  await page.goto('/shotflow.html');
+  await expect(page.locator('.pcard',{hasText:'升级保留项目'})).toBeVisible();
+  expect(await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content')).not.toContain('script-src');
+  // The app registers the new worker, which precaches the strict artifact and claims the page.
+  await expect.poll(()=>page.evaluate(()=>navigator.serviceWorker.controller?.scriptURL||''),{timeout:15000}).toMatch(/\/shotflow-sw\.js$/);
+  await expect.poll(()=>page.evaluate(async({legacyCache,currentCache})=>{
+    const keys=await caches.keys();return keys.includes(currentCache)&&!keys.includes(legacyCache);
+  },{legacyCache,currentCache})).toBe(true);
+  await page.reload();
+  await expect(page.locator('.pcard',{hasText:'升级保留项目'})).toBeVisible();
+  expect(await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content')).toContain("script-src-attr 'none'");
+  await page.locator('.pcard',{hasText:'升级保留项目'}).click();
+  await page.locator('[data-project-tab="mood"]').click();
+  await expect.poll(()=>page.locator('#moodGrid img').first().evaluate(el=>el.naturalWidth)).toBeGreaterThan(0);
+  expect(await page.evaluate(()=>idb.get('legacy-image'))).toBe(image);
+});
+
+
+test('CSP 委托拒绝无效枚举、未知实体、超长参数和输入法组合回车',async({page})=>{
+  await setupV108Project(page);
+  const result=await page.evaluate(()=>{
+    const before=JSON.stringify(cur());
+    const click=(action,args)=>{
+      const b=document.createElement('button');b.dataset.do=action;
+      args.forEach((a,i)=>b.dataset['a'+i]=JSON.stringify(a));
+      document.body.append(b);b.click();b.remove();
+    };
+    click('toggle-fav',['constructor','shot-a']);
+    click('begin-inline-edit',['Shot','missing','']);
+    click('switch-project-tab',['constructor']);
+    click('open-project',['missing']);
+    click('feedback-type',['invalid']);
+    const rejected=readActionArgs({dataset:{a0:' '.repeat(2048)+'"shot-a"'}},ACTIONS['del-shot'])===null;
+    const input=document.getElementById('s_name');
+    input.value='输入法未确认';
+    input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',isComposing:true,bubbles:true,cancelable:true}));
+    return {unchanged:JSON.stringify(cur())===before,tab:view.tab,editing:view.editingShotEditId,rejected};
+  });
+  expect(result).toEqual({unchanged:true,tab:'shots',editing:null,rejected:true});
+  await page.locator('#s_name').fill('正常提交');
+  await page.locator('#s_name').press('Enter');
+  await expect(page.locator('.shot').filter({hasText:'正常提交'})).toBeVisible();
 });

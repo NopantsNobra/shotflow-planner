@@ -7,12 +7,12 @@
 - **PORT-1 / PORT-2**：资产包从收藏复用扩展为任意分镜/项目的精确跨设备交接，导入默认追加、依赖完整、旧格式兼容；区别素材复用、项目迁移、全量恢复。
 - **PORT-2a / PORT-2b**：新资产包采用 ZIP + JSON 清单/策划数据 + 独立二进制图片；兼容旧 JSON，按需解压、分批暂存、原子提交、容量及恶意压缩包回归。详见 [容器规范](asset-pack-format.md)。
 - **AGENT-1 / AGENT-2**：外部 Agent 操作指南、版本化包契约、示例和用户授权的导入路径；不要求模型 API、MCP 服务或云后端。
-- 执行范围、顺序、验收和边界以 [专项路线](portable-agent-roadmap.md) 为准。严格 CSP 分支仍须通过实机验收，不因产品新方向绕开发布门禁。
+- 执行范围、顺序、验收和边界以 [专项路线](portable-agent-roadmap.md) 为准。严格脚本 CSP 已合入 `main` 并完成 Chrome / Firefox / Safari 验收；ZIP 集成必须继续通过 CSP、构建和浏览器门禁。
 
 ## P1 · 数据安全与实机
 
 - **B2 并发**：已实现项目级三方事务合并、同项目冲突草稿保护及 BroadcastChannel 通知。需补旧版与新版标签页并存、清空/恢复并发交错的回归。
-- **B4 CSP**：已启用 object-src none、base-uri none、form-action none。严格 CSP 另开 security/strict-csp 分支，逐步迁移内联事件后再收紧 script-src；未验收前不合入 main。
+- **B4 CSP**：严格脚本 CSP 已合入 main：脚本由构建哈希授权，禁止 HTML 内联事件属性与动态求值；部署注入会同步重算哈希。内联样式仍使用 `unsafe-inline`。常规 Chrome / Firefox / Safari 实测已通过；iOS 主屏幕 PWA、Android Chrome 等实际移动端升级与后台恢复仍需独立验收。
 - **真实移动端**：iOS Safari / 主屏幕 PWA / Android Chrome 的触控、离线、升级、后台恢复、存储异常需实机验收；Playwright 不替代真机。
 
 ## P2 · 性能与维护

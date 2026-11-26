@@ -1,6 +1,6 @@
 # Stillmark — 外部 Agent 操作指南
 
-适用格式：`stillmark.asset-pack` ZIP 容器 v1、业务数据 v1。本文对应 `refactor/portable-agent` 开发分支中的实现；该分支尚未合入 `main`，部署中的旧版应用可能不支持 ZIP。`APP_VERSION` 仍可能与旧版相同，请在看板确认「导入」可以选择 `.stillmark.zip`，并在「设置 → 版本信息」确认 SW 缓存标识含开发版标记 `portable`；不要只凭应用主版本判断是否支持 ZIP。
+适用格式：`stillmark.asset-pack` ZIP 容器 v1、业务数据 v1。本文对应 `refactor/portable-agent` 开发分支中的 ZIP 实现；严格脚本 CSP 已合入 `main`，但 ZIP 功能仍未合入，部署中的旧版应用可能不支持 ZIP。`APP_VERSION` 仍可能与旧版相同，请在看板确认「导入」可以选择 `.stillmark.zip`，并在「设置 → 版本信息」确认 SW 缓存标识含 `portable`；不要只凭应用主版本判断是否支持 ZIP。
 
 ## 快速开始
 

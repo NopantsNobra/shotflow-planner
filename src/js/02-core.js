@@ -1118,7 +1118,7 @@ function searchHit(p,q){
 }
 function favoritesButton(){
   const n=collectFavorites(loadP()).length;
-  return '<button class="btn btn-ghost btn-sm" onclick="openFavorites()">★ 已收藏 '+n+'</button>';
+  return '<button class="btn btn-ghost btn-sm" '+doAttrs('open-favorites')+'>★ 已收藏 '+n+'</button>';
 }
 function demoBadge(p){ return p&&p.demo===true?'<span class="badge demo">示例</span>':''; }
 
