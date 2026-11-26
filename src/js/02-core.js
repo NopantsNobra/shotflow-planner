@@ -8,7 +8,7 @@ function workspaceModules(mode,custom){
   return all;
 }
 function freshView(patch){
-  const d={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',
+  const d={mode:'board',pid:null,tab:'shots',shotFilter:'',boardQuery:'',boardScope:'全部',boardPackMode:false,boardPackIds:[],
     moodFilter:[],moodFilterMode:'any',shotDraft:{},poseCat:null,posePage:0,editingShotId:null,editingShotEditId:null,replaceIdx:-1,
     allowDemoWrite:false,editingNodeId:null,editingStuffId:null,editingStuffKey:null,
     editingTodoId:null,editingNoteId:null,refViewer:null,focusRef:null,lastShift:null,newDay:false,moodRefPicker:false,batchMode:false,batchShots:[]};
@@ -233,6 +233,180 @@ function collectFavorites(projects){
   return out;
 }
 /* 轻量资产包只复制选中收藏及其直接依赖，不复制客户、预算之外的项目背景等字段。 */
+/* Portable v5 project-pack uses entries, not projects: older readers must fail closed,
+   never treat a selective transfer as a destructive full restore. */
+/* Portable/ZIP wire schemas are defined in 02-schemas.js and exported to schemas/*.json. */
+function validatePortableShape(value,schema,path){
+  const error=()=>{throw Error('项目包字段不合法：'+path);};
+  if(Object.prototype.hasOwnProperty.call(schema,'const')&&value!==schema.const)error();
+  if(schema.enum&&!schema.enum.includes(value))error();
+  const kinds=Array.isArray(schema.type)?schema.type:[schema.type];
+  const matches=t=>t==='null'?value===null:t==='array'?Array.isArray(value):t==='object'?value!==null&&typeof value==='object'&&!Array.isArray(value):t==='integer'?Number.isSafeInteger(value):t==='number'?typeof value==='number'&&Number.isFinite(value):typeof value===t;
+  if(schema.type&&!kinds.some(matches))error();
+  if(typeof value==='string'){
+    if((schema.minLength!=null&&value.length<schema.minLength)||(schema.maxLength!=null&&value.length>schema.maxLength)||(schema.pattern&&!new RegExp(schema.pattern).test(value)))error();
+  }else if(typeof value==='number'){
+    if((schema.minimum!=null&&value<schema.minimum)||(schema.maximum!=null&&value>schema.maximum))error();
+  }else if(Array.isArray(value)){
+    if((schema.minItems!=null&&value.length<schema.minItems)||(schema.maxItems!=null&&value.length>schema.maxItems))error();
+    if(schema.items)value.forEach((v,i)=>validatePortableShape(v,schema.items,path+'['+i+']'));
+  }else if(value&&typeof value==='object'){
+    const keys=Object.keys(value);
+    if(schema.maxProperties!=null&&keys.length>schema.maxProperties)error();
+    for(const k of schema.required||[])if(!Object.prototype.hasOwnProperty.call(value,k))error();
+    for(const k of keys){
+      if(schema.propertyNames)validatePortableShape(k,schema.propertyNames,path+'.key');
+      const field=schema.properties&&Object.prototype.hasOwnProperty.call(schema.properties,k)?schema.properties[k]:null;
+      if(field)validatePortableShape(value[k],field,path+'.'+k);
+      else if(schema.additionalProperties===false)error();
+      else if(schema.additionalProperties&&typeof schema.additionalProperties==='object')validatePortableShape(value[k],schema.additionalProperties,path+'.'+k);
+    }
+  }
+}
+function portableImageKeys(entries,scope){
+  if(scope==='shots'&&(entries.length!==1||!(entries[0].shots||[]).length))throw Error('分镜包必须包含一个策划案及至少一条分镜');
+  const used=new Set();
+  const validDate=d=>!d||(/^\d{4}-\d{2}-\d{2}$/.test(d)&&new Date(d+'T00:00:00Z').toISOString().slice(0,10)===d);
+  for(const p of entries){
+    const ids=new Set(),scenes=new Set((p.scenes||[]).map(s=>s.id).filter(Boolean));
+    const dateValues=[p.shootDate,...(p.shootDates||[]),...(p.dayInit||[]),...(p.shots||[]).map(s=>s.date),...(p.schedule||[]).map(s=>s.date),...(p.todos||[]).map(s=>s.due)];
+    try{if(dateValues.some(d=>!validDate(d)))throw Error();}catch{throw Error('项目包日期不合法');}
+    for(const k of ['shots','scenes','refs','mood','schedule','items','budget','notes','todos']){
+      for(const item of p[k]||[]){
+        if(item.id){if(ids.has(item.id))throw Error('项目包实体 ID 重复');ids.add(item.id);}
+      }
+    }
+    for(const s of p.shots||[]){
+      if(s.sceneId&&!scenes.has(s.sceneId))throw Error('分镜引用的场景缺失');
+      for(const key of s.refIds||[])used.add(key);
+    }
+    for(const r of p.refs||[])used.add(r.key);
+    for(const m of p.mood||[])if(m.type==='image')used.add(m.content);
+  }
+  return used;
+}
+function validatePortablePack(pack){
+  validatePortableShape(pack,portablePackSchema(),'$');
+  const used=portableImageKeys(pack.entries,pack.scope);
+  for(const key of used){
+    if(!key||key.startsWith('shisei:')||!Object.prototype.hasOwnProperty.call(pack.images,key)||!validBackupImage(pack.images[key]))throw Error('图片依赖缺失或格式不合法');
+  }
+  for(const key of Object.keys(pack.images))if(!used.has(key))throw Error('项目包含未引用图片');
+  return {projects:pack.entries.length,shots:pack.entries.reduce((n,p)=>n+(p.shots||[]).length,0),images:used.size};
+}
+function assetArchiveLimits(){
+  // Initial Blob-based prototype ceilings, not container-format limits.
+  return {maxArchiveBytes:128*1024*1024,maxManifestBytes:4*1024*1024,maxDataBytes:16*1024*1024,
+    maxImageBytes:16*1024*1024,maxUniqueFiles:10000,maxImageRefs:20000,maxExpandedBytes:128*1024*1024,
+    maxLogicalImageBytes:128*1024*1024,maxMetadataReadBytes:8*1024*1024,maxImagePixels:40*1000*1000,maxImageDimension:16384};
+}
+function validateArchiveManifest(manifest,limits){
+  validatePortableShape(manifest,assetArchiveManifestSchema(),'manifest');
+  limits=limits||assetArchiveLimits();
+  if(!Number.isFinite(Date.parse(manifest.exportedAt)))throw Error('资产包导出时间不合法');
+  if(manifest.images.length>limits.maxImageRefs||manifest.data.bytes>limits.maxDataBytes)throw Error('资产包清单超过处理上限');
+  const extensions={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','image/avif':'avif'};
+  const files=new Map([[manifest.data.path,manifest.data]]),keys=new Map(),digests=new Map();
+  let expanded=manifest.data.bytes,logicalBytes=0;
+  for(const image of manifest.images){
+    if(image.key.startsWith('shisei:')||keys.has(image.key))throw Error('资产包图片逻辑键非法或重复');
+    if(image.path!=='images/'+image.sha256+'.'+extensions[image.mime])throw Error('资产包图片路径与摘要或 MIME 不符');
+    if(image.bytes>limits.maxImageBytes)throw Error('资产包单张图片超过处理上限');
+    const old=digests.get(image.sha256);
+    if(old&&(old.path!==image.path||old.mime!==image.mime||old.bytes!==image.bytes))throw Error('相同摘要的图片描述冲突');
+    if(!old){digests.set(image.sha256,image);files.set(image.path,image);expanded+=image.bytes;}
+    keys.set(image.key,image);logicalBytes+=image.bytes;
+    if(logicalBytes>limits.maxLogicalImageBytes||files.size+1>limits.maxUniqueFiles||expanded>limits.maxExpandedBytes)throw Error('资产包解压体积或条目数超过处理上限');
+  }
+  if(files.size+1>limits.maxUniqueFiles||expanded>limits.maxExpandedBytes)throw Error('资产包解压体积或条目数超过处理上限');
+  return {files,keys,expandedBytes:expanded};
+}
+function validateArchiveData(data,manifest,limits){
+  validatePortableShape(data,assetArchiveDataSchema(),'data');
+  const checked=validateArchiveManifest(manifest,limits);
+  if(data.dataVersion!==manifest.dataVersion||data.kind!==manifest.kind)throw Error('资产包清单与业务数据类型不一致');
+  const used=portableImageKeys(data.entries,data.kind);
+  for(const key of used)if(!checked.keys.has(key))throw Error('资产包图片依赖缺失');
+  for(const key of checked.keys.keys())if(!used.has(key))throw Error('资产包含未引用图片');
+  return {projects:data.entries.length,shots:data.entries.reduce((n,p)=>n+(p.shots||[]).length,0),images:used.size,uniqueFiles:checked.files.size+1,expandedBytes:checked.expandedBytes};
+}
+function classifyTransferPackage(d){
+  if(!d||typeof d!=='object'||Array.isArray(d))throw Error('文件中没有合法的策划案');
+  const own=k=>Object.prototype.hasOwnProperty.call(d,k);
+  let mode,list;
+  if(d.type==='project-pack'){
+    if(d.app!=='stillmark'||d.version!==5||d.packVersion!==1||own('projects')||own('project')||own('assets'))throw Error('不支持或存在歧义的项目包版本');
+    mode='append';list=d.entries;
+    if(!Array.isArray(list)||list.some(p=>p?.assetPack||p?.demo))throw Error('项目包必须包含可编辑的策划案');
+  }else{
+    if(d.version!=null&&(!Number.isInteger(d.version)||d.version<1||d.version>4))throw Error('不支持的备份版本');
+    if(d.type==='assets'){
+      if(d.app!=='stillmark'||d.assetVersion!==1||own('project')||own('projects')||own('entries'))throw Error('不支持或存在歧义的素材包版本');
+      mode='assets';list=d.assets;
+    }else if(d.type==='project'||(!d.type&&own('project'))){
+      if(own('projects')||own('assets')||own('entries'))throw Error('备份类型存在歧义');
+      mode='single';list=[d.project];
+    }else if(!d.type||d.type==='backup'){
+      if(own('project')||own('assets')||own('entries'))throw Error('备份类型存在歧义');
+      mode='restore';list=d.projects;
+    }else throw Error('不支持的资产包类型');
+  }
+  if(!Array.isArray(list)||!list.length||list.some(p=>!p||typeof p!=='object'||Array.isArray(p)))throw Error('文件中没有合法的策划案');
+  return {mode,list};
+}
+function buildPortableProjects(projects,ids){
+  const selected=new Set(Array.isArray(ids)?ids:[]);
+  return (projects||[]).filter(p=>selected.has(p.id)&&!p.demo&&!p.assetPack).map(p=>JSON.parse(JSON.stringify(p)));
+}
+function buildPortableShots(project,ids){
+  if(!project||project.demo||project.assetPack)return null;
+  const selected=new Set(Array.isArray(ids)?ids:[]);
+  const shots=(project.shots||[]).filter(s=>selected.has(s.id));
+  if(!shots.length)return null;
+  const copy=x=>JSON.parse(JSON.stringify(x));
+  const scenes=new Set(shots.map(s=>s.sceneId).filter(Boolean));
+  const keys=new Set(shots.flatMap(s=>s.refIds||[]).filter(Boolean));
+  const dates=[...new Set(shots.map(s=>s.date).filter(Boolean))].sort();
+  if([...scenes].some(id=>!(project.scenes||[]).some(s=>s.id===id)))throw Error('分镜引用的场景缺失');
+  const refs=[...keys].map(k=>copy((project.refs||[]).find(r=>r.key===k)||{id:k,key:k,name:'参考图',tags:[],fav:false}));
+  return {id:project.id,name:project.name+'（分镜选集）',v3:1,demo:false,assetPack:false,
+    status:project.status,shootDates:dates,shootDate:dates[0]||'',dayInit:[],
+    workspaceMode:project.workspaceMode,workspaceCustom:copy(project.workspaceCustom||[]),timeZone:project.timeZone||'',
+    concept:{},mood:[],refs,tagVocab:[...new Set(refs.flatMap(r=>r.tags||[]))],
+    shots:copy(shots),scenes:copy((project.scenes||[]).filter(s=>scenes.has(s.id))),
+    schedule:[],items:[],budget:[],notes:[],todos:[]};
+}
+/* Append only selected shots and their explicit dependency closure. Never
+   replace the target's project-level metadata or merge scenes by name. */
+function appendArchiveShots(target,source,now=Date.now()){
+  if(!target||target.demo||target.assetPack||!source||!(source.shots||[]).length)throw Error('目标项目或分镜包不可追加');
+  const copy=x=>JSON.parse(JSON.stringify(x)),out=copy(target);
+  const existingIds=new Set();
+  for(const k of ['shots','scenes','refs','mood','schedule','items','budget','notes','todos'])
+    for(const x of out[k]||[])if(x.id)existingIds.add(x.id);
+  const sceneIds=new Set(source.shots.map(x=>x.sceneId).filter(Boolean));
+  const imageKeys=new Set(source.shots.flatMap(x=>x.refIds||[]).filter(Boolean));
+  const scenes=(source.scenes||[]).filter(x=>sceneIds.has(x.id));
+  if(scenes.length!==sceneIds.size)throw Error('分镜引用的场景缺失');
+  const refs=(source.refs||[]).filter(x=>imageKeys.has(x.key));
+  const refKeys=new Set(refs.map(x=>x.key));
+  if([...imageKeys].some(k=>!refKeys.has(k)))throw Error('分镜引用的参考图元数据缺失');
+  for(const x of [...source.shots,...scenes,...refs]){
+    if(!x.id||existingIds.has(x.id))throw Error('追加实体 ID 冲突');existingIds.add(x.id);
+  }
+  const usedKeys=new Set([...(out.refs||[]).map(x=>x.key),...(out.shots||[]).flatMap(x=>x.refIds||[]),...(out.mood||[]).filter(x=>x.type==='image').map(x=>x.content)]);
+  if([...imageKeys].some(k=>usedKeys.has(k)))throw Error('追加图片键冲突');
+  out.shots=out.shots||[];out.scenes=out.scenes||[];out.refs=out.refs||[];
+  let ord=out.shots.reduce((n,x)=>Math.max(n,Number(x.ord)||0),0);
+  // Preserve the package order, including execution status, without moving old shots.
+  const appended=copy(source.shots).sort((a,b)=>(Number(a.ord)||0)-(Number(b.ord)||0));
+  for(const x of appended)x.ord=++ord;
+  out.shots.push(...appended);out.scenes.push(...copy(scenes));out.refs.push(...copy(refs));
+  out.shootDates=[...new Set([...(out.shootDates||[]),out.shootDate,...appended.map(x=>x.date)].filter(Boolean))].sort();
+  out.shootDate=out.shootDates[0]||'';
+  out.tagVocab=mergeVocab(out.tagVocab,refs.flatMap(x=>x.tags||[]));
+  out.updatedAt=now;return out;
+}
 function buildAssetProjects(projects,selected){
   const picks=Array.isArray(selected)?selected:[],result=[];
   const copy=x=>JSON.parse(JSON.stringify(x));

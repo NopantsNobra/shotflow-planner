@@ -160,12 +160,13 @@ async function writeProposalFile(p){
 /* ================= 备份 / 恢复 / 清空 ================= */
 /* 导出文件名清洗（A5）：只剥跨平台非法字符，不再套 esc()（esc 会把 & 变成 &amp; 混进文件名） */
 function safeFilename(s){ return String(s==null?'':s).replace(/[\\/:*?"<>|\r\n]/g,'').trim().slice(0,80)||'未命名'; }
-function downloadData(data,filename){
+function downloadBlob(blob,filename){
   const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));
+  a.href=URL.createObjectURL(blob);
   a.download=filename; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),60000);
 }
+function downloadData(data,filename){downloadBlob(new Blob([JSON.stringify(data)],{type:'application/json'}),filename);}
 function collectImages(ps){
   const ids=new Set();
   ps.forEach(p=>{
@@ -183,6 +184,10 @@ async function imagesFor(ps){
   }
   if(missing.length) throw new Error('缺失 '+missing.length+' 张引用图片');
   return out;
+}
+async function exportPortableProjects(entries,scope='projects',direct=false){
+  if(!entries.length){toast('请先选择要导出的项目或分镜');return;}
+  await exportArchiveProjects(entries,scope,direct);
 }
 async function exportSelectedAssets(){
   try{
@@ -254,22 +259,26 @@ function remapBackupImages(projects,images,mkId){
   return payload;
 }
 let pendingImport=null;
-function importJSON(e){
-  const f=e.target.files[0]; if(!f) return;
+async function importJSON(e){
+  const f=e.target.files[0]; e.target.value=''; if(!f)return;
+  if(archiveOperation||persistClearing){toast('已有资产操作正在进行');return;}
+  if(/\.zip$/i.test(f.name)){await previewArchiveImport(f);return;}
+  // A ZIP signature is authoritative even if the file has been renamed.
+  try{const h=new Uint8Array(await f.slice(0,4).arrayBuffer());if(h[0]===80&&h[1]===75){await previewArchiveImport(f);return;}}catch{toast('文件读取失败');return;}
+  if(archiveOperation||persistClearing)return;
   const rd=new FileReader();
   rd.onload=ev=>{
     let d;
     try{ d=JSON.parse(ev.target.result); }catch{ toast('文件格式不正确，导入失败'); e.target.value=''; return; }
-    const isAssets=d&&d.type==='assets';
-    const list=d&&typeof d==='object'?(isAssets?d.assets:d.project?[d.project]:d.projects):null;
-    if(isAssets&&(d.app!=='stillmark'||d.assetVersion!==1)){toast('不支持的素材包版本');return;}
-    if(!Array.isArray(list)||!list.length||list.some(p=>!p||typeof p!=='object'||Array.isArray(p))){ toast('文件中没有合法的策划案'); e.target.value=''; return; }
-    if(d.version!=null&&(!Number.isInteger(d.version)||d.version<1||d.version>4)){ toast('不支持的备份版本'); e.target.value=''; return; }
+    let mode,list,summary;
+    try{({mode,list}=classifyTransferPackage(d));if(mode==='append')summary=validatePortablePack(d);}catch(err){toast(String(err.message||err));return;}
     pendingImport=d;
     const names=list.slice(0,3).map(p=>p.name||'未命名').join('、')+(list.length>3?' 等':'');
-    if(isAssets){
+    if(mode==='assets'){
       askConfirm('导入素材包？','将新增 '+list.length+' 组收藏素材，保留原有项目与收藏。',applyImport);
-    } else if(d.type==='project'||d.project){
+    } else if(mode==='append'){
+      askConfirm('导入项目包？','将新增 '+summary.projects+' 个策划案：'+names+'；'+summary.shots+' 条分镜、'+summary.images+' 张图片。保留现有数据与收藏。',applyImport);
+    } else if(mode==='single'){
       askConfirm('导入为新的策划案？','将新增 1 个策划案「'+(list[0].name||'未命名')+'」，不会覆盖现有数据。',applyImport);
     } else {
       askConfirm('导入将覆盖全部数据？','文件含 '+list.length+' 个策划案：'+names+'。此操作会替换当前全部数据，不可撤销；建议先导出备份。',applyImport);
@@ -283,21 +292,21 @@ async function applyImport(){
   let locked=false;
   const app=document.getElementById('app');
   try{
-    const assets=d.type==='assets';
-    const single=!assets&&(d.type==='project'||!!d.project);
-    const raw=assets?d.assets:single?[d.project]:d.projects;
-    if(!Array.isArray(raw)||!raw.length) throw new Error('文件中没有合法项目');
+    const {mode,list:raw}=classifyTransferPackage(d);
+    const assets=mode==='assets',single=mode==='single',append=mode==='append';
+    if(append)validatePortablePack(d);
     const imported=raw.map(p=>sanitizeProject(p));
     if(imported.some(p=>!p)) throw new Error('文件中有非法项目');
     imported.forEach(p=>{migrate(p);p.v3=1;if(assets){p.assetPack=true;p.demo=false;}});
     if(single) imported[0].name+='（导入）';
+    if(append) imported.forEach(p=>{p.demo=false;p.assetPack=false;p.name+='（导入）';});
     const images=remapBackupImages(imported,d.images,uid);
     if(app) app.inert=true;
     if(persistTimer||pendingPersist) await flushPersist(); else await persistChain;
     if(persistConflict||persistFailed) throw new Error('现有数据尚未保存');
     persistClearing=true; locked=true;
     const generation=persistGeneration;
-    const arr=single||assets?JSON.parse(JSON.stringify(loadP())).concat(imported):imported;
+    const arr=mode!=='restore'?JSON.parse(JSON.stringify(loadP())).concat(imported):imported;
     const ok=await idb.importProjects(arr,persistExpected,images);
     if(!ok){markPersistConflict();return;}
     persistExpected=JSON.stringify(arr);
@@ -309,10 +318,17 @@ async function applyImport(){
   }catch(err){ toast('导入失败：'+String(err.message||err)+'，原项目未被覆盖',6000); }
   finally{ if(locked) persistClearing=false; if(app) app.inert=false; }
 }
-let confirmCb=null;
-function askConfirm(t,d,cb){ document.getElementById('confirmTitle').textContent=t; document.getElementById('confirmDesc').textContent=d; confirmCb=cb; document.getElementById('confirmModal').classList.add('show'); }
-function closeConfirm(){ document.getElementById('confirmModal').classList.remove('show'); confirmCb=null; }
-document.getElementById('confirmOk').onclick=()=>{ const cb=confirmCb; closeConfirm(); if(cb) cb(); };
+let confirmCb=null,confirmCancelCb=null;
+function askConfirm(t,d,cb,onCancel){
+  const previous=confirmCancelCb;confirmCancelCb=null;if(previous)previous();
+  const row=document.getElementById('archiveImportTargetRow'),picker=document.getElementById('archiveImportTarget');
+  row.hidden=true;picker.onchange=null;picker.replaceChildren(new Option('创建新的策划案',''));
+  document.getElementById('confirmTitle').textContent=t; document.getElementById('confirmDesc').textContent=d; confirmCb=cb;confirmCancelCb=onCancel||null;document.getElementById('confirmModal').classList.add('show');
+}
+function closeConfirm(cancel=true){
+  const cb=confirmCancelCb;confirmCancelCb=null;confirmCb=null;document.getElementById('confirmModal').classList.remove('show');if(cancel&&cb)cb();
+}
+document.getElementById('confirmOk').onclick=()=>{ const cb=confirmCb; closeConfirm(false); if(cb) cb(); };
 function clearAll(){
   askConfirm('清空全部数据？','不可恢复！将删除所有策划案与图片，建议先导出备份。姿势图库缓存不受影响，可在情绪板 → 素材来源中单独清除。',async()=>{
     if(persistConflict||persistClearing||!idb.ready()){ toast('当前无法安全清空，请先导出备份并刷新'); return; }

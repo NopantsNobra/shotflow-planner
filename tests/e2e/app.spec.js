@@ -665,6 +665,8 @@ test('策划模式切换只隐藏模块，不删除预算或分镜',async({page}
 test('批量修改分镜时长并保留原名称',async({page})=>{
   await setupV108Project(page);
   await page.getByRole('button',{name:'批量编辑'}).click();
+  await expect(page.locator('#tabBody [onclick],#tabBody [onchange]')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'导出所选分镜'})).toBeVisible();
   await page.locator('.batch-check').check();
   await page.locator('#batchDuration').selectOption('30');
   await page.getByRole('button',{name:'应用',exact:true}).click();
@@ -924,6 +926,249 @@ test('配额失败明确显示诊断、保留草稿，手动重试可恢复',asy
   await page.getByRole('button',{name:'重新尝试保存'}).click();
   await expect(page.locator('#persistFailureTip')).toHaveCount(0);
   await expect.poll(()=>page.evaluate(async()=> (await idb.getProjects()).find(p=>p.id==='v108-test').shots[0].name)).toBe('未落盘草稿');
+});
+
+
+test('v5 项目包追加多个策划案且拒绝歧义类型，保留原项目',async({page})=>{
+  await setupV108Project(page);
+  await page.keyboard.press('Escape');
+  const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==';
+  const pack={app:'stillmark',version:5,type:'project-pack',packVersion:1,entries:[
+    {name:'迁移项目甲',shots:[{id:'s',name:'已完成镜头',done:true,sceneId:'c',refIds:['img']}],scenes:[{id:'c',name:'场景甲'}],refs:[{key:'img'}]},
+    {name:'迁移项目乙',shots:[{name:'第二镜头',refIds:['img']}]}
+  ],images:{img:image}};
+  const upload=async(data)=>page.locator('#importFile').setInputFiles({name:'pack.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});
+  await upload({...pack,projects:pack.entries});
+  await expect(page.locator('#confirmModal')).not.toHaveClass(/show/);
+  await expect(page.locator('.toast')).toContainText('歧义');
+  await upload(pack);
+  await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  await expect(page.locator('#confirmDesc')).toContainText('保留现有数据');
+  await page.locator('#confirmOk').click();
+  await expect(page.locator('.pcard',{hasText:'迁移项目甲'})).toBeVisible();
+  await expect(page.locator('.pcard',{hasText:'迁移项目乙'})).toBeVisible();
+  await expect(page.locator('.pcard',{hasText:'V108 测试案'})).toBeVisible();
+  expect(await page.evaluate(async()=>{
+    const ps=await idb.getProjects(),a=ps.find(p=>p.name.includes('迁移项目甲')),b=ps.find(p=>p.name.includes('迁移项目乙'));
+    return a.shots[0].done&&a.shots[0].sceneId===a.scenes[0].id&&a.shots[0].refIds[0]===b.shots[0].refIds[0]&&!!(await idb.get(a.shots[0].refIds[0]));
+  })).toBe(true);
+  await page.reload();
+  await expect(page.locator('.pcard',{hasText:'迁移项目甲'})).toBeVisible();
+});
+
+
+test('看板选择两个完整项目打包，保留各自执行状态',async({page})=>{
+  await setupV108Project(page);
+  await page.evaluate(()=>{updateCur(p=>p.shots[0].done=true);});
+  await page.keyboard.press('Escape');
+  await createProject(page,'第二策划');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#app [onclick],#app [onchange]')).toHaveCount(0);
+  await page.getByRole('button',{name:'打包项目'}).click();
+  await page.getByRole('button',{name:'选择项目 V108 测试案'}).click();
+  await page.getByRole('button',{name:'选择项目 第二策划'}).click();
+  await expect(page.locator('#boardPackCount')).toHaveText('已选 2 个项目');
+  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'导出所选项目'}).click()]);
+  const bytes=Array.from(readFileSync(await download.path()));
+  const data=await page.evaluate(async bytes=>{
+    const archive=await openAssetArchive(new Blob([Uint8Array.from(bytes)]),globalThis.zip);
+    try{return archive.data;}finally{await archive.close();}
+  },bytes);
+  expect(data.kind).toBe('projects');
+  expect(data.entries.map(p=>p.name).sort()).toEqual(['V108 测试案','第二策划'].sort());
+  expect(data.entries.find(p=>p.name==='V108 测试案').shots[0].done).toBe(true);
+});
+
+test('非收藏分镜精确导出并导入新项目，保留原始项目和图片',async({page})=>{
+  await setupV108Project(page);
+  const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==';
+  await page.evaluate(async(image)=>{
+    await idb.put('portable-ref',image);
+    imgCache['portable-ref']=image;
+    updateCur(p=>{
+      p.client='不应进入分镜包的客户';
+      p.refs.push({id:'portable-meta',key:'portable-ref',name:'参考图',tags:['参考']});
+      p.scenes.push({id:'portable-scene',name:'选中场景'});
+      Object.assign(p.shots[0],{refIds:['portable-ref'],sceneId:'portable-scene',done:true,fav:false});
+      p.shots.push({...p.shots[0],id:'not-selected',name:'未选择分镜',done:false});
+    });
+    await renderShots(cur());
+  },image);
+  await page.getByRole('button',{name:'批量编辑'}).click();
+  await page.locator('.shot',{hasText:'原始分镜'}).locator('.batch-check').check();
+  const [download]=await Promise.all([page.waitForEvent('download'),(async()=>{
+    await page.getByRole('button',{name:'导出所选分镜'}).click();
+    await expect(page.locator('.toast')).toContainText('已导出');
+  })()]);
+  const zipBytes=readFileSync(await download.path());
+  const pack=await page.evaluate(async bytes=>{
+    const a=await openAssetArchive(new Blob([Uint8Array.from(bytes)]),globalThis.zip);
+    const images={};await a.consumeImages(async(keys,b)=>{const v=await archiveDataURL(b);keys.forEach(k=>images[k]=v);});
+    return {...a.data,images};
+  },Array.from(zipBytes));
+  expect(pack.kind).toBe('shots');
+  expect(pack.entries).toHaveLength(1);
+  const entry=pack.entries[0];
+  expect(entry.shots.map(s=>s.name)).toEqual(['原始分镜']);
+  expect(entry.shots[0].done).toBe(true);
+  expect(entry.client).toBeUndefined();
+  expect(entry.scenes).toHaveLength(1);
+  expect(pack.images['portable-ref']).toBe(image);
+  await page.keyboard.press('Escape');
+  await page.locator('#importFile').setInputFiles({name:'shots.stillmark.zip',mimeType:'application/zip',buffer:zipBytes});
+  await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  await page.locator('#confirmOk').click();
+  await expect(page.locator('.pcard',{hasText:'分镜选集'})).toBeVisible();
+  expect(await page.evaluate(async()=>{
+    const ps=await idb.getProjects(),original=ps.find(p=>p.id==='v108-test'),imported=ps.find(p=>p.name.includes('分镜选集'));
+    const s=imported.shots[0];return original.shots.length===2&&s.done&&s.sceneId===imported.scenes[0].id&&s.refIds[0]!=='portable-ref'&&!!(await idb.get(s.refIds[0]));
+  })).toBe(true);
+});
+
+
+test('公开 Agent ZIP 示例经生产导入器校验图片并刷新持久化',async({page})=>{
+  await openFreshApp(page);
+  const shotPack=readFileSync(new URL('../../examples/agent-shot-with-image-v1.stillmark.zip',import.meta.url));
+  await page.locator('#importFile').setInputFiles({name:'agent-shot-with-image-v1.stillmark.zip',mimeType:'application/zip',buffer:shotPack});
+  await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  await expect(page.locator('#confirmDesc')).toContainText('窗边人像策划');
+  await expect(page.locator('#confirmDesc')).toContainText('1 个图片引用');
+  await page.locator('#confirmOk').click();
+  await expect(page.locator('.toast')).toContainText('导入成功');
+  await page.locator('.pcard',{hasText:'窗边人像策划'}).click();
+  await expect(page.locator('.shot')).toContainText('窗边侧光半身');
+  await expect.poll(()=>page.locator('.shot img').first().evaluate(el=>el.naturalWidth)).toBeGreaterThan(0);
+  await page.keyboard.press('Escape');
+
+  const projectPack=readFileSync(new URL('../../examples/agent-project-v1.stillmark.zip',import.meta.url));
+  await page.locator('#importFile').setInputFiles({name:'agent-project-v1.stillmark.zip',mimeType:'application/zip',buffer:projectPack});
+  await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  await expect(page.locator('#confirmDesc')).toContainText('城市漫步人像');
+  await page.locator('#confirmOk').click();
+  await expect(page.locator('.pcard',{hasText:'城市漫步人像'})).toBeVisible();
+  await page.reload();
+  await expect(page.locator('.pcard',{hasText:'窗边人像策划'})).toBeVisible();
+  await expect(page.locator('.pcard',{hasText:'城市漫步人像'})).toBeVisible();
+});
+
+
+test('ZIP 暂存隔离、原子发布、冲突和碰撞回滚及过期清理',async({page})=>{
+  await setupV108Project(page);
+  const result=await page.evaluate(async()=>{
+    const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==';
+    const original=await idb.getProjects(),expected=JSON.stringify(original);
+    await idb.stageArchiveImage('first','zip-new',image);
+    const isolated=!(await idb.get('zip-new'))&&(await idb.get(['archive-stage-v1','first','image','zip-new']))===image;
+    const mismatch=await idb.publishArchiveStage(original,'null','first',['zip-new'])===false;
+    const retained=!(await idb.get('zip-new'))&&!!(await idb.get(['archive-stage-v1','first','image','zip-new']));
+    const project={...original[0],id:'zip-project',name:'ZIP 原子发布',shots:[]};
+    const ok=await idb.publishArchiveStage(original.concat(project),expected,'first',['zip-new']);
+    const committed=ok&&(await idb.get('zip-new'))===image&&!(await idb.get(['archive-stage-v1','first','image','zip-new']))&&(await idb.getProjects()).some(p=>p.id==='zip-project');
+    const baseline=JSON.stringify(await idb.getProjects());
+    await idb.stageArchiveImage('collision','zip-another',image);await idb.stageArchiveImage('collision','zip-new',image);
+    let rolled=false;
+    try{await idb.publishArchiveStage([],baseline,'collision',['zip-another','zip-new']);}catch{rolled=true;}
+    const protectedData=rolled&&!(await idb.get('zip-another'))&&(await idb.get('zip-new'))===image&&JSON.stringify(await idb.getProjects())===baseline;
+    await idb.discardArchiveStage('collision');
+    const cleaned=!(await idb.get(['archive-stage-v1','collision','image','zip-another']));
+    await idb.stageArchiveImage('expired','old-image',image);
+    await idb.reapArchiveStages(Date.now()+25*60*60*1000);
+    const reaped=!(await idb.get(['archive-stage-v1','expired','image','old-image']))&&(await idb.get('zip-new'))===image;
+    return {isolated,mismatch,retained,committed,protectedData,cleaned,reaped};
+  });
+  expect(result).toEqual({isolated:true,mismatch:true,retained:true,committed:true,protectedData:true,cleaned:true,reaped:true});
+});
+
+
+test('ZIP 导入确认前不写入，取消暂存时项目及图片均不改变',async({page})=>{
+  await setupV108Project(page);await page.keyboard.press('Escape');
+  const bytes=await page.evaluate(async()=>{
+    const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==';
+    const parts=[];
+    await writeAssetArchive({dataVersion:1,kind:'projects',entries:[{name:'取消导入测试',refs:[{key:'a'},{key:'b'}]}]},()=>archiveImageBlob(image),new WritableStream({write(c){parts.push(c.slice());}}),globalThis.zip);
+    window.__archiveBaseline=JSON.stringify(await idb.getProjects());window.__archiveKeys=JSON.stringify(await idb.keys());
+    return Array.from(new Uint8Array(await new Blob(parts).arrayBuffer()));
+  });
+  const upload=()=>page.locator('#importFile').setInputFiles({name:'cancel.stillmark.zip',mimeType:'application/zip',buffer:Buffer.from(bytes)});
+  await upload();await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  expect(await page.evaluate(async()=>JSON.stringify(await idb.keys())===window.__archiveKeys)).toBe(true);
+  await page.locator('#confirmModal').getByRole('button',{name:'取消'}).click();
+  await expect(page.locator('#confirmModal')).not.toHaveClass(/show/);
+  // Gate the first staging call; cancel via the real button after the first write.
+  await page.evaluate(()=>{
+    const stage=idb.stageArchiveImage;
+    window.__staged=0;
+    idb.stageArchiveImage=async(...args)=>{
+      await stage(...args);window.__staged++;
+      if(window.__staged===1)await new Promise(resolve=>{window.__resumeArchive=resolve;});
+    };
+  });
+  await upload();await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  await page.locator('#confirmOk').click();
+  await expect.poll(()=>page.evaluate(()=>window.__staged)).toBe(1);
+  await expect(page.locator('#archiveProgressModal')).toHaveClass(/show/);
+  await page.locator('#archiveCancel').click();await page.evaluate(()=>window.__resumeArchive());
+  await expect(page.locator('#archiveProgressModal')).not.toHaveClass(/show/);
+  await expect(page.locator('#toast')).toContainText('取消');
+  expect(await page.evaluate(async()=>JSON.stringify(await idb.getProjects())===window.__archiveBaseline&&JSON.stringify(await idb.keys())===window.__archiveKeys)).toBe(true);
+});
+
+
+test('ZIP 直接保存：特性检测、分块写出、取消选择与写入失败不降级下载',async({page})=>{
+  await page.goto('/shotflow.html');await expect(page.locator('#app')).toBeVisible();
+  const result=await page.evaluate(async()=>{
+    const original=globalThis.showSaveFilePicker,parts=[];let closed=0,aborts=0,picks=0,downloads=0,writeCount=0;
+    const download=downloadBlob;downloadBlob=()=>{downloads++;};
+    const data=[{name:'流式保存测试',shots:[{name:'一张分镜'}]}];
+    try{
+      globalThis.showSaveFilePicker=async options=>{
+        picks++;
+        if(!options.suggestedName.endsWith('.stillmark.zip'))throw Error('bad filename');
+        return {createWritable:async()=>new WritableStream({
+          write(c){parts.push(c.slice());writeCount++;},close(){closed++;},abort(){aborts++;}
+        })};
+      };
+      const supported=archiveCanSaveToFile();
+      await exportArchiveProjects(data,'projects',true);
+      const saved=await openAssetArchive(new Blob(parts),globalThis.zip),name=saved.data.entries[0].name;await saved.close();
+      globalThis.showSaveFilePicker=async()=>{picks++;throw new DOMException('cancel','AbortError');};
+      await exportArchiveProjects(data,'projects',true);
+      globalThis.showSaveFilePicker=async()=>({createWritable:async()=>new WritableStream({write(){throw Error('disk failure');}})});
+      await exportArchiveProjects(data,'projects',true);
+      const errorShown=document.getElementById('toast').textContent.includes('未完成');
+      globalThis.showSaveFilePicker=async()=>({createWritable:async()=>new WritableStream({abort(){aborts++;}})});
+      await exportArchiveProjects([{bad:'schema'}],'projects',true);
+      return {supported,name,picks,closed,multiple:writeCount>1,downloads,aborts,errorShown,clean:!archiveOperation};
+    }finally{globalThis.showSaveFilePicker=original;downloadBlob=download;}
+  });
+  expect(result).toEqual({supported:true,name:'流式保存测试',picks:2,closed:1,multiple:true,downloads:0,aborts:1,errorShown:true,clean:true});
+});
+
+
+test('分镜 ZIP 指定目标追加：保留客户资料与旧分镜，只新增选中依赖',async({page})=>{
+  await setupV108Project(page);
+  await page.evaluate(()=>{updateCur(p=>{p.client='原客户';p.shots[0].done=true;p.scenes=[{id:'existing-scene',name:'窗边',note:'原场景'}];p.notes=[{id:'existing-note',kind:'备注',content:'原备注',ts:1}];});});
+  await page.keyboard.press('Escape');
+  const bytes=await page.evaluate(async()=>{
+    const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGOck23AwMDAxMDAwMDAAAAPKgE7rCeNpwAAAABJRU5ErkJggg==',parts=[];
+    const model={dataVersion:1,kind:'shots',entries:[{name:'追加来源',client:'不应写入',shots:[{id:'s',name:'新增分镜',sceneId:'sc',refIds:['pic'],date:'2026-12-01',done:true}],scenes:[{id:'sc',name:'窗边'},{id:'unrelated',name:'忽略'}],refs:[{key:'pic',tags:['新标签']},{key:'extra'}],notes:[{content:'无关隐私'}]}]};
+    await writeAssetArchive(model,()=>archiveImageBlob(image),new WritableStream({write(c){parts.push(c.slice());}}),globalThis.zip);
+    return Array.from(new Uint8Array(await new Blob(parts).arrayBuffer()));
+  });
+  await page.locator('#importFile').setInputFiles({name:'append.stillmark.zip',mimeType:'application/zip',buffer:Buffer.from(bytes)});
+  await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  await expect(page.locator('#archiveImportTarget')).toBeVisible();
+  await page.locator('#archiveImportTarget').selectOption('v108-test');
+  await expect(page.locator('#confirmDesc')).toContainText('追加');
+  await page.locator('#confirmOk').click();
+  await expect(page.locator('#toast')).toContainText('已向');
+  const result=await page.evaluate(async()=>{
+    const ps=await idb.getProjects(),p=ps.find(p=>p.id==='v108-test'),s=p.shots.find(x=>x.name==='新增分镜'),keys=await idb.keys();
+    return {count:ps.length,client:p.client,old:p.shots[0].done,added:s.done,scenes:p.scenes.length,linked:p.scenes.some(x=>x.id===s.sceneId&&x.name==='窗边'),notes:p.notes.map(x=>x.content),refs:p.refs.length,dates:p.shootDates,exists:!!(await idb.get(s.refIds[0])),imageCount:keys.filter(k=>typeof k==='string'&&k.startsWith('archive-')).length};
+  });
+  expect(result).toMatchObject({count:1,client:'原客户',old:true,added:true,scenes:2,linked:true,notes:['原备注'],refs:1,dates:['2026-11-24','2026-12-01'],exists:true,imageCount:1});
+  await page.reload();await page.locator('.pcard',{hasText:'V108 测试案'}).click();
+  await expect(page.locator('.shot',{hasText:'新增分镜'})).toBeVisible();
 });
 
 /* Strict-CSP Phase 2：清单/预算/协作域改为 data-do 白名单委托后的回归。 */

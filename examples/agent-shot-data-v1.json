@@ -1,0 +1,40 @@
+{
+  "dataVersion": 1,
+  "kind": "shots",
+  "entries": [
+    {
+      "name": "窗边人像策划",
+      "status": "策划中",
+      "shootDates": ["2026-12-01"],
+      "scenes": [
+        {
+          "id": "scene-window",
+          "name": "窗边",
+          "note": "实际光线与场地条件待现场确认"
+        }
+      ],
+      "refs": [
+        {
+          "id": "ref-window",
+          "key": "reference-window",
+          "name": "2×2 PNG 格式测试占位图（非摄影参考）",
+          "tags": ["参考", "自然光"]
+        }
+      ],
+      "shots": [
+        {
+          "id": "shot-window-portrait",
+          "name": "窗边侧光半身",
+          "date": "2026-12-01",
+          "duration": 10,
+          "sceneId": "scene-window",
+          "refIds": ["reference-window"],
+          "position": "平视",
+          "light": "窗光",
+          "note": "根据现场光线调整人物朝向",
+          "mustShoot": true
+        }
+      ]
+    }
+  ]
+}

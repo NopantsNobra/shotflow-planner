@@ -1,0 +1,144 @@
+import { test, expect } from '@playwright/test';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { dirname } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const bundle=readFileSync(new URL('../../src/vendor/zip-native-2.25.0.min.js',import.meta.url),'utf8');
+const core=readFileSync(new URL('../../src/js/02-core.js',import.meta.url),'utf8');
+const schemas=readFileSync(new URL('../../src/js/02-schemas.js',import.meta.url),'utf8');
+const contracts=schemas+'\n'+core.slice(core.indexOf('function validatePortableShape('),core.indexOf('function classifyTransferPackage('));
+const archiveWriter=readFileSync(new URL('../../src/js/04-b-archive.js',import.meta.url),'utf8');
+const externalFixture='UEsDBBQAAAAIAEGUeV1RpGy1IwAAACEAAAANAAAAbWFuaWZlc3QuanNvbqtWSssvyk0sUbJSKi7JzMnJTSzK1kssLk4t0S1ITM5WqgUAUEsDBBQAAAAAAEGUeV1Y+DV7BQAAAAUAAAAPAAAAaW1hZ2VzL3Rlc3QuYmluAAECA/9QSwECFAMUAAAACABBlHldUaRstSMAAAAhAAAADQAAAAAAAAAAAAAAgAEAAAAAbWFuaWZlc3QuanNvblBLAQIUAxQAAAAAAEGUeV1Y+DV7BQAAAAUAAAAPAAAAAAAAAAAAAACAAU4AAABpbWFnZXMvdGVzdC5iaW5QSwUGAAAAAAIAAgB4AAAAgAAAAAAA';
+
+async function probe(externalFixture){
+  const bytes=Uint8Array.of(0,1,2,3,255);
+  const options={useWebWorkers:false,useCompressionStream:false};
+  const z=globalThis.zip;
+  z.configure(options);
+  const sink=[];
+  const writer=new z.ZipWriter(new WritableStream({write(chunk){sink.push(new Uint8Array(chunk));}}),{...options,zip64:true});
+  await writer.add('manifest.json',new z.TextReader('{"format":"stillmark.asset-pack"}'),{level:6,zip64:true});
+  await writer.add('images/test.bin',new z.Uint8ArrayReader(bytes),{level:0,zip64:true});
+  await writer.close();
+  const resultBlob=new Blob(sink,{type:'application/zip'});
+  const read=async(blob)=>{
+    const reader=new z.ZipReader(new z.BlobReader(blob),{...options,strictness:'strict',checkCrc32:true});
+    try{
+      const entries=await reader.getEntries();
+      const meta=entries.find(e=>e.filename==='manifest.json'),image=entries.find(e=>e.filename==='images/test.bin');
+      const manifest=await meta.getData(new z.TextWriter(),{...options,checkCrc32:true});
+      const payload=await image.getData(new z.Uint8ArrayWriter(),{...options,checkCrc32:true});
+      return {manifest,bytes:Array.from(payload),methods:[meta.compressionMethod,image.compressionMethod],count:entries.length};
+    }finally{await reader.close();}
+  };
+  const generated=await read(resultBlob);
+  const external=await read(new Blob([Uint8Array.from(atob(externalFixture),c=>c.charCodeAt(0))]));
+  const sha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');
+  const a=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGNMqehhYGBgYmBgYGBgAAAQ4gFsnbDn+gAAAABJRU5ErkJggg=='),c=>c.charCodeAt(0));
+  const b=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGPsqUhhYGBgYmBgYGBgAAARMgFsgD/i+QAAAABJRU5ErkJggg=='),c=>c.charCodeAt(0));
+  const model={dataVersion:1,kind:'projects',entries:[
+    {name:'one',shots:[{name:'shot',refIds:['a','alias','b']}]},
+    {name:'two',refs:[{key:'a'}]}
+  ]};
+  const output=[],reads=[],progress=[];
+  const stats=await writeAssetArchive(model,async key=>{
+    reads.push(key);return new Blob([key==='b'?b:a],{type:'image/png'});
+  },new WritableStream({write(chunk){output.push(new Uint8Array(chunk));}}),z,{onProgress:state=>progress.push(state)});
+  const archive=new z.ZipReader(new z.BlobReader(new Blob(output)),{...options,strictness:'strict'});
+  let dedup;
+  try{
+    const entries=await archive.getEntries(),map=new Map(entries.map(e=>[e.filename,e]));
+    const manifest=JSON.parse(await map.get('manifest.json').getData(new z.TextWriter(),{...options,checkCrc32:true}));
+    const images=manifest.images,actual=[];
+    for(const im of [images[0],images[2]]){
+      const v=await map.get(im.path).getData(new z.Uint8ArrayWriter(),{...options,checkCrc32:true});
+      actual.push({sha:await archiveSha256(v),size:v.length,method:map.get(im.path).compressionMethod});
+    }
+    const restored=JSON.parse(await map.get('data.json').getData(new z.TextWriter(),{...options,checkCrc32:true}));
+    dedup={reads,progress:progress.at(-1),count:entries.length,alias:images[0].path===images[1].path,
+      sameSizeDistinct:images[0].bytes===images[2].bytes&&images[0].path!==images[2].path,
+      validHashes:actual.every((x,i)=>x.sha===images[i===0?0:2].sha256&&x.size===79&&x.method===0),
+      modelMatches:JSON.stringify(model)===JSON.stringify(restored),unique:stats.uniqueImages,saved:stats.savedImageBytes,
+      sizeMatches:stats.archiveBytes===new Blob(output).size};
+  }finally{await archive.close();}
+  const opened=await openAssetArchive(new Blob(output),z),delivered=[];
+  const before=delivered.length;
+  await opened.consumeImages(async(keys,blob,descriptor)=>{
+    delivered.push({keys,size:blob.size,sha:await archiveSha256(new Uint8Array(await blob.arrayBuffer())),expected:descriptor.sha256});
+  });
+  let reused=false;try{await opened.consumeImages(()=>{});}catch{reused=true;}
+  const readerOK=before===0&&opened.stats.uniqueImages===2&&delivered.length===2&&delivered[0].keys.join(',')==='a,alias'
+    &&delivered[1].keys.join(',')==='b'&&delivered.every(x=>x.size===79&&x.sha===x.expected)&&reused;
+  // Generate hostile but syntactically valid archives with the third-party codec.
+  const makeBad=async(mut)=>{
+    const manifest=JSON.parse(JSON.stringify(stats.manifest)),parts=[];
+    const changes=mut(manifest)||{};
+    const writer=new z.ZipWriter(new WritableStream({write(chunk){parts.push(new Uint8Array(chunk));}}),options);
+    await writer.add('data.json',new z.TextReader(JSON.stringify(model)),{...options,level:6});
+    for(const im of [...new Map(manifest.images.map(x=>[x.path,x])).values()]){
+      const bytes=changes.corrupt&&im.key!=='b'?b:(im.key==='b'?b:a);
+      await writer.add(im.path,new z.Uint8ArrayReader(bytes),{...options,level:0});
+    }
+    await writer.add('manifest.json',new z.TextReader(JSON.stringify(manifest)),{...options,level:6});
+    if(changes.extra)await writer.add('unlisted.txt',new z.TextReader('unexpected'),options);
+    await writer.close();
+    return new Blob(parts);
+  };
+  const rejectPreflight=async(blob,opts)=>{try{const r=await openAssetArchive(blob,z,opts);await r.close();return false;}catch{return true;}};
+  const badExtra=await rejectPreflight(await makeBad(()=>({extra:true})));
+  const badData=await rejectPreflight(await makeBad(m=>{m.data.sha256='f'.repeat(64);}));
+  const badLimit=await rejectPreflight(new Blob(output),{limits:{...assetArchiveLimits(),maxImageBytes:78}});
+  let imageRejected=false,deliveredBad=0;
+  try{const r=await openAssetArchive(await makeBad(()=>({corrupt:true})),z);await r.consumeImages(()=>{deliveredBad++;});}catch{imageRejected=true;}
+  const readerRejects=badExtra&&badData&&badLimit&&imageRejected&&deliveredBad===0;
+  const big=new Uint8Array(a);new DataView(big.buffer).setUint32(16,100000);
+  let pixelRejected=false,aliasRejected=false,metadataRejected=false;
+  try{await writeAssetArchive(model,async()=>new Blob([big],{type:'image/png'}),new WritableStream(),z);}catch(e){pixelRejected=String(e).includes('尺寸');}
+  try{await writeAssetArchive(model,async()=>new Blob([a],{type:'image/png'}),new WritableStream(),z,{limits:{...assetArchiveLimits(),maxLogicalImageBytes:100}});}catch(e){aliasRejected=String(e).includes('展开体积');}
+  metadataRejected=await rejectPreflight(new Blob(output),{limits:{...assetArchiveLimits(),maxMetadataReadBytes:20}});
+  let aborted=false,rejected=false;
+  try{
+    await writeAssetArchive(model,async()=>new Blob([a],{type:'image/png'}),new WritableStream({abort(){aborted=true;}}),z,
+      {limits:{...assetArchiveLimits(),maxImageBytes:78}});
+  }catch{rejected=true;}
+  return {generated,external,sha,chunks:sink.length,size:resultBlob.size,secureContext:isSecureContext,dedup,budgetRejected:rejected&&aborted,readerOK,readerRejects,resourceGuards:pixelRejected&&aliasRejected&&metadataRejected};
+}
+const script=bundle+'\n'+contracts+'\n'+archiveWriter+'\n('+probe.toString()+')('+JSON.stringify(externalFixture)+').then(result=>{document.getElementById("result").textContent=JSON.stringify(result);},error=>{document.getElementById("result").textContent=JSON.stringify({error:String(error),stack:error.stack});});';
+const hash=createHash('sha256').update(script).digest('base64');
+const policy="default-src 'none'; script-src 'sha256-"+hash+"'; script-src-attr 'none'; worker-src 'none'; connect-src 'none'; img-src data:; object-src 'none'; base-uri 'none'; form-action 'none'";
+const html='<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="'+policy+'"><link rel="icon" href="data:,"></head><body><pre id="result">pending</pre><script>'+script+'</script></body></html>';
+
+for(const mode of ['local-file','localhost']){
+  test('ZIP 原型：严格 CSP、'+mode+'、无 Worker/WASM 的 ZIP64 与二进制往返',async({page},testInfo)=>{
+    const requests=[],violations=[],errors=[];
+    page.on('request',r=>{if(/^https?:/.test(r.url())&&!r.url().endsWith('/__zip_probe.html'))requests.push(r.url());});
+    page.on('pageerror',e=>errors.push(String(e)));
+    await page.addInitScript(()=>{
+      window.__zipCsp=[];
+      document.addEventListener('securitypolicyviolation',e=>window.__zipCsp.push(e.effectiveDirective+': '+e.blockedURI));
+    });
+    if(mode==='local-file'){
+      const path=testInfo.outputPath('zip-probe.html');
+      mkdirSync(dirname(path),{recursive:true});writeFileSync(path,html);
+      await page.goto(pathToFileURL(path).href);
+    }else{
+      await page.route('**/__zip_probe.html',r=>r.fulfill({status:200,contentType:'text/html; charset=utf-8',body:html}));
+      await page.goto('/__zip_probe.html');
+    }
+    await expect(page.locator('#result')).not.toHaveText('pending',{timeout:15000});
+    const result=JSON.parse(await page.locator('#result').textContent());
+    expect(result.error,result.stack).toBeUndefined();
+    const want={manifest:'{"format":"stillmark.asset-pack"}',bytes:[0,1,2,3,255],methods:[8,0],count:2};
+    expect(result.generated).toEqual(want);expect(result.external).toEqual(want);
+    expect(result.sha).toBe(createHash('sha256').update(Buffer.from([0,1,2,3,255])).digest('hex'));
+    expect(result.chunks).toBeGreaterThan(1);
+    expect(result.secureContext).toBe(true);
+    expect(result.dedup).toEqual({reads:['a','alias','b'],progress:{processed:3,total:3,unique:2},count:4,alias:true,sameSizeDistinct:true,validHashes:true,modelMatches:true,unique:2,saved:79,sizeMatches:true});
+    expect(result.budgetRejected).toBe(true);
+    expect(result.readerOK).toBe(true);expect(result.readerRejects).toBe(true);
+    expect(result.resourceGuards).toBe(true);
+    violations.push(...await page.evaluate(()=>window.__zipCsp||[]));
+    expect(violations).toEqual([]);expect(errors).toEqual([]);expect(requests).toEqual([]);
+  });
+}

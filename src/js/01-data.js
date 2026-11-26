@@ -7,7 +7,8 @@
    注意：注释中不要复现带引号的占位字面量本身，
    否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
 const APP_VERSION='__APP_VERSION__';
-const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.2',data:'v10.9.3',core:'v10.9.3',app:'v10.9.2',output:'v10.9.3',boot:'v10.9.2',settings:'v10.9.3',swCache:'shotflow-v10-22-csp',dbSchema:4,since:'v10.5.0'};
+const PROPOSAL_SCRIPT_HASH='__PROPOSAL_SCRIPT_HASH__';
+const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.2',data:'v10.9.3',core:'v10.9.3',app:'v10.9.2',output:'v10.9.3',boot:'v10.9.2',settings:'v10.9.3',swCache:'shotflow-v10-32-csp-portable',dbSchema:4,since:'v10.5.0'};
 const FB_KEY_A = 'uJrHd8a=U+X9Uh3EUtyyUhdF';
 const FB_KEY_B = 'yRhU1RHdTUVl1XwU9dVu=mJD';
 const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded', LS_DEMO_V9='wb_sf_demo_v9';
@@ -132,7 +133,6 @@ function coverData(p){
   return {no:cvNo(p),title:(p&&p.name)||'摄影策划案',theme:c.theme||'待定',model:c.model||'待定',date:cvDate(p&&p.shootDate),
     client:(p&&p.client)||'个人委托 · PERSONAL',studio:(p&&p.studio)||'瞬刻摄影工作室 · STUDIO',est:'EST. '+new Date().getFullYear()};
 }
-const PROPOSAL_SCRIPT_HASH='__PROPOSAL_SCRIPT_HASH__';
 function fitCovers(){
   document.querySelectorAll('.cv-fit').forEach(fit=>{
     const sheet=fit.querySelector('.cv-sheet'); if(!sheet) return;
@@ -273,6 +273,84 @@ const idb={db:null,
     });
   },
   importProjects(a,expected,images){return idb.compareProjects(a,expected,false,images);},
+  /* Archive staging uses array keys in the existing images store. Normal image
+     keys are strings; no schema upgrade or exposure to old project readers. */
+  stageArchiveImage(session,key,value){
+    if(!idb.db)return Promise.reject(Error('IDB_UNAVAILABLE'));
+    if(typeof session!=='string'||!session||typeof key!=='string'||!key||typeof value!=='string'||!validBackupImage(value))return Promise.reject(Error('INVALID_STAGE_IMAGE'));
+    return new Promise((res,rej)=>{
+      const tx=idb.db.transaction('images','readwrite'),s=tx.objectStore('images');
+      s.add(value,['archive-stage-v1',session,'image',key]);
+      s.put(Date.now(),['archive-stage-v1',session,'lease']);
+      tx.oncomplete=()=>res();tx.onabort=tx.onerror=()=>rej(tx.error||Error('IDB_STAGE'));
+    });
+  },
+  discardArchiveStage(session){
+    if(!idb.db)return Promise.reject(Error('IDB_UNAVAILABLE'));
+    return new Promise((res,rej)=>{
+      const tx=idb.db.transaction('images','readwrite'),s=tx.objectStore('images');
+      const cursor=s.openKeyCursor(IDBKeyRange.bound(['archive-stage-v1',session],['archive-stage-v1',session,[]]));
+      cursor.onsuccess=()=>{const row=cursor.result;if(row){s.delete(row.primaryKey);row.continue();}};
+      tx.oncomplete=()=>res();tx.onabort=tx.onerror=()=>rej(tx.error||Error('IDB_STAGE_CLEANUP'));
+    });
+  },
+  reapArchiveStages(now=Date.now()){
+    if(!idb.db)return Promise.resolve();
+    return new Promise((res,rej)=>{
+      const tx=idb.db.transaction('images','readwrite'),s=tx.objectStore('images');
+      const cursor=s.openKeyCursor(IDBKeyRange.bound(['archive-stage-v1'],['archive-stage-v1',[]])),expired=[];
+      cursor.onsuccess=()=>{
+        const row=cursor.result;
+        if(row){
+          const k=row.primaryKey;
+          if(k.length===3&&k[2]==='lease'){
+            const q=s.get(k);q.onsuccess=()=>{if(typeof q.result==='number'&&now-q.result>24*60*60*1000)expired.push(k[1]);row.continue();};
+          }else row.continue();
+        }else{
+          // Scan only stale sessions in the same transaction; other tabs cannot
+          // refresh a lease concurrently with its removal.
+          for(const session of expired){
+            const c=s.openKeyCursor(IDBKeyRange.bound(['archive-stage-v1',session],['archive-stage-v1',session,[]]));
+            c.onsuccess=()=>{const item=c.result;if(item){s.delete(item.primaryKey);item.continue();}};
+          }
+        }
+      };
+      tx.oncomplete=()=>res();tx.onabort=tx.onerror=()=>rej(tx.error||Error('IDB_STAGE_REAP'));
+    });
+  },
+  publishArchiveStage(a,expected,session,keys){
+    if(!idb.db)return Promise.reject(Error('IDB_UNAVAILABLE'));
+    if(!Array.isArray(keys)||new Set(keys).size!==keys.length||keys.some(k=>typeof k!=='string'||!k))return Promise.reject(Error('INVALID_STAGE_KEYS'));
+    return new Promise((res,rej)=>{
+      const tx=idb.db.transaction(['projects','images'],'readwrite'),p=tx.objectStore('projects'),s=tx.objectStore('images');
+      let matched=false,failure=null;
+      const fail=err=>{failure=err;try{tx.abort();}catch{}};
+      const r=p.get('all');
+      r.onsuccess=()=>{
+        try{
+          if(!projectDataEqual(r.result==null?null:r.result,JSON.parse(expected)))return;
+          matched=true;
+          let i=0;
+          const next=()=>{
+            if(i===keys.length){p.put(a,'all');s.delete(['archive-stage-v1',session,'lease']);return;}
+            const key=keys[i++],temp=['archive-stage-v1',session,'image',key],q=s.get(temp);
+            q.onsuccess=()=>{
+              try{
+                if(typeof q.result!=='string'||!validBackupImage(q.result))throw Error('暂存图片缺失或非法');
+                // Only one payload is read and enqueued at a time. add prevents
+                // any accidental overwrite of an existing live image key.
+                const add=s.add(q.result,key);
+                add.onsuccess=()=>{const del=s.delete(temp);del.onsuccess=next;};
+              }catch(err){fail(err);}
+            };
+          };
+          next();
+        }catch(err){fail(err);}
+      };
+      tx.oncomplete=()=>res(matched);
+      tx.onabort=tx.onerror=()=>rej(failure||tx.error||Error('IDB_STAGE_PUBLISH'));
+    });
+  },
   compareProjects(a,expected,clear,images){
     if(!idb.db) return Promise.reject(new Error('IDB_UNAVAILABLE'));
     return new Promise((res,rej)=>{

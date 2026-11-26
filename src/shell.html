@@ -61,7 +61,7 @@
 </div>
 
 <!-- 部署说明弹窗（v10.6.x）：与其它 modal-mask 同 z-index，DOM 位于 settingsModal 之后 → 叠在其上；
-     点遮罩关闭用内联 onclick（仅当点在遮罩本身），不新增全局监听器 -->
+     遮罩关闭由静态 shell action 委托处理，仅响应遮罩本身的点击。 -->
 <div class="modal-mask" id="deployModal" data-shell-action="deploy-backdrop">
   <div class="modal doc-modal" style="max-width:620px">
     <div class="doc-bar no-print">
@@ -95,6 +95,7 @@
   <div class="modal confirm-box">
     <h3 style="margin-bottom:10px" id="confirmTitle">确认操作？</h3>
     <p class="muted" id="confirmDesc" style="margin-bottom:18px"></p>
+    <div id="archiveImportTargetRow" hidden style="margin-bottom:16px;text-align:left"><label for="archiveImportTarget" class="muted">导入目标</label><select id="archiveImportTarget" style="width:100%"><option value="">创建新的策划案</option></select></div>
     <div class="row" style="justify-content:center">
       <button class="btn btn-ghost" data-shell-action="close-confirm">取消</button>
       <button class="btn btn-danger" style="background:var(--red);color:#fff" id="confirmOk">确认</button>
@@ -129,6 +130,17 @@
   </div>
 </div>
 
+<!-- Asset archive progress: the cancel button is disabled during atomic publication. -->
+<div class="modal-mask" id="archiveProgressModal">
+  <div class="modal confirm-box">
+    <h3 id="archiveProgressTitle" style="margin-bottom:12px">正在处理资产包</h3>
+    <p id="archiveProgressText" role="status" aria-live="polite" class="muted" style="margin-bottom:12px"></p>
+    <progress id="archiveProgressBar" max="1" style="width:100%;margin-bottom:16px"></progress>
+    <div class="row" style="justify-content:center"><button class="btn btn-ghost" id="archiveCancel">取消</button></div>
+  </div>
+</div>
+
 <!--__JS__-->
+<!--__ZIP_VENDOR__-->
 </body>
 </html>

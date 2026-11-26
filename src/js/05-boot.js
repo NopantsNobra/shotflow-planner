@@ -5,6 +5,7 @@
     window.addEventListener('resize',fitCovers);
     bindPersistFlush();   // P0：页面隐藏/关闭时冲刷未落盘数据
     await initData(); seed(); await ensureV9Demo(); renderBoard();
+    if(idb.ready())idb.reapArchiveStages().catch(()=>{});
     shiseiInitReady=true; startShiseiSync();
   }catch(e){
     /* A2：任何启动异常都不允许白屏——给出可见错误与自救入口（刷新 / 检查存储设置） */
@@ -150,6 +151,12 @@ const ACTIONS=Object.freeze({
   'clear-all':{fn:()=>clearAll(),argc:0,types:[]},
   'new-project':{fn:()=>newProject(),argc:0,types:[]},
   'board-scope':{fn:(scope)=>setDelegatedBoardScope(scope),argc:1,types:["s"]},
+  'toggle-board-pack-mode':{fn:()=>toggleBoardPackMode(),argc:0,types:[]},
+  'select-board-pack':{fn:(id)=>toggleBoardPackProject(id),argc:1,types:["s"]},
+  'select-visible-board-packs':{fn:()=>selectVisibleBoardPacks(),argc:0,types:[]},
+  'clear-board-pack-selection':{fn:()=>clearBoardPackSelection(),argc:0,types:[]},
+  'export-board-packs':{fn:()=>exportBoardPacks(false),argc:0,types:[]},
+  'export-board-packs-direct':{fn:()=>exportBoardPacks(true),argc:0,types:[]},
   'return-board':{fn:()=>returnDelegatedBoard(),argc:0,types:[]},
   'toggle-all-assets':{fn:()=>toggleAllAssets(),argc:0,types:[]},
   'export-selected-assets':{fn:()=>exportSelectedAssets(),argc:0,types:[]},
@@ -206,6 +213,8 @@ const ACTIONS=Object.freeze({
   'reschedule-all-days':{fn:()=>rescheduleAllDays(),argc:0,types:[]},
   'select-visible-shots':{fn:()=>selectVisibleShots(),argc:0,types:[]},
   'apply-batch-shots':{fn:()=>applyBatchShots(),argc:0,types:[]},
+  'export-batch-shots':{fn:()=>exportBatchShots(false),argc:0,types:[]},
+  'export-batch-shots-direct':{fn:()=>exportBatchShots(true),argc:0,types:[]},
   'remove-shot-ref':{fn:(id,i)=>(validRefIndex(id,i)&&removeShotRef(id,i)),argc:2,types:["s","n"]},
   'open-shot-ref-editor':{fn:(id)=>(cur()?.shots.some(s=>s.id===id)&&openShotRefEditor(id)),argc:1,types:["s"]},
   'copy-shot':{fn:(id)=>copyShot(id),argc:1,types:["s"]},

@@ -1,6 +1,8 @@
 # Strict CSP migration
 
-The dated phase notes below are implementation history. See “Final acceptance” at the end for the current status.
+**Current status (2026-11-26): merged into `main` via PR #2; the `security/strict-csp` branch was deleted after merge.** GitHub Actions passed all 14 checks, including Chromium, Firefox and WebKit. The maintainer also reports successful Chrome, Firefox and Safari testing and fixes from those runs. `refactor/portable-agent` now carries the CSP implementation while integrating the ZIP codec; the ZIP codec and app code must remain inside the same CSP-hashed script. Real mobile PWA upgrade and background recovery remain on the backlog.
+
+The dated phase notes below are implementation history; snapshots that say “pending”, “branch only” or “do not merge” describe their date and are superseded by this status and the final acceptance section.
 
 ## Phase 1 (implemented)
 - Remove static shell onclick/onkeydown attributes; explicit allowlist and document event delegation.
@@ -32,13 +34,13 @@ The dated phase notes below are implementation history. See “Final acceptance�
 - Dynamic templates in `03-b-project`, `03-c-shots`, `03-d-schedule`, `03-f-shootday`, `04-output`, `06-settings` still contain inline handlers (roughly 150 at this checkpoint). Complex cases include compound statements (`closeRefViewer();openShotRefEditor(...);...`) and state assignments that must first be extracted into named functions.
 - Phase 3 policy, exported-proposal audit, file:// + three-engine + offline + mobile acceptance are all still pending. Main retains baseline CSP.
 
-**Branch state:** `security/strict-csp` was synced with `main` at `b990d27` (merge of the v10.9.3 storage-recovery commits; the E2E file conflict was resolved by keeping both sides' tests). Branch is ahead of main, never merged.
+**Branch state at this checkpoint:** `security/strict-csp` had been synced with `main` at `b990d27`; it was later merged and deleted as recorded above.
 
 ## Follow-up audit — 2026-11-25
 
 - Fixed optional empty third argument in the shared edit action (required IDs still reject empty values); added a browser regression. Performance harness now extracts the actual doAttrs helper rather than mocking it or weakening the threshold.
 - Schedule and shoot-day domains migrated to explicit click/Enter and date-change allowlists. Their source templates have no remaining inline event attributes; the regression covers date/schedule controls, time lock, defer/restore and closing the field view.
-- The policy is still baseline. Other dynamic domains and exported documents remain to be migrated; main is unchanged.
+- At this dated checkpoint, the policy was still baseline; this was superseded by the completed Phase 3 work below.
 
 - Board/favorites, settings, output status/notifications and boot error UI migrated to the same declared actions; import uses specific file controls and the board search uses a scoped input listener. Remaining live template migration is concentrated in project/mood and shots. DOM event properties assigned in trusted JS (e.g. IndexedDB request callbacks) are not inline HTML attributes and do not violate strict CSP.
 
@@ -60,14 +62,14 @@ The dated phase notes below are implementation history. See “Final acceptance�
 - `5e6517e`: independently recompute SHA-256 from both committed HTML artifacts in `verify:build`; reject missing or duplicate directives, unexpected script sources, event attributes permitted by policy, and unresolved hash placeholders.
 - `fe71e88`: extend the proposal export E2E to reopen the downloaded HTML via file://, verify responsive cover resizing and reject injected script and event code.
 - Independent remote artifact audit: both generated HTML files match the reconstruction from current source byte-for-byte. The embedded app and proposal hashes match independently recomputed SHA-256 values. No quoted or literal-tag unquoted event attributes matched the expanded source guard. No runtime code or generated artifact changes were needed for these commits.
-- Pending: GitHub Actions push-run results, all three real browser engines, and actual iOS Safari / installed PWA / Android Chrome acceptance. Do not merge to main or declare full CSP acceptance until these are verified. Inline CSS remains an intentional exception and does not relax the script policy.
+- At this dated checkpoint, CI and browser acceptance were pending. The later final acceptance below records the completed CI and maintainer browser testing. Inline CSS remains an intentional exception and does not relax the script policy.
 
 ## Network, image and PWA acceptance coverage (2026-11-25)
 
 - `77848d4`: two browser regression cases capture enforced `securitypolicyviolation` events from document initialization. A service-worker-blocked context intercepts the real browser's jsDelivr catalog/image requests and Web3Forms POST; no real feedback is sent. A second case uploads a valid PNG, checks the JPEG preview and export, imports the actual JSON, and verifies the independent image keys and identical stored bytes.
 - `e9c7c1d` / `aad9f3a`: test-only HTTP fixture recreates the old v10-18 worker (the previous worker differs from the candidate only in the cache name), seeds existing v4 IndexedDB data and a cached HTML with baseline CSP, then exercises actual worker replacement, old-cache removal, strict-page reload, and image recovery. The legacy HTML uses current runtime JS; it does not simulate every historical client behavior.
 - Resolved in `2d71fc1`: manual synchronization started from Settings is allowed while that dialog is open, without changing the automatic-sync preference. The E2E regression clicks the actual Settings control and verifies the shared progress UI; other dialogs, offline state, hidden documents and storage failures remain guarded.
-- These are committed test cases, not executed browser results. CI and real-device acceptance remain required; no runtime/build artifact or main-branch changes were made.
+- At this dated checkpoint, these were committed test cases awaiting execution; later CI and maintainer browser results are recorded below.
 
 ## CI failure repair and delegated action hardening (2026-11-25)
 
@@ -76,11 +78,11 @@ The dated phase notes below are implementation history. See “Final acceptance�
 - `2d71fc1`: allow explicit manual synchronization in Settings (even with automatic synchronization paused, without changing the preference), retain offline/visibility/storage/other-dialog guards, schedule manual sync immediately, and share progress rendering between mood and Settings. E2E now clicks the actual Settings button. Updated both generated HTML artifacts, their CSP hash and SW cache v10-20-csp in one commit.
 - `be19c83`: validate checklist categories and entity membership, edit targets, favorites types, project IDs, tabs and feedback types; cap serialized action arguments before parsing, require safe integer numeric arguments, reject disabled controls and ignore Enter during IME composition. Add browser regression with malformed actions and a legitimate Enter submit. Rebuild both HTML artifacts, hash and SW v10-21-csp atomically. This is targeted hardening, not proof that every action is independently authorization-scoped.
 - `0b2bc2f` / `681526b`: preserve the Prettier gate, print exact diff on failure, and apply the formatter's reported diff.
-- Latest complete three-engine verification is still required on the final revision, as is real-device Safari/PWA testing. No merge to main.
+- At this dated checkpoint, final three-engine verification was required. The subsequent final revision passed CI and maintainer browser testing; mobile PWA testing remains separate.
 
 ## Final acceptance (2026-11-26)
 
 - The maintainer reports that the final revision passed actual Chrome, Firefox and Safari testing, with issues found during those runs corrected.
 - A CRLF checkout failure was fixed by normalizing script bytes to LF before CSP hashing. Deployment injection now URL-encodes the sharecode and validates all transformed outputs before writing; the regression test verifies encoded special characters, the resulting script hash and failure without partial HTML writes.
 - Local logic, build/hash, version, lint, format, performance and deployment-copy checks pass. The current agent environment could not rerun browser E2E because Playwright browser downloads returned HTTP 403 and its system Chromium launcher targets a missing binary; this is separate from the maintainer’s actual browser verification.
-- Strict CSP is ready to merge into `main`. Inline styles remain `unsafe-inline` by design; the script policy remains hash-based with `script-src-attr 'none'`.
+- Strict CSP was merged into `main` and the source branch was deleted. Inline styles remain `unsafe-inline` by design; the script policy remains hash-based with `script-src-attr 'none'`.

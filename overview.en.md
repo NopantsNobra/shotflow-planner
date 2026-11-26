@@ -6,7 +6,7 @@ Current: v10.9.3. A local-first photography planning and field-execution workben
 
 ## Design direction
 
-Local-first, portable by design, agent-ready. Browser storage is the local source of truth; versioned asset packages are the interchange boundary for devices and external agents; the normal importer is the shared validation and write boundary. Existing v4 backups, single-project exports and favorites packs form the baseline. Multi-project transfer, arbitrary shot selection and the external-agent contract are development goals, not released features. Built-in model integration remains paused. New transfers will use a standard ZIP container, independent binary images and versioned JSON metadata while preserving legacy JSON import. See the [archive design (Chinese)](docs/asset-pack-format.md) for capacity and processing targets; these are not released features.
+Local-first, portable by design, agent-ready. Browser storage is the local source of truth; versioned asset packages are the interchange boundary for devices and external agents; the normal importer is the shared validation and write boundary. The `refactor/portable-agent` branch integrates the strict script CSP already merged into `main`, together with multi-project/arbitrary-shot ZIP export and shot-package import as a new or explicitly selected existing project. Legacy JSON import remains compatible. ZIP capability is not yet merged into `main`; external-agent blind testing and real-phone/PWA handoff remain pending. Built-in model integration remains paused. See the [asset-pack specification](docs/asset-pack-format.md) and [Agent guide](docs/agent-guide.md).
 
 ## Product flow
 
@@ -38,4 +38,4 @@ verify:build checks byte-for-byte output; verify:version checks metadata; sync:c
 
 ## Deployment and limitations
 
-Static HTTPS hosting, no backend; direct file use is subject to browser storage restrictions. The database still uses a collection key, not real-time collaborative storage. Baseline CSP does not yet restrict inline scripts. Real mobile device testing and remaining work: [backlog](docs/backlog.md). Disabled AI contract: [ai-contract](docs/ai-contract.md). Historical details: [CHANGELOG](CHANGELOG.md) and [system design (Chinese)](docs/system_design.md).
+Static HTTPS hosting, no backend; direct file use is subject to browser storage restrictions. The database still uses a collection key, not real-time collaborative storage. Strict script CSP is merged into `main`. Real mobile device testing and remaining work: [backlog](docs/backlog.md). Disabled AI contract: [ai-contract](docs/ai-contract.md). Historical details: [CHANGELOG](CHANGELOG.md) and [system design (Chinese)](docs/system_design.md).

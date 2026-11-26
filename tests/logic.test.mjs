@@ -889,5 +889,80 @@ check('存储比较忽略对象键顺序，保留数组顺序和真实冲突',vm
   return mergeProjectChanges(b,l,r)[0].name==='新'&&!projectDataEqual([1,2],[2,1])
     &&mergeProjectChanges(b,l,[{...r[0],name:'远端'}])===null;
 })()`,ctx));
+for(const n of ['classifyTransferPackage','buildPortableProjects','buildPortableShots'])vm.runInContext(fn(n),ctx);
+check('项目包 v5 明确追加、旧版备份仍可识别、未知/歧义类型拒绝',vm.runInContext(`(()=>{
+  const p={name:'A'},reject=d=>{try{classifyTransferPackage(d);return false;}catch{return true;}};
+  const pack={app:'stillmark',version:5,type:'project-pack',packVersion:1,entries:[p]};
+  return classifyTransferPackage(pack).mode==='append'&&classifyTransferPackage({version:4,projects:[p]}).mode==='restore'
+    &&classifyTransferPackage({version:4,type:'project',project:p}).mode==='single'
+    &&reject({...pack,projects:[p]})&&reject({...pack,version:4})&&reject({...pack,type:'unknown'})
+    &&reject({...pack,entries:[{demo:true}]})&&reject({version:4,type:'unknown',projects:[p]});
+})()` ,ctx));
+check('任意分镜选集保留执行状态和依赖，排除无关隐私且不修改来源',vm.runInContext(`(()=>{
+  const p={id:'p',name:'A',client:'private',shots:[{id:'s',fav:false,done:true,sceneId:'c',date:'2026-11-26',refIds:['img']},{id:'x'}],
+    scenes:[{id:'c',name:'场景'},{id:'other'}],refs:[{key:'img',tags:['参考']},{key:'unused'}],notes:[{content:'secret'}]};
+  const a=buildPortableShots(p,['s']);
+  return a.shots.length===1&&a.shots[0].done&&!a.shots[0].fav&&a.scenes.length===1&&a.refs.length===1
+    &&a.shootDate==='2026-11-26'&&!a.client&&a.notes.length===0&&p.shots.length===2
+    &&buildPortableProjects([p,{id:'demo',demo:true}],['p','demo']).length===1;
+})()`,ctx));
+for(const n of ['portablePackSchema','validatePortableShape','portableImageKeys','validatePortablePack','validBackupImage'])vm.runInContext(fn(n),ctx);
+const schema=JSON.parse(fs.readFileSync(new URL('../schemas/project-pack-v1.schema.json',import.meta.url),'utf8'));
+check('Agent schema 与生产定义逐字段一致',JSON.stringify(schema)===vm.runInContext('JSON.stringify(portablePackSchema())',ctx));
+for(const [name,file] of [['agent-shot','legacy-agent-shot-v5.json'],['agent-project','legacy-agent-project-v5.json']]){
+  const example=JSON.parse(fs.readFileSync(new URL('./fixtures/'+file,import.meta.url),'utf8'));
+  ctx.__pack=example;
+  check('Agent 示例通过生产结构与依赖校验 '+name,vm.runInContext('validatePortablePack(__pack).projects===1',ctx));
+}
+ctx.__pack=JSON.parse(fs.readFileSync(new URL('./fixtures/legacy-agent-shot-v5.json',import.meta.url),'utf8'));
+check('项目包拒绝缺失图片、非法场景和未知字段',vm.runInContext(`(()=>{
+  const reject=d=>{try{validatePortablePack(d);return false;}catch{return true;}};
+  const clone=()=>JSON.parse(JSON.stringify(__pack));
+  const a=clone(),b=clone(),c=clone();a.images={};b.entries[0].shots[0].sceneId='missing';c.entries[0].apiKey='secret';
+  return reject(a)&&reject(b)&&reject(c);
+})()`,ctx));
+for(const n of ['assetArchiveManifestSchema','assetArchiveDataSchema','assetArchiveLimits','validateArchiveManifest','validateArchiveData'])vm.runInContext(fn(n),ctx);
+for(const [file,fnName] of [['asset-archive-manifest-v1','assetArchiveManifestSchema'],['asset-archive-data-v1','assetArchiveDataSchema']]){
+  const schema=JSON.parse(fs.readFileSync(new URL('../schemas/'+file+'.schema.json',import.meta.url),'utf8'));
+  check('ZIP 候选 schema 与生产定义一致 '+file,JSON.stringify(schema)===vm.runInContext('JSON.stringify('+fnName+'())',ctx));
+}
+check('ZIP 清单同一摘要支持多个逻辑键且按唯一文件计数',vm.runInContext(`(()=>{
+  const digest='a'.repeat(64),image={key:'first',path:'images/'+digest+'.png',bytes:100,sha256:digest,mime:'image/png'};
+  const manifest={format:'stillmark.asset-pack',containerVersion:1,dataVersion:1,kind:'projects',exportedAt:'2026-11-26T00:00:00Z',
+    data:{path:'data.json',bytes:1000,sha256:'b'.repeat(64)},images:[image,{...image,key:'second'}]};
+  const data={dataVersion:1,kind:'projects',entries:[{name:'A',shots:[{name:'S',refIds:['first','second']}]}]};
+  const v=validateArchiveData(data,manifest);
+  return v.images===2&&v.uniqueFiles===3&&v.expandedBytes===1100;
+})()`,ctx));
+check('ZIP 清单拒绝非法路径、重复键、摘要冲突、类型错配和超限',vm.runInContext(`(()=>{
+  const digest='a'.repeat(64),image={key:'first',path:'images/'+digest+'.png',bytes:100,sha256:digest,mime:'image/png'};
+  const make=()=>({format:'stillmark.asset-pack',containerVersion:1,dataVersion:1,kind:'projects',exportedAt:'2026-11-26T00:00:00Z',
+    data:{path:'data.json',bytes:1000,sha256:'b'.repeat(64)},images:[{...image}]});
+  const bad=(mut,limits)=>{const m=make();mut(m);try{validateArchiveManifest(m,limits);return false;}catch{return true;}};
+  const badData=(data,m=make())=>{try{validateArchiveData(data,m);return false;}catch{return true;}};
+  return bad(m=>m.images[0].path='../a.png')&&bad(m=>m.images.push({...image}))&&bad(m=>m.images.push({...image,key:'second',bytes:101}))
+    &&bad(m=>m.containerVersion=99)&&bad(()=>{}, {...assetArchiveLimits(),maxExpandedBytes:1050})
+    &&badData({dataVersion:1,kind:'shots',entries:[{name:'A',shots:[{name:'S',refIds:['first']}]}]})
+    &&badData({dataVersion:1,kind:'projects',entries:[{name:'A',shots:[{name:'S',refIds:['missing']}]}]});
+})()`,ctx));
+vm.runInContext(fn('adaptArchiveEntryV1ToProject'),ctx);
+ctx.__archiveInput={name:'外部策划',client:'不应并入的客户信息',shots:[{id:'shot-1',name:'窗边肖像',sceneId:'scene-1',refIds:['image-1'],done:true}],
+  scenes:[{id:'scene-1',name:'窗边'},{id:'unused-scene',name:'无关场景'}],refs:[{id:'ref-1',key:'image-1',name:'参考图'},{id:'unused-ref',key:'unused-image'}],notes:[{id:'private',content:'不应并入'}]};
+ctx.__archiveMap=new Map([['image-1','archive-image-1']]);
+check('ZIP v1 适配器将外部数据收敛到当前项目并过滤追加范围',vm.runInContext(`(()=>{
+  const source=JSON.stringify(__archiveInput),target={id:'target'};
+  const p=adaptArchiveEntryV1ToProject(__archiveInput,{target,needed:new Set(['image-1']),imageMap:__archiveMap,createId:(()=>{let i=0;return()=>\`new-\${++i}\`;})()});
+  return JSON.stringify(__archiveInput)===source&&p.name==='外部策划（导入）'&&!p.client&&!p.notes.length&&p.demo===false&&p.assetPack===false
+    &&p.shots.length===1&&p.shots[0].done&&p.shots[0].refIds[0]==='archive-image-1'
+    &&p.scenes.length===1&&p.scenes[0].name==='窗边'&&p.refs.length===1&&p.refs[0].key==='archive-image-1';
+})()`,ctx));
+vm.runInContext(fn('appendArchiveShots'),ctx);
+check('分镜追加保持目标资料、原顺序与状态，只引入显式依赖且不改源对象',vm.runInContext(`(()=>{
+  const target={id:'target',name:'目标',status:'策划中',client:'客户',shootDates:['2026-11-26'],shootDate:'2026-11-26',shots:[{id:'old',ord:8,done:true}],scenes:[{id:'oldscene',name:'场景'}],refs:[],notes:[{id:'note',content:'保留'}],tagVocab:['旧标签']};
+  const source={name:'忽略',client:'不覆盖',notes:[{id:'secret',content:'不要'}],shots:[{id:'newshot',sceneId:'newscene',refIds:['newkey'],date:'2026-12-01',ord:2,done:true}],scenes:[{id:'newscene',name:'场景'},{id:'extra',name:'无关'}],refs:[{id:'newref',key:'newkey',tags:['新标签']},{id:'extraref',key:'extra'}]};
+  const before=JSON.stringify([target,source]),out=appendArchiveShots(target,source,123);
+  let rejected=false;try{appendArchiveShots(target,{...source,shots:[{id:'old'}]});}catch{rejected=true;}
+  return JSON.stringify([target,source])===before&&out.id==='target'&&out.name==='目标'&&out.client==='客户'&&out.notes.length===1&&out.shots.length===2&&out.shots[0].ord===8&&out.shots[1].ord===9&&out.shots[1].done&&out.scenes.length===2&&out.refs.length===1&&out.shootDates.length===2&&out.tagVocab.includes('新标签')&&rejected;
+})()`,ctx));
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);
