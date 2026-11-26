@@ -20,6 +20,8 @@ jobs:
         run: npm ci
       - name: 构建产物一致性
         run: npm run verify:build
+      - name: 部署注入安全回归
+        run: npm run test:deploy
       - name: 版本号一致性
         run: npm run verify:version
       - name: ESLint
