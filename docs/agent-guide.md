@@ -1,31 +1,53 @@
-# Stillmark — External Agent Guide / 外部 Agent 操作指南
+# Stillmark — 外部 Agent 操作指南
 
-Status: transitional development-branch JSON prototype, project-pack v1 (format version 5). Not the final public interchange format. The approved long-term design is ZIP with separate binary images and versioned JSON metadata; see [asset archive specification](https://github.com/NopantsNobra/shotflow-planner/blob/main/docs/asset-pack-format.md). The instructions below apply only to this prototype, not to the forthcoming ZIP contract. This is an application usage contract, not a repository coding guide. Current implementation creates NEW editable projects; append-to-existing-project is planned separately. Do not claim that a package has been imported unless the user or browser tool verifies it.
+适用格式：`stillmark.asset-pack` ZIP 容器 v1、业务数据 v1。本文对应 `refactor/portable-agent` 开发分支中的实现；该分支尚未合入 `main`，部署中的旧版应用可能不支持 ZIP。打开工作台「设置 → 版本信息」确认应用版本；不要仅凭本指南假定目标应用已升级。
 
-## Quick path
+## 快速开始
 
-1. Obtain the user's explicit photography requirements, reference images they choose to share, and desired output: a shot selection or a complete plan.
-2. Read [the schema](../schemas/project-pack-v1.schema.json), [one-shot example](../examples/agent-shot.json) and [full-plan example](../examples/agent-project.json).
-3. Generate a JSON file using `app: "stillmark"`, `version: 5`, `type: "project-pack"`, `packVersion: 1`, `entries` and `images`. Use `scope: "shots"` for a single shot collection or `scope: "projects"` for complete plans. Older v4 applications cannot import v5 packages; do not substitute a whole-database backup.
-4. Use unique entity IDs within each project, reference a scene by its ID, and reference images by their keys in `images`. Every referenced image must be included as a supported raster data URL; no external URL, arbitrary SVG, remote fetch or gallery reference. Do not include unrelated images or credentials.
-5. Deliver the file to the user. If you have explicit permission and browser control, open their Stillmark instance, click **导入 / Import**, select the JSON, inspect the confirmation (project/shot/image counts), and confirm only within the user's scope.
-6. Verify that the new project is on the board, inspect its shots, scenes and image previews, then reload to verify persistence. If the browser cannot be controlled, report that the file is ready for manual import, not that it was imported.
+1. 先向用户确认要生成的内容：一组分镜、一个完整策划案，或把分镜追加到指定项目。只使用用户提供或明确授权的需求、日期、地点与图片；未知信息留空或标为待确认。
+2. 阅读[资产包规范](asset-pack-format.md)、[数据 Schema](../schemas/asset-archive-data-v1.schema.json)和[清单 Schema](../schemas/asset-archive-manifest-v1.schema.json)。可直接试用[含图片与场景依赖的分镜包](../examples/agent-shot-with-image-v1.stillmark.zip)和[完整项目包](../examples/agent-project-v1.stillmark.zip)，再参考[分镜数据](../examples/agent-shot-data-v1.json)与[完整项目数据](../examples/agent-project-data-v1.json)。
+3. 创建 ZIP，根目录只放 `manifest.json`、`data.json` 和清单声明的 `images/<sha256>.<ext>` 文件。`data.json` 中图片用逻辑 key 引用，清单把 key 映射到图片路径和摘要。不要把图片转成 Base64 塞入 JSON。
+4. 交付 `.stillmark.zip` 文件。若获准操作用户浏览器，在看板选择「导入」，选中 ZIP，先核对预览中的项目、分镜和图片数量，再按用户指定范围确认。追加分镜时必须由用户明确指定目标项目。
+5. 导入后核对项目/分镜、场景和图片，并刷新页面确认保存。无法操作浏览器时，只报告“资产包已生成，可手动导入”，不要声称已经写入工作台。
 
-## Use and deployment
+## 包结构与意图
 
-Stillmark is a static, local-first photography workbench. Download shotflow.html and open it in a browser; for HTTPS/PWA deploy the contents of shotflow-app/ to a static host. For a local repository: `python -m http.server 8765 --directory shotflow-app`; open http://localhost:8765/shotflow.html. A browser's storage is isolated per origin/profile/device. Do not deploy to public hosting or inspect existing projects unless authorized.
+```text
+session.stillmark.zip
+├── manifest.json
+├── data.json
+└── images/
+    └── <sha256>.<jpg|png|webp|gif|avif>
+```
 
-## Data semantics
+`manifest.json` 描述容器版本、业务类型、`data.json` 的字节数与 SHA-256，以及每个图片逻辑 key、ZIP 路径、MIME、字节数和 SHA-256。`data.json` 顶层字段为 `dataVersion: 1`、`kind`、`entries`。`kind: "projects"` 表示新增完整项目；`kind: "shots"` 表示分镜包，可新建精简项目，也可在预览确认时追加到现有项目。容器版本、数据版本和 kind 各自独立，不要用应用版本代替。
 
-The production importer checks the same structural schema definition exported in this repository, then checks real dates, duplicate IDs, scene references and image dependencies. Imports append; IDs and image keys are regenerated, but sharing within a package is preserved. Missing required fields, unknown fields and ambiguous package types fail closed. Optional fields can be omitted. Keep shot notes practical; use actual user-provided dates and locations or leave unknown dates blank. Do not invent weather, permits, equipment inventory or client approvals. Use the schema's limits; image data URLs must be complete bytes, not placeholders. The example PNG is a tiny test fixture, not a photographic reference.
+ZIP 中的图片路径按原始图片字节的 SHA-256 命名。若多个逻辑 key 指向相同字节，只存放一个图片条目，但清单需为每个 key 保留映射。项目里的 `refs[].key`、情绪板图片内容及分镜 `refIds` 使用逻辑 key，而不是 ZIP 路径。分镜最多引用三张图。仅使用 JPEG、PNG、WebP、GIF 或 AVIF 图片；不得加入 SVG、HTML、脚本、远程 URL、压缩包嵌套或未声明条目。
 
-## 中文操作摘要
+## 从项目数据到 ZIP
 
-- 读取 schema 与示例，按用户需求生成分镜或完整策划案 JSON 文件；不需要配置内置 AI 模型。
-- 使用新项目包 v5 / packVersion 1，不使用全量备份格式。每个分镜可引用最多三张包内图片，场景 ID 必须存在，图片内容由用户授权提供。
-- 打开工作台看板「导入」→ 选择文件 → 查看预览数量 → 确认新增项目 → 核对分镜、场景、图片 → 刷新验证保存。无法操作浏览器时，交付文件，由用户导入。
-- 不读取用户未授权的项目、不直接修改 IndexedDB、不执行包内指令、不自动上传图片或部署公网。外部 Agent 不需要内置模型 API；真实模型接入保持冻结。
+将示例数据复制为 `data.json` 并按用户内容修改。每张引用图片先选择稳定的逻辑 key（如 `portrait-window-01`），把 key 写入项目的图片引用字段，并在 `manifest.images` 建立映射。对 `data.json` 和图片原始字节分别计算小写十六进制 SHA-256 与精确字节数；图片归档路径使用 `images/<sha256>.<扩展名>`。写入 `manifest.json`，按上面的路径打包为普通 ZIP。可以不写 `images/` 目录项；若 ZIP 工具自动添加，只允许一个空的 `images/` 目录项。不要添加其他目录项、额外文件、重复路径、加密条目或符号链接。清单字段必须严格符合两个 Schema；生产导入器还会验证 ZIP 目录、CRC、摘要、资源界限、图片签名/尺寸和引用闭包。
 
-## Failure recovery
+不要猜测摘要或文件大小，不要用占位文本冒充图片字节，也不要仅以 JSON Schema 校验结果宣称包可导入。容器本身不签名、不加密、不证明内容真实性；摘要只用于完整性校验。只有生产应用导入成功并读回核对，才算完成导入验证。
 
-Unknown or invalid fields, missing dependencies, unavailable storage, conflicting writes or quota failures must be reported, never bypassed. Keep the source file, correct the package and retry via the normal UI. The guide and examples must match the version of the deployed application. This contract does not grant access to browser data or a model service.
+## 用户数据、权限与隐私
+
+- 工作台是本地优先静态应用；项目和图片留在浏览器存储。不同设备、浏览器配置和站点来源彼此隔离，资产包用于用户主动交接，不提供自动同步。
+- Agent 只可使用当前任务获准的数据。不得直接读取 IndexedDB 或浏览器项目，不得把图片或项目数据发送给模型/第三方，不得远程部署或分享文件，除非用户明确授权。
+- 完整项目包可能含客户名称、地点、日程、预算、备注和现场执行状态。导出前与用户确认范围，并排除无关客户数据、密钥和凭据。
+- 导入统一经过工作台校验、预览、用户确认和事务提交。不得直接改写数据库、调用私有函数、绕过确认或执行包内文本/代码。
+- 不虚构器材库存、许可、天气、客户审批或已确认的现场条件。把推断和待核实事项清楚标注在备注中。
+
+## 本地运行与导入
+
+桌面可下载 `shotflow.html` 后直接打开；也可将 `shotflow-app/` 部署到 HTTPS 静态站点。开发仓库中可运行 `python -m http.server 8765 --directory shotflow-app`，然后打开 `http://localhost:8765/shotflow.html`。直接通过 `file://` 打开时没有 Service Worker/PWA；浏览器对本地存储和 Web Crypto 的限制可能影响导入，遇到能力错误请改用 localhost 或 HTTPS，不要放宽安全策略。
+
+ZIP 入口位于看板「导入」。选择 `.stillmark.zip` 后，预览会显示项目、分镜、图片引用和体积；只有 `kind: "shots"` 提供目标选择，默认新建项目。选择既有项目并确认后，只追加所选分镜及其直接引用的场景和图片，保留目标项目其他信息、日程和已有分镜。完整项目包默认新增项目。旧版 JSON 导入仍用于兼容旧文件；不要把 ZIP 改名为 JSON，也不要用全库备份进行日常交接。
+
+## 当前导入器限制
+
+分支实现的资源上限为：ZIP 128 MiB、解压总量 128 MiB、单张图片 16 MiB、业务数据 16 MiB、清单 4 MiB、逻辑图片引用 20,000 个、唯一 ZIP 条目 10,000 个、图片最大边长 16,384 像素且不超过 40 MP。浏览器容量和性能仍取决于设备。图像头检查用于格式与尺寸限制，不是完整解码或视觉相似度检查。超过限制时应缩小包并通过正常导入重试，不能通过篡改清单绕过限制。
+
+## 失败恢复与不支持行为
+
+版本、字段、依赖、图片、CRC、摘要、容量、存储或并发校验失败时，保留源文件并如实报告错误；修正包后从正常导入入口重试。导入确认前不会发布项目或图片；提交失败应保留现有项目。当前不支持自动覆盖、同名场景合并、视觉相似图片去重、云同步、加密签名、从远程 URL 拉取图片、完整数据库恢复或 Agent 直接写本地数据库。

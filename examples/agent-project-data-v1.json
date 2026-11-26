@@ -1,47 +1,45 @@
 {
-  "app": "stillmark",
-  "version": 5,
-  "type": "project-pack",
-  "packVersion": 1,
-  "scope": "projects",
+  "dataVersion": 1,
+  "kind": "projects",
   "entries": [
     {
-      "name": "Agent 示例 · 城市漫步",
+      "name": "城市漫步人像",
       "status": "策划中",
-      "shootDates": [
-        "2026-12-01"
-      ],
+      "shootDate": "2026-12-01",
+      "shootDates": ["2026-12-01"],
+      "workspaceMode": "portrait",
       "concept": {
         "theme": "城市漫步",
-        "style": "自然光",
-        "note": "拍摄日期为示例；地点、许可和天气需确认"
+        "style": "自然光与日常街景",
+        "note": "地点、许可与天气需由拍摄团队确认"
       },
       "scenes": [
         {
-          "id": "street",
+          "id": "scene-street",
           "name": "街道"
         }
       ],
       "shots": [
         {
-          "id": "s1",
+          "id": "shot-establishing",
           "name": "环境远景",
           "date": "2026-12-01",
           "duration": 10,
-          "sceneId": "street",
+          "sceneId": "scene-street",
           "ord": 0
         },
         {
-          "id": "s2",
+          "id": "shot-half-length",
           "name": "人物半身",
           "date": "2026-12-01",
           "duration": 15,
-          "sceneId": "street",
+          "sceneId": "scene-street",
           "ord": 1
         }
       ],
       "schedule": [
         {
+          "id": "event-call",
           "title": "集合",
           "date": "2026-12-01",
           "type": "集合",
@@ -52,11 +50,11 @@
       ],
       "items": [
         {
+          "id": "item-camera",
           "kind": "器材",
           "name": "相机（请按实际器材确认）"
         }
       ]
     }
-  ],
-  "images": {}
+  ]
 }

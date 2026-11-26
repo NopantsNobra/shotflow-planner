@@ -149,6 +149,7 @@ function settingsDeployHtml(){
     +'<p class="src-note">本应用是纯静态单文件 PWA：<code>shotflow.html</code> 由 <code>src/</code> 构建产出，'
     +'可部署到任意静态托管（GitHub Pages / Cloudflare Pages / Vercel / 自有服务器），无需后端与数据库。</p>'
     +'<div class="row"><button class="btn btn-primary btn-sm" onclick="openDeployModal()">为自己部署</button>'
+    +'<a class="btn btn-ghost btn-sm" href="./docs/agent-guide.md" target="_blank" rel="noopener">外部 Agent 操作指南</a>'
     +'<span class="muted" style="font-size:11.5px">MIT License © 2026 Stillmark-服雲</span></div></div>';
 }
 /* 部署说明弹窗：只切换 class；Esc / 点遮罩 / 关闭按钮三种退出方式 */

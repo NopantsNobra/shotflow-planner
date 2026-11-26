@@ -3,8 +3,7 @@
    用法：
      node scripts/sync-app.mjs          同步（覆盖 shotflow-app/ 下对应文件）
      node scripts/sync-app.mjs --check  仅校验一致性，不一致时以待同步清单退出码 1（供 CI 使用）
-   真源文件清单（与 README「文件夹结构」一致）：
-     shotflow.html / shotflow-manifest.json / shotflow-sw.js / icon-192.png / icon-512.png */
+   真源文件清单：应用入口、PWA 元数据，以及 Agent 指南、契约、Schema 和示例。 */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,11 +17,15 @@ const FILES = [
   'icon-192.png',
   'icon-512.png',
   'docs/agent-guide.md',
+  'docs/asset-pack-format.md',
   'schemas/project-pack-v1.schema.json',
   'schemas/asset-archive-manifest-v1.schema.json',
   'schemas/asset-archive-data-v1.schema.json',
-  'examples/agent-shot.json',
-  'examples/agent-project.json'
+  'examples/agent-shot-data-v1.json',
+  'examples/agent-project-data-v1.json',
+  'examples/agent-shot-with-image-v1.stillmark.zip',
+  'examples/agent-project-v1.stillmark.zip',
+  'examples/fixtures/reference-2x2.png'
 ];
 const checkOnly = process.argv.includes('--check');
 
