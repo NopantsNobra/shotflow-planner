@@ -1,6 +1,6 @@
-# Strict CSP migration — isolated branch
+# Strict CSP migration
 
-Branch: security/strict-csp. Do not merge until all acceptance checks pass. Main retains baseline CSP.
+The dated phase notes below are implementation history. See “Final acceptance” at the end for the current status.
 
 ## Phase 1 (implemented)
 - Remove static shell onclick/onkeydown attributes; explicit allowlist and document event delegation.
@@ -66,7 +66,7 @@ Branch: security/strict-csp. Do not merge until all acceptance checks pass. Main
 
 - `77848d4`: two browser regression cases capture enforced `securitypolicyviolation` events from document initialization. A service-worker-blocked context intercepts the real browser's jsDelivr catalog/image requests and Web3Forms POST; no real feedback is sent. A second case uploads a valid PNG, checks the JPEG preview and export, imports the actual JSON, and verifies the independent image keys and identical stored bytes.
 - `e9c7c1d` / `aad9f3a`: test-only HTTP fixture recreates the old v10-18 worker (the previous worker differs from the candidate only in the cache name), seeds existing v4 IndexedDB data and a cached HTML with baseline CSP, then exercises actual worker replacement, old-cache removal, strict-page reload, and image recovery. The legacy HTML uses current runtime JS; it does not simulate every historical client behavior.
-- Follow-up identified during source review: `shiseiCanStart(force)` currently rejects any open modal even when settings initiates a manual sync. The network test calls the real sync implementation directly rather than claiming that settings-triggered scheduling is verified. Investigate that interaction separately.
+- Resolved in `2d71fc1`: manual synchronization started from Settings is allowed while that dialog is open, without changing the automatic-sync preference. The E2E regression clicks the actual Settings control and verifies the shared progress UI; other dialogs, offline state, hidden documents and storage failures remain guarded.
 - These are committed test cases, not executed browser results. CI and real-device acceptance remain required; no runtime/build artifact or main-branch changes were made.
 
 ## CI failure repair and delegated action hardening (2026-11-25)
@@ -77,3 +77,10 @@ Branch: security/strict-csp. Do not merge until all acceptance checks pass. Main
 - `be19c83`: validate checklist categories and entity membership, edit targets, favorites types, project IDs, tabs and feedback types; cap serialized action arguments before parsing, require safe integer numeric arguments, reject disabled controls and ignore Enter during IME composition. Add browser regression with malformed actions and a legitimate Enter submit. Rebuild both HTML artifacts, hash and SW v10-21-csp atomically. This is targeted hardening, not proof that every action is independently authorization-scoped.
 - `0b2bc2f` / `681526b`: preserve the Prettier gate, print exact diff on failure, and apply the formatter's reported diff.
 - Latest complete three-engine verification is still required on the final revision, as is real-device Safari/PWA testing. No merge to main.
+
+## Final acceptance (2026-11-26)
+
+- The maintainer reports that the final revision passed actual Chrome, Firefox and Safari testing, with issues found during those runs corrected.
+- A CRLF checkout failure was fixed by normalizing script bytes to LF before CSP hashing. Deployment injection now URL-encodes the sharecode and validates all transformed outputs before writing; the regression test verifies encoded special characters, the resulting script hash and failure without partial HTML writes.
+- Local logic, build/hash, version, lint, format, performance and deployment-copy checks pass. The current agent environment could not rerun browser E2E because Playwright browser downloads returned HTTP 403 and its system Chromium launcher targets a missing binary; this is separate from the maintainer’s actual browser verification.
+- Strict CSP is ready to merge into `main`. Inline styles remain `unsafe-inline` by design; the script policy remains hash-based with `script-src-attr 'none'`.
