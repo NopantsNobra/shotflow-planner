@@ -2,7 +2,7 @@
 
 日期：2026-11-26。来源：管理员在真实摄影策划及多设备使用中的反馈。
 状态：管理员已批准按本路线自主推进；以下为实施及验收要求，未通过验收的功能不标记已交付。
-基线：`main` 已合并 PR #3（merge commit `9124cc5`）；应用版本仍为 v10.9.3。严格脚本 CSP 已通过 Chrome、Firefox、Safari 实测，ZIP 资产包已通过 Chromium、Firefox、WebKit CI 和维护者实机复测。
+基线：`main` 已合并 PR #3（merge commit `9124cc5`）；本轮候选版本 v11.0.0 提供本地可编辑的任务提示词。严格脚本 CSP 已通过 Chrome、Firefox、Safari 实测，ZIP 资产包已通过 Chromium、Firefox、WebKit CI 和维护者实机复测。
 
 ## 1. 设计哲学与用户任务
 
@@ -23,7 +23,7 @@
 
 公开 JSON Schema 是 `src/js/02-schemas.js` 中版本化交换契约的生成产物；内部 Project 模型与交换格式不是同一个 schema。`npm run schemas:export` 生成公开文件，CI 的 `npm run schemas:check` 检查是否漂移。当前 ZIP v1 导入路径先做结构与语义校验，再经 `sanitizeProject()` / `migrate()` 转入当前内部模型；版本分派尚未抽成独立适配器。遇到不兼容交换格式时应增加明确的版本适配，避免把内部存储字段逐一暴露为永久外部契约。
 
-首个可直接交给外部 Agent 的任务模板为 [摄影策划生成 v2](agent-tasks/generate-shoot-plan-v2.md)，v1 保留为历史版本。它把任务目标、用户授权输入、输出契约、事实与假设边界、安全注意事项及交付验证写成可复用指引；严格盲测通过后再扩展到参考图分析、标签建议等任务。
+当前任务模板为[摄影策划生成 v3](agent-tasks/generate-shoot-plan-v3.md)，v1/v2 保留为历史版本。设置页直接呈现此文档全文并允许用户修改、复制；默认模板强调按用户表达的个人创作方向开展工作，不假设公开用途。默认内容经构建嵌入，不会自动发送；个人修改只在本机保存。可复制的[独立盲测指令](agent-blind-test-prompt.md)供外部测试使用。
 
 严格 CSP 与 ZIP 功能均已合入 `main`，并继续受哈希构建、委托事件与部署注入门禁约束。下一阶段是独立外部 Agent 盲测，再做 iOS/Android 真机交接；128 MiB 边界、真实设备配额与后台恢复仍未验收。继续在原项目 schema 与存储基础上渐进开发，不重建资产数据库或替换全量 schema。
 

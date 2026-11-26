@@ -1,6 +1,6 @@
 # 工程剩余事项
 
-基线：v10.9.2（第 09 批实际 AI 接入冻结）。历史修复见 [fix-backlog.md](fix-backlog.md)，CI 以 Actions 为准。
+基线：v11.0.0（内置模型接入仍冻结；提示词审查/本地编辑已提供）。历史修复见 [fix-backlog.md](fix-backlog.md)，CI 以 Actions 为准。
 
 ## 产品优先事项（2026-11-26）
 

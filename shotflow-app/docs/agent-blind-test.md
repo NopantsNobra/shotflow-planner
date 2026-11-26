@@ -9,11 +9,13 @@
 只向 Agent 提供以下材料，不提供仓库、源码、开发者工具、IndexedDB 内容或私有实现：
 
 - [外部 Agent 操作指南](agent-guide.md)
-- [摄影策划生成任务 v2](agent-tasks/generate-shoot-plan-v2.md)
+- [摄影策划生成任务 v3](agent-tasks/generate-shoot-plan-v3.md)
 - [ZIP v1 规范](asset-pack-format.md)
 - [数据 Schema](../schemas/asset-archive-data-v1.schema.json) 与 [清单 Schema](../schemas/asset-archive-manifest-v1.schema.json)
 - [分镜数据示例](../examples/agent-shot-data-v1.json)、[完整项目数据示例](../examples/agent-project-data-v1.json)和两份公开 ZIP 示例
 - 本次测试者提供的需求与参考照片
+
+可直接复制给外部 Agent 的任务正文见[盲测指令](agent-blind-test-prompt.md)。测试者应在独立新会话中粘贴该指令，再补充实际需求和明确授权的素材。
 
 不要把示例 ZIP 当作 Agent 产物，也不要让 Agent 读取本应用项目数据。记录 Agent 产品/模型、测试日期和实际给它的文件清单。不得将未经授权的私人照片上传到第三方 Agent。
 

@@ -60,6 +60,28 @@
   </div>
 </div>
 
+<!-- 提示词编辑器：置于设置弹窗之后以覆盖设置内容；提示词完全由用户查看、编辑和复制。 -->
+<div class="modal-mask" id="agentPromptModal" data-shell-action="agent-prompt-backdrop">
+  <div class="modal doc-modal agent-prompt-modal">
+    <div class="doc-bar no-print">
+      <span class="doc-bar-title">审查与修改 AI 提示词</span>
+      <div class="row"><button class="btn btn-ghost btn-sm" data-shell-action="close-agent-prompt">关闭</button></div>
+    </div>
+    <div class="agent-prompt-body">
+      <p class="src-note">这是提供给外部 Agent 的完整默认任务提示词（v3）。你可以按个人用途自由修改后保存或复制。工作台不会自动发送、补充隐藏条款，或将它关联到项目数据。</p>
+      <label for="agentPromptText">提示词正文</label>
+      <textarea id="agentPromptText" spellcheck="false" aria-describedby="agentPromptStatus" data-input="agent-prompt"></textarea>
+      <div class="row agent-prompt-actions">
+        <button class="btn btn-primary btn-sm" data-shell-action="save-agent-prompt">保存到本机</button>
+        <button class="btn btn-ghost btn-sm" data-shell-action="copy-agent-prompt">复制当前内容</button>
+        <button class="btn btn-ghost btn-sm" data-shell-action="reset-agent-prompt">恢复默认</button>
+        <span class="muted" id="agentPromptStatus" role="status" aria-live="polite"></span>
+      </div>
+      <p class="muted agent-prompt-privacy">个人修改只保存在当前浏览器的本机设置中，不会进入项目数据、备份或反馈。复制后由你自行决定是否交给某个 Agent。</p>
+    </div>
+  </div>
+</div>
+
 <!-- 部署说明弹窗（v10.6.x）：与其它 modal-mask 同 z-index，DOM 位于 settingsModal 之后 → 叠在其上；
      遮罩关闭由静态 shell action 委托处理，仅响应遮罩本身的点击。 -->
 <div class="modal-mask" id="deployModal" data-shell-action="deploy-backdrop">

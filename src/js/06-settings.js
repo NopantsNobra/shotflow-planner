@@ -72,13 +72,55 @@ function closeSettings(){
   document.getElementById('settingsModal').classList.remove('show');
 }
 
+/* 提示词由应用内版本化文档提供默认值；个人修改只保存在当前浏览器，不进项目数据/备份/反馈，也不会自动发送。 */
+function agentPromptValue(){
+  try{const value=localStorage.getItem(LS_AGENT_PROMPT);return value===null?DEFAULT_AGENT_PROMPT:value;}catch{return DEFAULT_AGENT_PROMPT;}
+}
+function openAgentPromptEditor(){
+  const field=document.getElementById('agentPromptText');if(!field)return;
+  field.value=agentPromptValue();updateAgentPromptStatus();
+  document.getElementById('agentPromptModal').classList.add('show');
+}
+function closeAgentPromptEditor(force){
+  const field=document.getElementById('agentPromptText');
+  if(!force&&field&&field.value!==agentPromptValue()){
+    askConfirm('放弃未保存的提示词修改？','当前编辑内容尚未保存。关闭后将丢失这些修改。',()=>closeAgentPromptEditor(true));return;
+  }
+  document.getElementById('agentPromptModal').classList.remove('show');
+}
+function updateAgentPromptStatus(message){
+  const field=document.getElementById('agentPromptText'),status=document.getElementById('agentPromptStatus');if(!field||!status)return;
+  const saved=agentPromptValue();
+  status.textContent=message|| (field.value===saved?'已保存到本机；不会自动发送。':'有未保存的修改');
+}
+function saveAgentPrompt(){
+  const field=document.getElementById('agentPromptText');if(!field)return;
+  try{localStorage.setItem(LS_AGENT_PROMPT,field.value);updateAgentPromptStatus('提示词已保存到本机。');}
+  catch{updateAgentPromptStatus('本机存储不可用；当前内容仍留在编辑框中。');}
+}
+function resetAgentPrompt(){
+  const field=document.getElementById('agentPromptText');if(!field)return;
+  field.value=DEFAULT_AGENT_PROMPT;saveAgentPrompt();
+}
+async function copyAgentPrompt(){
+  const field=document.getElementById('agentPromptText');if(!field)return;
+  try{await navigator.clipboard.writeText(field.value);updateAgentPromptStatus('当前编辑框中的提示词已复制。');}
+  catch{updateAgentPromptStatus('浏览器未允许访问剪贴板；可在编辑框中全选并复制。');}
+}
+
 /* ---------- 渲染（只写 #settingsBody，不触碰页面 DOM） ---------- */
 function renderSettings(){
   const host=document.getElementById('settingsBody'); if(!host) return;
-  host.innerHTML=settingsVersionHtml()+settingsConfigHtml()+settingsDataHtml()+settingsDeployHtml()+settingsFeedbackHtml();
+  host.innerHTML=settingsVersionHtml()+settingsConfigHtml()+settingsAgentPromptHtml()+settingsDataHtml()+settingsDeployHtml()+settingsFeedbackHtml();
   const env=document.getElementById('fbEnvPreview');
   if(env) env.textContent=buildFeedbackEnv(collectFeedbackEnv());
   renderSettingsShisei();
+}
+
+function settingsAgentPromptHtml(){
+  return '<div class="card"><h2>AI 提示词</h2>'
+    +'<p class="src-note">查看、修改并复制提供给外部 Agent 的任务提示词。它只是可编辑的创作指引；工作台不会自动调用模型、读取项目内容或发送提示词。个人修改只保存在本机，不进入项目备份或反馈。</p>'
+    +'<div class="row"><button class="btn btn-ghost btn-sm" '+doAttrs('open-agent-prompt')+'>审查与修改提示词</button></div></div>';
 }
 
 /* ① 版本信息（只读）：R1 应用版本 / R2 SW 缓存 / R3 IndexedDB schema / R4 数据规模 / R5 模块版本表 */
@@ -88,7 +130,7 @@ function settingsVersionHtml(){
   const rows=[['shell.html（页面骨架）',MODULE_VERSIONS.shell],['styles.css（样式）',MODULE_VERSIONS.styles],
     ['01-data.js（数据层）',MODULE_VERSIONS.data],['02-core.js（核心纯函数）',MODULE_VERSIONS.core],
     ['03-*.js（六个业务域）',MODULE_VERSIONS.app],['04-output.js（输出与后台）',MODULE_VERSIONS.output],
-    ['05-boot.js（启动）',MODULE_VERSIONS.boot],['06-settings.js（设置与反馈）',MODULE_VERSIONS.settings]];
+    ['05-boot.js（启动）',MODULE_VERSIONS.boot],['06-settings.js（设置、提示词与反馈）',MODULE_VERSIONS.settings]];
   return '<div class="card"><h2>版本信息</h2>'
     +'<div class="settings-ver">v'+esc(APP_VERSION)+'</div>'
     +'<dl class="settings-kv">'
