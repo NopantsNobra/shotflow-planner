@@ -50,7 +50,8 @@ export function assembleHtml(version) {
   // 源文件 checkout 成 CRLF，若按磁盘原始字节算 hash，产物在本机/任何 CRLF 环境必然
   // 不匹配 → 整个内联脚本被 CSP 阻断 → 白屏（CI 的 LF checkout 复现不了此故障）。
   // 因此 hash 一律先归一为 LF，与浏览器行为对齐；产物文件本身的换行保持不变。
-  const hash = (value) => createHash('sha256').update(String(value).replace(/\r\n/g, '\n').replace(/\r/g, '\n'), 'utf8').digest('base64');
+  const hash = (value) =>
+    createHash('sha256').update(String(value).replace(/\r\n/g, '\n').replace(/\r/g, '\n'), 'utf8').digest('base64');
   const fitStart = js.indexOf('function fitCovers(){');
   const fitEnd = js.indexOf('\nfunction coverHtml(', fitStart);
   if (fitStart < 0 || fitEnd <= fitStart) throw new Error('[assemble] missing proposal script boundaries');
