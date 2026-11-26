@@ -6,7 +6,7 @@ Current: v10.9.3. A local-first photography planning and field-execution workben
 
 ## Design direction
 
-Local-first, portable by design, agent-ready. Browser storage is the local source of truth; versioned asset packages are the interchange boundary for devices and external agents; the normal importer is the shared validation and write boundary. The `refactor/portable-agent` branch integrates the strict script CSP already merged into `main`, together with multi-project/arbitrary-shot ZIP export and shot-package import as a new or explicitly selected existing project. Legacy JSON import remains compatible. ZIP capability is not yet merged into `main`; external-agent blind testing and real-phone/PWA handoff remain pending. Built-in model integration remains paused. See the [asset-pack specification](docs/asset-pack-format.md) and [Agent guide](docs/agent-guide.md).
+Local-first, portable by design, agent-ready. Browser storage is the local source of truth; versioned asset packages are the interchange boundary for devices and external agents; the normal importer is the shared validation and write boundary. `main` includes strict script CSP, multi-project/arbitrary-shot ZIP export, and shot-package import as a new or explicitly selected existing project. Legacy JSON import remains compatible. Independent external-agent blind testing and real mobile/PWA handoff remain pending. Built-in model integration remains paused. See the [asset-pack specification](docs/asset-pack-format.md) and [Agent guide](docs/agent-guide.md).
 
 ## Product flow
 

@@ -6,7 +6,7 @@
 
 ## 设计方向
 
-本地优先、原生可迁移、面向 Agent 开放。浏览器存储是本地真源，版本化资产包是跨设备及外部 Agent 的交换边界，正常导入器是统一的校验与写入入口。`refactor/portable-agent` 分支集成了已合入 `main` 的严格脚本 CSP，以及多项目、任意分镜 ZIP 导出和分镜包新建/追加导入；旧 JSON 读入仍兼容。ZIP 能力尚未合入 `main`；真实外部 Agent 与手机/PWA 验收待完成。内置模型接入继续暂停。格式和运行时限制见[资产包规范](docs/asset-pack-format.md)，操作入口见[Agent 指南](docs/agent-guide.md)。
+本地优先、原生可迁移、面向 Agent 开放。浏览器存储是本地真源，版本化资产包是跨设备及外部 Agent 的交换边界，正常导入器是统一的校验与写入入口。`main` 已包含严格脚本 CSP、多项目与任意分镜 ZIP 导出，以及分镜包新建/追加导入；旧 JSON 读入仍兼容。独立外部 Agent 与手机/PWA 交接验收待完成。内置模型接入继续暂停。格式和运行时限制见[资产包规范](docs/asset-pack-format.md)，操作入口见[Agent 指南](docs/agent-guide.md)。
 
 ## 产品流程
 
