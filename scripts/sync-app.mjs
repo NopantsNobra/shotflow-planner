@@ -17,6 +17,7 @@ const FILES = [
   'icon-192.png',
   'icon-512.png',
   'docs/agent-guide.md',
+  'docs/agent-tasks/generate-shoot-plan-v1.md',
   'docs/asset-pack-format.md',
   'schemas/project-pack-v1.schema.json',
   'schemas/asset-archive-manifest-v1.schema.json',

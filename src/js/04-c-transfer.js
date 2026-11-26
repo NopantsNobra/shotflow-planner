@@ -132,6 +132,32 @@ async function previewArchiveImport(file){
   }catch(err){if(opened)await opened.close().catch(()=>{});toast('导入失败：'+String(err.message||err),6000);}
   finally{if(op)finishArchiveOperation(op);}
 }
+/* Versioned boundary adapter: archive data v1 -> current internal Project.
+   Keep wire-version handling here instead of making the external schema mirror
+   every future internal storage migration. */
+function adaptArchiveEntryV1ToProject(raw,options){
+  options=options||{};
+  const target=options.target||null,needed=options.needed||null,imageMap=options.imageMap;
+  const createId=options.createId||(()=>crypto.randomUUID());
+  let input=raw;
+  if(target){
+    const usedScenes=new Set(raw.shots.map(s=>s.sceneId).filter(Boolean)),refs=(raw.refs||[]).filter(x=>needed.has(x.key));
+    const have=new Set(refs.map(x=>x.key));
+    for(const key of needed)if(!have.has(key))refs.push({key,name:'参考图',tags:[]});
+    input={name:raw.name,shots:raw.shots,scenes:(raw.scenes||[]).filter(x=>usedScenes.has(x.id)),refs};
+  }
+  const project=sanitizeProject(input,createId);
+  if(!project)throw Error('文件中有非法项目');
+  migrate(project);project.demo=false;project.assetPack=false;project.name=project.name.slice(0,116)+'（导入）';
+  const remap=key=>{
+    if(!imageMap.has(key))throw Error('图片依赖缺失');
+    return imageMap.get(key);
+  };
+  for(const ref of project.refs||[])ref.key=remap(ref.key);
+  for(const mood of project.mood||[])if(mood.type==='image')mood.content=remap(mood.content);
+  for(const shot of project.shots||[])shot.refIds=(shot.refIds||[]).map(remap);
+  return project;
+}
 async function applyArchiveImport(opened,controller,targetId=''){
   let op=null,locked=false,published=false,session=null;
   const app=document.getElementById('app');
@@ -150,23 +176,7 @@ async function applyArchiveImport(opened,controller,targetId=''){
     // format can also contain unselected metadata supplied by an Agent.
     const needed=target?new Set(opened.data.entries[0].shots.flatMap(s=>s.refIds||[])):null;
     const map=new Map(opened.manifest.images.filter(m=>!needed||needed.has(m.key)).map(m=>[m.key,'archive-'+crypto.randomUUID()]));
-    const imported=opened.data.entries.map(raw=>{
-      let input=raw;
-      if(target){
-        const usedScenes=new Set(raw.shots.map(s=>s.sceneId).filter(Boolean)),refs=(raw.refs||[]).filter(x=>needed.has(x.key));
-        const have=new Set(refs.map(x=>x.key));
-        for(const key of needed)if(!have.has(key))refs.push({key,name:'参考图',tags:[]});
-        input={name:raw.name,shots:raw.shots,scenes:(raw.scenes||[]).filter(x=>usedScenes.has(x.id)),refs};
-      }
-      const p=sanitizeProject(input,()=>crypto.randomUUID());
-      if(!p)throw Error('文件中有非法项目');
-      migrate(p);p.demo=false;p.assetPack=false;p.name=p.name.slice(0,116)+'（导入）';
-      const remap=key=>{if(!map.has(key))throw Error('图片依赖缺失');return map.get(key);};
-      for(const r of p.refs||[])r.key=remap(r.key);
-      for(const m of p.mood||[])if(m.type==='image')m.content=remap(m.content);
-      for(const s of p.shots||[])s.refIds=(s.refIds||[]).map(remap);
-      return p;
-    });
+    const imported=opened.data.entries.map(raw=>adaptArchiveEntryV1ToProject(raw,{target,needed,imageMap:map}));
     const arr=target?all.map(p=>p.id===targetId?appendArchiveShots(p,imported[0]):p):all.concat(imported),staged=[];
     const check=()=>{if(op.controller.signal.aborted)throw Error('已取消资产包导入');if(persistConflict||generation!==persistGeneration)throw Error('现有项目已变化，请刷新后重试');};
     check();

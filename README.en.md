@@ -4,7 +4,7 @@
 
 > Freeze the moment. Leave a mark.
 
-Stillmark is a lightweight photography planning and shoot-day workbench for independent photographers, creators and small teams, designed to be local-first, portable by design and agent-ready. Collect ideas, reference images, shot lists, schedules and checklists in one place; turn the same plan into client proposals, call sheets and field manuals; then focus on what to shoot next.
+Stillmark is an AI-friendly photography planning and shoot-day workbench for independent photographers. Start with an idea or a reference image, collaborate with the AI tools you choose to shape a shoot plan, then carry that same plan into execution. Projects and images remain local by default, while versioned file contracts let external agents prepare content for the existing import, preview and confirmation flow. Seamless integration across AI tools is a product direction; today, collaboration uses guides, files and the existing import flow.
 
 **Minimize planning overhead, maximize confidence on set, and preserve creative freedom.** Stillmark does not require exposure settings in advance, replace aesthetic judgment, or attempt to be a RAW manager, lighting simulator, editing suite or full production management system.
 
@@ -14,11 +14,11 @@ Stillmark is a lightweight photography planning and shoot-day workbench for inde
 
 ## Design philosophy
 
-**Local-first · Portable by design · Agent-ready**
+**AI-friendly · Local-first · Portable by design**
 
 - Local-first: users control projects and personal images; the core workflow requires no account, network or model service.
 - Portable by design: transfer user-selected assets between devices without cloud synchronization. The `refactor/portable-agent` branch now includes strict script CSP and multi-project/arbitrary-shot ZIP export and import. Shot packages can create a project or append to an explicitly selected project; legacy JSON import remains available. ZIP entry points are still under development and have not been merged into `main`.
-- Agent-ready: external agents can use the [operation guide](docs/agent-guide.md), schemas and ZIP examples to prepare assets for the normal import, preview and confirmation flow. External-agent blind testing and real-phone handoff remain pending on the development branch. The disabled built-in AI contract remains optional; no model API is required.
+- Agent-ready: external agents can use the [operation guide](docs/agent-guide.md), [shoot-plan task prompt](docs/agent-tasks/generate-shoot-plan-v1.md), schemas and ZIP examples to prepare assets for the normal import, preview and confirmation flow. External-agent blind testing and real-phone handoff remain pending on the development branch. The disabled built-in AI contract remains optional; no model API is required.
 
 The goal is low-friction planning, handoff and execution for humans and agents, not a larger management suite. See the [development roadmap](docs/portable-agent-roadmap.md).
 

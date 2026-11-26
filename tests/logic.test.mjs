@@ -945,6 +945,17 @@ check('ZIP 清单拒绝非法路径、重复键、摘要冲突、类型错配和
     &&badData({dataVersion:1,kind:'shots',entries:[{name:'A',shots:[{name:'S',refIds:['first']}]}]})
     &&badData({dataVersion:1,kind:'projects',entries:[{name:'A',shots:[{name:'S',refIds:['missing']}]}]});
 })()`,ctx));
+vm.runInContext(fn('adaptArchiveEntryV1ToProject'),ctx);
+ctx.__archiveInput={name:'外部策划',client:'不应并入的客户信息',shots:[{id:'shot-1',name:'窗边肖像',sceneId:'scene-1',refIds:['image-1'],done:true}],
+  scenes:[{id:'scene-1',name:'窗边'},{id:'unused-scene',name:'无关场景'}],refs:[{id:'ref-1',key:'image-1',name:'参考图'},{id:'unused-ref',key:'unused-image'}],notes:[{id:'private',content:'不应并入'}]};
+ctx.__archiveMap=new Map([['image-1','archive-image-1']]);
+check('ZIP v1 适配器将外部数据收敛到当前项目并过滤追加范围',vm.runInContext(`(()=>{
+  const source=JSON.stringify(__archiveInput),target={id:'target'};
+  const p=adaptArchiveEntryV1ToProject(__archiveInput,{target,needed:new Set(['image-1']),imageMap:__archiveMap,createId:(()=>{let i=0;return()=>\`new-\${++i}\`;})()});
+  return JSON.stringify(__archiveInput)===source&&p.name==='外部策划（导入）'&&!p.client&&!p.notes.length&&p.demo===false&&p.assetPack===false
+    &&p.shots.length===1&&p.shots[0].done&&p.shots[0].refIds[0]==='archive-image-1'
+    &&p.scenes.length===1&&p.scenes[0].name==='窗边'&&p.refs.length===1&&p.refs[0].key==='archive-image-1';
+})()`,ctx));
 vm.runInContext(fn('appendArchiveShots'),ctx);
 check('分镜追加保持目标资料、原顺序与状态，只引入显式依赖且不改源对象',vm.runInContext(`(()=>{
   const target={id:'target',name:'目标',status:'策划中',client:'客户',shootDates:['2026-11-26'],shootDate:'2026-11-26',shots:[{id:'old',ord:8,done:true}],scenes:[{id:'oldscene',name:'场景'}],refs:[],notes:[{id:'note',content:'保留'}],tagVocab:['旧标签']};

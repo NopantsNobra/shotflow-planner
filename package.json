@@ -8,6 +8,8 @@
     "build": "node scripts/build.mjs",
     "verify:build": "node scripts/verify-build.mjs",
     "verify:version": "node scripts/verify-version.mjs",
+    "schemas:export": "node scripts/export-schemas.mjs",
+    "schemas:check": "node scripts/export-schemas.mjs --check",
     "lint": "node scripts/lint-runtime.mjs && eslint scripts tests playwright.config.js eslint.config.js",
     "format:check": "prettier --check \"scripts/*.mjs\" \"eslint.config.js\" \"playwright.config.js\"",
     "test": "npm run test:logic && npm run test:e2e",

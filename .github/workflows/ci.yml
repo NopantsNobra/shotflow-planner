@@ -24,6 +24,8 @@ jobs:
         run: npm run test:deploy
       - name: 版本号一致性
         run: npm run verify:version
+      - name: 交换格式 Schema 一致性
+        run: npm run schemas:check
       - name: ESLint
         run: npm run lint
       - name: Prettier 格式检查
