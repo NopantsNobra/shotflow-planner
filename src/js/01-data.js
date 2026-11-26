@@ -8,7 +8,9 @@
    否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
 const APP_VERSION='__APP_VERSION__';
 const PROPOSAL_SCRIPT_HASH='__PROPOSAL_SCRIPT_HASH__';
-const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.2',data:'v10.9.3',core:'v10.9.3',app:'v10.9.2',output:'v10.9.3',boot:'v10.9.2',settings:'v10.9.3',swCache:'shotflow-v10-32-csp-portable',dbSchema:4,since:'v10.5.0'};
+const MODULE_VERSIONS={shell:'v11.0.0',styles:'v11.0.0',data:'v11.0.0',core:'v10.9.3',app:'v10.9.2',output:'v11.0.0',boot:'v11.0.0',settings:'v11.0.0',swCache:'shotflow-v11-0-prompt-editor',dbSchema:4,since:'v10.5.0'};
+const DEFAULT_AGENT_PROMPT='__DEFAULT_AGENT_PROMPT__';
+const LS_AGENT_PROMPT='wb_sf_agent_prompt_v1';
 const FB_KEY_A = 'uJrHd8a=U+X9Uh3EUtyyUhdF';
 const FB_KEY_B = 'yRhU1RHdTUVl1XwU9dVu=mJD';
 const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded', LS_DEMO_V9='wb_sf_demo_v9';
@@ -39,14 +41,6 @@ function safeColor(v){
   return '#c8a97e';
 }
 
-/* ===== 素材标签：常量与会话配置 ===== */
-const AI_TAGGING_ENABLED=false;                 // 编译期总开关，本期恒关闭
-const TagProviders=Object.create(null);         // 可插拔建议器注册表，默认空
-let aiConfig=(()=>{                             // 仅内存 + sessionStorage，不入库不导出
-  const def={enabled:false,endpoint:'',apiKey:'',model:'',timeoutMs:8000};
-  try{ return Object.assign(def,JSON.parse(sessionStorage.getItem('sf_ai_cfg_v1'))||{}); }
-  catch{ return def; }
-})();
 const MATERIAL_SOURCES=[
   {name:'shisei · 人像姿势参考',url:'https://github.com/wquguru/shisei',
     lic:'图片 CC0 1.0 · 代码 Apache-2.0',

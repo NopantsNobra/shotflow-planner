@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-w29tIYLLyeOHXhs/LSAb5xVE2/EweOV5AU+C1GQFGZI='; script-src-attr 'none'; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net https://api.web3forms.com; worker-src 'self'; manifest-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-sxrg7k5nZr39C0aEsDGnF9LtrtJtgRPSZoGyHvcey7U='; script-src-attr 'none'; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net https://api.web3forms.com; worker-src 'self'; manifest-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>瞬刻摄影工作台 · Stillmark｜灵感·分镜·提案·实拍</title>
 <meta name="theme-color" content="#9c6b30">
@@ -351,6 +351,12 @@ svg{display:inline-block;vertical-align:middle}
 .settings-form input,.settings-form textarea{font-size:13.5px;background:var(--surface-2)}
 .settings-form textarea{min-height:110px;resize:vertical}
 .settings-env{font-size:11px;color:var(--ink2);white-space:pre-wrap;line-height:1.6;padding:8px 10px;background:var(--surface-2);border:1px dashed var(--line2);border-radius:8px}
+.agent-prompt-modal{max-width:900px}
+.agent-prompt-body{padding:18px 22px 22px}
+.agent-prompt-body>label{display:block;font-size:12px;color:var(--ink3);margin:12px 0 6px}
+.agent-prompt-body textarea{display:block;width:100%;height:min(56vh,620px);min-height:280px;resize:vertical;white-space:pre-wrap;font:12px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--surface-2);color:var(--ink);border:1px solid var(--line2);border-radius:10px;padding:12px}
+.agent-prompt-actions{margin-top:10px;align-items:center}
+.agent-prompt-privacy{font-size:11.5px;margin:10px 0 0}
 @media (max-width:700px){.settings-body{padding:16px 14px 20px}}
 /* v10.6.x：部署说明弹窗（复用 doc-modal 外壳，仅补内容排版） */
 .deploy-body{padding:4px 2px 6px;max-width:100%}
@@ -530,6 +536,28 @@ svg{display:inline-block;vertical-align:middle}
   </div>
 </div>
 
+<!-- 提示词编辑器：置于设置弹窗之后以覆盖设置内容；提示词完全由用户查看、编辑和复制。 -->
+<div class="modal-mask" id="agentPromptModal" data-shell-action="agent-prompt-backdrop">
+  <div class="modal doc-modal agent-prompt-modal">
+    <div class="doc-bar no-print">
+      <span class="doc-bar-title">审查与修改 AI 提示词</span>
+      <div class="row"><button class="btn btn-ghost btn-sm" data-shell-action="close-agent-prompt">关闭</button></div>
+    </div>
+    <div class="agent-prompt-body">
+      <p class="src-note">这是提供给外部 Agent 的完整默认任务提示词（v3）。你可以按个人用途自由修改后保存或复制。工作台不会自动发送、补充隐藏条款，或将它关联到项目数据。</p>
+      <label for="agentPromptText">提示词正文</label>
+      <textarea id="agentPromptText" spellcheck="false" aria-describedby="agentPromptStatus" data-input="agent-prompt"></textarea>
+      <div class="row agent-prompt-actions">
+        <button class="btn btn-primary btn-sm" data-shell-action="save-agent-prompt">保存到本机</button>
+        <button class="btn btn-ghost btn-sm" data-shell-action="copy-agent-prompt">复制当前内容</button>
+        <button class="btn btn-ghost btn-sm" data-shell-action="reset-agent-prompt">恢复默认</button>
+        <span class="muted" id="agentPromptStatus" role="status" aria-live="polite"></span>
+      </div>
+      <p class="muted agent-prompt-privacy">个人修改只保存在当前浏览器的本机设置中，不会进入项目数据、备份或反馈。复制后由你自行决定是否交给某个 Agent。</p>
+    </div>
+  </div>
+</div>
+
 <!-- 部署说明弹窗（v10.6.x）：与其它 modal-mask 同 z-index，DOM 位于 settingsModal 之后 → 叠在其上；
      遮罩关闭由静态 shell action 委托处理，仅响应遮罩本身的点击。 -->
 <div class="modal-mask" id="deployModal" data-shell-action="deploy-backdrop">
@@ -652,9 +680,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    源码/配置/产物/日志均无明文）。
    注意：注释中不要复现带引号的占位字面量本身，
    否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
-const APP_VERSION="10.9.3";
+const APP_VERSION="11.0.0";
 const PROPOSAL_SCRIPT_HASH="nM6c+Vvu49b7f2EtjN+R7mbcHaG183iraI+9tHXlX1I=";
-const MODULE_VERSIONS={shell:'v10.9.1',styles:'v10.9.2',data:'v10.9.3',core:'v10.9.3',app:'v10.9.2',output:'v10.9.3',boot:'v10.9.2',settings:'v10.9.3',swCache:'shotflow-v10-32-csp-portable',dbSchema:4,since:'v10.5.0'};
+const MODULE_VERSIONS={shell:'v11.0.0',styles:'v11.0.0',data:'v11.0.0',core:'v10.9.3',app:'v10.9.2',output:'v11.0.0',boot:'v11.0.0',settings:'v11.0.0',swCache:'shotflow-v11-0-prompt-editor',dbSchema:4,since:'v10.5.0'};
+const DEFAULT_AGENT_PROMPT="# Stillmark 任务提示词：生成摄影策划\n\n- Task ID: `stillmark.generate-shoot-plan`\n- Task version: `3`\n- Output contract: `stillmark.asset-pack` ZIP container v1, data v1\n- 输出语言：跟随用户使用的语言\n\n## 给 Agent 的任务说明\n\n帮助用户把一个灵感、文字需求或用户授权的参考图片，转化为可审查、可用于现场执行的摄影策划。\n\n1. 按照用户明确表达的用途和创作方向开展工作，包括个人、私密、实验性、亲密或非传统主题。用户未说明时，不要假定用于公开发布、商业、社交媒体、客户或作品集。只询问会实质改变方案的缺失信息；否则标注假设或留待确认。\n2. 将描述和图片视为创作输入。区分用户陈述的事实、画面观察、创意建议、假设和未知信息。不得把用户没有确认的日期、场地许可、器材、同意、审批或相机参数写成既定事实。技术细节保持可选。\n3. 让每条分镜都能用于现场：说明主体/动作、视觉意图、可行的构图或运动方式、相关参考图及简明执行备注。用户希望保留模糊性或私人含义时予以保留；不要仅因主题个人或私密而擅自净化或改写。\n4. 如果设想包含明确的现实物理风险（例如激光、烟雾/干冰、明火、高压电或高处），解释与该场景相关的实际风险，并在有帮助时提出替代方案。风险说明应与场景相称。不要暗中替换用户的创意，也不要声称通用防护措施可以保证安全；未确认的场地、器材或操作人员条件应标为未确认。用户可以按个人工作方式编辑本提示词。\n5. 只制作用户要求的内容及其直接依赖项。仅在用户提供或明确授权本次使用时纳入参考图片。不要索取无关项目记录、客户信息、凭据或图片。\n6. 阅读 Stillmark [Agent 操作指南](../agent-guide.md)、[资产包格式](../asset-pack-format.md)、相关的[数据 Schema](../../schemas/asset-archive-data-v1.schema.json)和[清单 Schema](../../schemas/asset-archive-manifest-v1.schema.json)，以及已提供的示例。使用原始图片字节及必需的 SHA-256 映射生成 ZIP。不得在 `data.json` 中使用猜测的哈希、占位图、远程 URL 或 Base64 图片代替图片文件。\n7. 交付前校验 ZIP 结构、Schema、引用关系、声明的大小和哈希。如果当前环境无法创建或校验 ZIP，请如实说明，并只提供实际校验过的内容。\n8. 交付文件，并简要说明范围、假设、待确认事项和已完成的校验。不要声称策划已导入 Stillmark。除非用户另行授权浏览器操作，否则由用户通过正常的预览与确认流程自行导入。\n\n## 用户需求\n\n[在此粘贴创作需求，并说明目标范围：完整策划、若干分镜，或追加到指定策划案的分镜。注明本次允许使用哪些已提供的参考图片。]";
+const LS_AGENT_PROMPT='wb_sf_agent_prompt_v1';
 const FB_KEY_A = 'uJrHd8a=U+X9Uh3EUtyyUhdF';
 const FB_KEY_B = 'yRhU1RHdTUVl1XwU9dVu=mJD';
 const LS_PROJ='wb_sf_projects', LS_SEED='wb_sf_seeded', LS_DEMO_V9='wb_sf_demo_v9';
@@ -685,14 +715,6 @@ function safeColor(v){
   return '#c8a97e';
 }
 
-/* ===== 素材标签：常量与会话配置 ===== */
-const AI_TAGGING_ENABLED=false;                 // 编译期总开关，本期恒关闭
-const TagProviders=Object.create(null);         // 可插拔建议器注册表，默认空
-let aiConfig=(()=>{                             // 仅内存 + sessionStorage，不入库不导出
-  const def={enabled:false,endpoint:'',apiKey:'',model:'',timeoutMs:8000};
-  try{ return Object.assign(def,JSON.parse(sessionStorage.getItem('sf_ai_cfg_v1'))||{}); }
-  catch{ return def; }
-})();
 const MATERIAL_SOURCES=[
   {name:'shisei · 人像姿势参考',url:'https://github.com/wquguru/shisei',
     lic:'图片 CC0 1.0 · 代码 Apache-2.0',
@@ -1313,10 +1335,6 @@ const FAV_TYPES_BY_TAB={mood:['mood'],shots:['shots'],schedule:['schedule'],
   stuff:['scenes','items'],budget:['budget'],notes:['notes','todos']};
 function favTypesForTab(tab){ return FAV_TYPES_BY_TAB[tab]||[]; }
 function isFav(it){ return !!(it&&it.fav===true); }
-function favCount(list){
-  if(!Array.isArray(list)) return 0;
-  return list.reduce((n,it)=>n+(isFav(it)?1:0),0);
-}
 function favSummary(type,it){
   if(!it) return '';
   if(type==='mood') return it.type==='image'?'图片':String(it.content==null?'':it.content);
@@ -3358,13 +3376,13 @@ function toggleRef(id){
   if(view.editingShotId){
     /* 更换模式：点一张即替换该下标并退出；添加模式：可连续点选最多 3 张，直到点「完成」 */
     const replacing=view.replaceIdx>=0;
-    let done=false, full=false, changed=false;
+    let full=false, changed=false;
     updateCur(p=>{
       const s=p.shots.find(x=>x.id===view.editingShotId); if(!s){ view.editingShotId=null; view.replaceIdx=-1; return; }
       s.refIds=s.refIds||[];
       if(replacing){
         if(s.refIds[view.replaceIdx]===id){ view.editingShotId=null; view.replaceIdx=-1; return; }
-        s.refIds[view.replaceIdx]=id; view.editingShotId=null; view.replaceIdx=-1; done=true; changed=true;
+        s.refIds[view.replaceIdx]=id; view.editingShotId=null; view.replaceIdx=-1; changed=true;
         return;
       }
       const i=s.refIds.indexOf(id);
@@ -4026,35 +4044,6 @@ function dayItems(p,date){
   let prevEnd=-1;
   out.forEach(it=>{ it._conflict=it._start<prevEnd; if(it._end>prevEnd) prevEnd=it._end; });
   return out;
-}
-/* 级联顺延：被点事项及其后所有事项后移，后一项不早于前一项结束
-   ⚠ v10 起 UI 不再调用本函数（拍摄日「整日顺延 1 小时」改为 sdPostpone 内 +60 后重排），
-     保留原实现仅供 tests/logic.test.mjs 抽取验证，勿删。 */
-function cascadeShift(p,date,id,delta){
-  const items=dayItems(p,date);
-  const idx=items.findIndex(x=>x.id===id); if(idx<0) return 0;
-  const base=items[idx]._start;
-  const plan=[]; let cursor=-1;
-  items.forEach(it=>{
-    const dur=it._t==='shot'?Math.max(5,+it.duration||SHOT_DEFAULT_MIN):Math.max(30,it._end-it._start);
-    if(it._start<base){ if(it._end>cursor) cursor=it._end; return; }
-    let ns=it._start+delta;
-    if(cursor>=0&&ns<cursor) ns=cursor;
-    plan.push({it,ns,dur});
-    cursor=ns+dur;
-  });
-  if(plan.some(x=>x.ns+x.dur>1440)) return -1;
-  let moved=0;
-  plan.forEach(({it,ns,dur})=>{
-    if(it._t==='shot'){
-      const s=p.shots.find(z=>z.id===it.id);
-      if(s&&s.slot){ s.slot=fmtMin(ns); moved++; }
-    } else {
-      const n=p.schedule.find(z=>z.id===it.id);
-      if(n&&n.start){ n.start=fmtMin(ns); n.end=fmtMin(ns+dur); moved++; }
-    }
-  });
-  return moved;
 }
 function timelineHtml(p,date){
   const items=dayItems(p,date);
@@ -5325,6 +5314,7 @@ function aiValidateReferences(taskId,data,context){
   return data;
 }
 function aiProjectToken(p){return p?JSON.stringify(p):null;}
+/* exported aiCandidateIsCurrent, createAiService */
 function aiCandidateIsCurrent(candidate,project){
   return !!candidate&&candidate.projectId===(project&&project.id||null)&&candidate.projectToken===aiProjectToken(project)&&!(project&&project.demo);
 }
@@ -5356,42 +5346,6 @@ function createAiService(options){
     return {taskId,projectId,projectToken,data,provider:provider.id,promptVersion:req.promptVersion};
   }
   return Object.freeze({register,prepare,run});
-}
-/* 生产服务恒关闭；未来接入必须另行实现上传确认、取消/超时及业务白名单应用。 */
-const ai=createAiService({enabled:false});
-
-/* ===== AI 打标签：兼容旧接口（本期恒关闭，零网络请求） ===== */
-function setAiConfig(k,v){
-  aiConfig[k]=v;
-  try{ sessionStorage.setItem('sf_ai_cfg_v1',JSON.stringify(aiConfig)); }catch{}
-}
-function registerTagProvider(name,provider){
-  const n=String(name==null?'':name).trim();
-  if(!n||!provider||typeof provider.suggest!=='function') return false;
-  TagProviders[n]=provider; return true;
-}
-async function suggestTags(req,cfg){
-  if(!AI_TAGGING_ENABLED) return {tags:[],source:'ai'};
-  const prov=TagProviders[(cfg&&cfg.provider)||'default'];
-  if(!prov) throw new Error('AI_TAGGING_PROVIDER_MISSING');
-  const out=await prov.suggest(req,cfg);
-  return {tags:dedupeTags(out&&out.tags),confidence:out&&out.confidence,source:'ai'};
-}
-async function requestAiTags(req,cfg){
-  try{
-    const r=await suggestTags(req,cfg);
-    return r&&Array.isArray(r.tags)?r.tags:[];
-  }catch{
-    toast('AI 打标签暂不可用，已跳过（可手动添加标签）');
-    return [];
-  }
-}
-function stashAiSuggestion(moodId,tags){
-  const list=dedupeTags(tags); if(!list.length) return;
-  updateCur(p=>{
-    const m=p.mood.find(x=>x.id===moodId); if(!m) return;
-    m.autoTags=mergeVocab(m.autoTags,list);
-  });
 }
 function applyAiSuggestion(moodId){
   const p=cur(), m=(p&&p.mood||[]).find(x=>x.id===moodId);
@@ -5514,13 +5468,10 @@ async function runShiseiSync(force){
         }):Promise.reject(new Error('CATALOG_ENTRY_MISSING'));
       }));
       let failed=0, quotaHit=false;
-      for(let i=0;i<results.length;i++){
-        const item=batch.items[i], out=results[i];
-        if(out.status==='fulfilled'&&out.value&&out.value.data){
-          // 同步只落盘；缩略图进入可见页时才读取。
-        } else {
+      for(const out of results){
+        if(out.status!=='fulfilled'||!out.value||!out.value.data){
           failed++;
-          const reason=out.reason;
+          const reason=out.status==='rejected'?out.reason:null;
           quotaHit=quotaHit||(reason&&(reason.name==='QuotaExceededError'||/quota/i.test(String(reason.message||reason.name||''))));
         }
       }
@@ -5676,6 +5627,7 @@ document.addEventListener('keydown',e=>{
   if(shown('refViewer')){ closeRefViewer(); return; }
   if(shown('confirmModal')){ closeConfirm(); return; }
   if(shown('nameModal')){ closeNameModal(); return; }
+  if(shown('agentPromptModal')){ closeAgentPromptEditor(); return; }
   if(shown('deployModal')){ closeDeployModal(); return; } // v10.6.x：部署说明叠在设置页之上，必须先关
   if(shown('settingsModal')){ closeSettings(); return; }   // v10.6.0：设置弹窗后开先关（位于 confirm/name 之后判断）
   if(cancelInlineEdit()) return;
@@ -5762,10 +5714,13 @@ document.addEventListener('keydown',e=>{
 const shellActions=Object.freeze({
   'export-proposal':()=>exportProposalFile(),'print':()=>window.print(),
   'close-doc':()=>closeDoc(),'close-settings':()=>closeSettings(),'close-deploy':()=>closeDeployModal(),
+  'close-agent-prompt':()=>closeAgentPromptEditor(),
   'close-confirm':()=>closeConfirm(),'close-name':()=>closeNameModal(),'create-project':()=>confirmNewProject(),
   'close-favorites':()=>closeFavPicker(),
   'settings-backdrop':(e,el)=>{if(e.target===el)closeSettings();},
   'deploy-backdrop':(e,el)=>{if(e.target===el)closeDeployModal();},
+  'agent-prompt-backdrop':(e,el)=>{if(e.target===el)closeAgentPromptEditor();},
+  'save-agent-prompt':()=>saveAgentPrompt(),'copy-agent-prompt':()=>copyAgentPrompt(),'reset-agent-prompt':()=>resetAgentPrompt(),
   'favorites-backdrop':(e,el)=>{if(e.target===el)closeFavPicker();}
 });
 document.addEventListener('click',e=>{
@@ -5836,6 +5791,7 @@ const ACTIONS=Object.freeze({
   'open-project':{fn:(id)=>(loadP().some(p=>p.id===id&&!p.assetPack)&&openProject(id)),argc:1,types:["s"]},
   'install-app':{fn:()=>installApp(),argc:0,types:[]},
   'open-settings':{fn:()=>openSettings(),argc:0,types:[]},
+  'open-agent-prompt':{fn:()=>openAgentPromptEditor(),argc:0,types:[]},
   'pick-backup':{fn:(id)=>(['importFile','assetImportFile','settingsImportFile'].includes(id)&&document.getElementById(id)?.click()),argc:1,types:["s"]},
   'clear-all':{fn:()=>clearAll(),argc:0,types:[]},
   'new-project':{fn:()=>newProject(),argc:0,types:[]},
@@ -5966,6 +5922,7 @@ function setDelegatedBoardScope(scope){
 function returnDelegatedBoard(){view=freshView();renderBoard();}
 document.addEventListener('input',e=>{
   const el=e.target;
+  if(el.id==='agentPromptText'&&el.dataset.input==='agent-prompt'){updateAgentPromptStatus();return;}
   if(el.id==='boardSearch'&&el.dataset.input==='board-query')setBoardQuery(el.value);
 });
 document.addEventListener('change',e=>{
@@ -6096,13 +6053,55 @@ function closeSettings(){
   document.getElementById('settingsModal').classList.remove('show');
 }
 
+/* 提示词由应用内版本化文档提供默认值；个人修改只保存在当前浏览器，不进项目数据/备份/反馈，也不会自动发送。 */
+function agentPromptValue(){
+  try{const value=localStorage.getItem(LS_AGENT_PROMPT);return value===null?DEFAULT_AGENT_PROMPT:value;}catch{return DEFAULT_AGENT_PROMPT;}
+}
+function openAgentPromptEditor(){
+  const field=document.getElementById('agentPromptText');if(!field)return;
+  field.value=agentPromptValue();updateAgentPromptStatus();
+  document.getElementById('agentPromptModal').classList.add('show');
+}
+function closeAgentPromptEditor(force){
+  const field=document.getElementById('agentPromptText');
+  if(!force&&field&&field.value!==agentPromptValue()){
+    askConfirm('放弃未保存的提示词修改？','当前编辑内容尚未保存。关闭后将丢失这些修改。',()=>closeAgentPromptEditor(true));return;
+  }
+  document.getElementById('agentPromptModal').classList.remove('show');
+}
+function updateAgentPromptStatus(message){
+  const field=document.getElementById('agentPromptText'),status=document.getElementById('agentPromptStatus');if(!field||!status)return;
+  const saved=agentPromptValue();
+  status.textContent=message|| (field.value===saved?'已保存到本机；不会自动发送。':'有未保存的修改');
+}
+function saveAgentPrompt(){
+  const field=document.getElementById('agentPromptText');if(!field)return;
+  try{localStorage.setItem(LS_AGENT_PROMPT,field.value);updateAgentPromptStatus('提示词已保存到本机。');}
+  catch{updateAgentPromptStatus('本机存储不可用；当前内容仍留在编辑框中。');}
+}
+function resetAgentPrompt(){
+  const field=document.getElementById('agentPromptText');if(!field)return;
+  field.value=DEFAULT_AGENT_PROMPT;saveAgentPrompt();
+}
+async function copyAgentPrompt(){
+  const field=document.getElementById('agentPromptText');if(!field)return;
+  try{await navigator.clipboard.writeText(field.value);updateAgentPromptStatus('当前编辑框中的提示词已复制。');}
+  catch{updateAgentPromptStatus('浏览器未允许访问剪贴板；可在编辑框中全选并复制。');}
+}
+
 /* ---------- 渲染（只写 #settingsBody，不触碰页面 DOM） ---------- */
 function renderSettings(){
   const host=document.getElementById('settingsBody'); if(!host) return;
-  host.innerHTML=settingsVersionHtml()+settingsConfigHtml()+settingsDataHtml()+settingsDeployHtml()+settingsFeedbackHtml();
+  host.innerHTML=settingsVersionHtml()+settingsConfigHtml()+settingsAgentPromptHtml()+settingsDataHtml()+settingsDeployHtml()+settingsFeedbackHtml();
   const env=document.getElementById('fbEnvPreview');
   if(env) env.textContent=buildFeedbackEnv(collectFeedbackEnv());
   renderSettingsShisei();
+}
+
+function settingsAgentPromptHtml(){
+  return '<div class="card"><h2>AI 提示词</h2>'
+    +'<p class="src-note">查看、修改并复制提供给外部 Agent 的任务提示词。它只是可编辑的创作指引；工作台不会自动调用模型、读取项目内容或发送提示词。个人修改只保存在本机，不进入项目备份或反馈。</p>'
+    +'<div class="row"><button class="btn btn-ghost btn-sm" '+doAttrs('open-agent-prompt')+'>审查与修改提示词</button></div></div>';
 }
 
 /* ① 版本信息（只读）：R1 应用版本 / R2 SW 缓存 / R3 IndexedDB schema / R4 数据规模 / R5 模块版本表 */
@@ -6112,7 +6111,7 @@ function settingsVersionHtml(){
   const rows=[['shell.html（页面骨架）',MODULE_VERSIONS.shell],['styles.css（样式）',MODULE_VERSIONS.styles],
     ['01-data.js（数据层）',MODULE_VERSIONS.data],['02-core.js（核心纯函数）',MODULE_VERSIONS.core],
     ['03-*.js（六个业务域）',MODULE_VERSIONS.app],['04-output.js（输出与后台）',MODULE_VERSIONS.output],
-    ['05-boot.js（启动）',MODULE_VERSIONS.boot],['06-settings.js（设置与反馈）',MODULE_VERSIONS.settings]];
+    ['05-boot.js（启动）',MODULE_VERSIONS.boot],['06-settings.js（设置、提示词与反馈）',MODULE_VERSIONS.settings]];
   return '<div class="card"><h2>版本信息</h2>'
     +'<div class="settings-ver">v'+esc(APP_VERSION)+'</div>'
     +'<dl class="settings-kv">'

@@ -73,10 +73,13 @@ document.addEventListener('keydown',e=>{
 const shellActions=Object.freeze({
   'export-proposal':()=>exportProposalFile(),'print':()=>window.print(),
   'close-doc':()=>closeDoc(),'close-settings':()=>closeSettings(),'close-deploy':()=>closeDeployModal(),
+  'close-agent-prompt':()=>closeAgentPromptEditor(),
   'close-confirm':()=>closeConfirm(),'close-name':()=>closeNameModal(),'create-project':()=>confirmNewProject(),
   'close-favorites':()=>closeFavPicker(),
   'settings-backdrop':(e,el)=>{if(e.target===el)closeSettings();},
   'deploy-backdrop':(e,el)=>{if(e.target===el)closeDeployModal();},
+  'agent-prompt-backdrop':(e,el)=>{if(e.target===el)closeAgentPromptEditor();},
+  'save-agent-prompt':()=>saveAgentPrompt(),'copy-agent-prompt':()=>copyAgentPrompt(),'reset-agent-prompt':()=>resetAgentPrompt(),
   'favorites-backdrop':(e,el)=>{if(e.target===el)closeFavPicker();}
 });
 document.addEventListener('click',e=>{
@@ -147,6 +150,7 @@ const ACTIONS=Object.freeze({
   'open-project':{fn:(id)=>(loadP().some(p=>p.id===id&&!p.assetPack)&&openProject(id)),argc:1,types:["s"]},
   'install-app':{fn:()=>installApp(),argc:0,types:[]},
   'open-settings':{fn:()=>openSettings(),argc:0,types:[]},
+  'open-agent-prompt':{fn:()=>openAgentPromptEditor(),argc:0,types:[]},
   'pick-backup':{fn:(id)=>(['importFile','assetImportFile','settingsImportFile'].includes(id)&&document.getElementById(id)?.click()),argc:1,types:["s"]},
   'clear-all':{fn:()=>clearAll(),argc:0,types:[]},
   'new-project':{fn:()=>newProject(),argc:0,types:[]},
@@ -277,6 +281,7 @@ function setDelegatedBoardScope(scope){
 function returnDelegatedBoard(){view=freshView();renderBoard();}
 document.addEventListener('input',e=>{
   const el=e.target;
+  if(el.id==='agentPromptText'&&el.dataset.input==='agent-prompt'){updateAgentPromptStatus();return;}
   if(el.id==='boardSearch'&&el.dataset.input==='board-query')setBoardQuery(el.value);
 });
 document.addEventListener('change',e=>{

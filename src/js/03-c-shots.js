@@ -396,13 +396,13 @@ function toggleRef(id){
   if(view.editingShotId){
     /* 更换模式：点一张即替换该下标并退出；添加模式：可连续点选最多 3 张，直到点「完成」 */
     const replacing=view.replaceIdx>=0;
-    let done=false, full=false, changed=false;
+    let full=false, changed=false;
     updateCur(p=>{
       const s=p.shots.find(x=>x.id===view.editingShotId); if(!s){ view.editingShotId=null; view.replaceIdx=-1; return; }
       s.refIds=s.refIds||[];
       if(replacing){
         if(s.refIds[view.replaceIdx]===id){ view.editingShotId=null; view.replaceIdx=-1; return; }
-        s.refIds[view.replaceIdx]=id; view.editingShotId=null; view.replaceIdx=-1; done=true; changed=true;
+        s.refIds[view.replaceIdx]=id; view.editingShotId=null; view.replaceIdx=-1; changed=true;
         return;
       }
       const i=s.refIds.indexOf(id);

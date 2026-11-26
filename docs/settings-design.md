@@ -3,6 +3,8 @@
 > 设计：架构师 高见远（Bob / software-architect-2-2-2） · 基线：main @ 2828296（v10.5.1） · 日期：2026-11-24
 > 范围：仅研究与设计，不改代码。所有行号/函数名均已在当前 main 实地核对。
 
+> **v11.0.0 更新（2026-11-26）**：本设计文档早期版本关于“AI 无提示词设置”的描述是当时的现状，不再代表当前 UI。设置现在新增“AI 提示词”卡片和独立编辑弹窗，默认正文由 `docs/agent-tasks/generate-shoot-plan-v3.md` 构建注入；用户可编辑、复制、保存或恢复默认。自定义正文仅写入当前浏览器 `localStorage`，不进入项目数据、备份或反馈，也不触发模型请求。IndexedDB 结构保持 v4。历史设计记录保留供追溯。
+
 ---
 
 ## 0. 调研结论（只读核实）
@@ -46,7 +48,7 @@ div#boardGrid（六列看板，setBoardQuery 局部刷新）
 | 标签词表 | **项目级**：`p.tagVocab`（02-core.js L42/47/70-84 merge/rename/remove），编辑入口在项目情绪板页 tagCloud（03-app.js L333-338：startRenameTag / delTagFromVocab） | 无全局词表 | **无全局配置**，设置页只能说明，不能聚合（见 3.2） |
 | 备份提示条 | `renderBoard()` L55 + L74（backupItemCount>=30 显示）；导出/导入：`exportJSON()`（04-output.js L178-181）/ `importJSON(e)`（L189-206） | `backupItemCount(all)` | 只读状态 + 既有操作按钮 |
 | PWA 安装 | `installApp()`（04-output.js L521），`deferredPrompt` 全局变量 | beforeinstallprompt 监听 L516-520 | 快捷入口 |
-| AI 打标签 | `AI_TAGGING_ENABLED` 恒 false（04-output.js L239-264 注释「本期恒关闭」） | setAiConfig 等为接口预留 | **不存在真配置，不进设置页** |
+| AI 打标签 | 当前没有生成入口；旧 `autoTags` 记录仍可由用户采纳 | 不保存 provider 或 API key 配置 | **无可配置项，不进设置页** |
 | 数据清空 | `clearAll()`（04-output.js L227-237） | askConfirm 二次确认 | 留在看板，**不聚合**（避免危险操作双入口，见 7.2） |
 
 关键复用安全性核实：
@@ -136,7 +138,7 @@ settingsModal
 | C1 | 姿势图库自动同步 开/关 | `shiseiSyncEnabled()` / `toggleShiseiSync()`，localStorage `wb_sf_shisei_sync` | 开关 UI；切换后调用 `toggleShiseiSync()` 并刷新设置页状态行（自备 `renderSettingsShisei()`，不依赖 #shiseiSyncBox） |
 | C2 | 姿势图库 立即同步 / 清除本机图库 | `startShiseiSync(true)` / `clearShiseiGallery()`（内部 askConfirm 叠层安全，见 0.2） | 设置页内提供按钮；状态行复用 `idb.getShiseiMeta('catalog')` + `idb.shiseiImgStats()` |
 
-> 其余一切（分镜默认时长、机位/光线固定选项、AI 打标签、主题色等）**当前不存在可改配置**，一律不进设置页。`AI_TAGGING_ENABLED` 是代码级预留常量（恒 false），不做成 UI 开关——本期它没有任何生效路径。
+> 其余一切（分镜默认时长、机位/光线固定选项、AI 打标签、主题色等）**当前不存在可改配置**，一律不进设置页。AI 模型调用没有生产入口；新接入需单独实现上传确认与结果预览。
 
 ### 2.2 只读展示
 

@@ -53,7 +53,6 @@ const FNS = [
   'toMin',
   'fmtMin',
   'dayItems',
-  'cascadeShift',
   'tagKey',
   'dedupeTags',
   'parseTagsInput',
@@ -67,7 +66,6 @@ const FNS = [
   'freshView',
   'migrateFav',
   'isFav',
-  'favCount',
   'favSummary',
   'backupItemCount',
   'matchBoardScope',
@@ -100,7 +98,6 @@ const FNS = [
 for (const n of [...new Set(FNS)]) vm.runInContext(fn(n), ctx);
 
 // ---- 构造真实数据结构 ----
-let seq = 0;
 const mk = (i, shotCount) => ({
   id: 'p' + i,
   v3: 1,

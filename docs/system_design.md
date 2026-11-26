@@ -1,4 +1,4 @@
-# 瞬刻摄影工作台 Stillmark · v10 实现设计与任务分解
+# 历史设计方案：Stillmark v10 排程实现与任务分解
 
 - 基线：HEAD `97eba10`（v9）· `shotflow.html` 2588 行 · `tests/logic.test.mjs` 59 项
 - 本文所有行号均指 **基线 `97eba10` 的实际行号**（已逐处核对，非推算）

@@ -52,6 +52,13 @@ export function assembleHtml(version) {
   // 版本注入：仅替换含引号的完整字面量，函数形式避免 $ 特殊模式
   if (version) out = out.replace("'__APP_VERSION__'", () => JSON.stringify(String(version)));
 
+  // Agent 提示词以版本化 Markdown 为唯一真源，构建时作为普通文本嵌入应用，运行时不下载。
+  const promptPath = path.join(ROOT, 'docs/agent-tasks/generate-shoot-plan-v3.md');
+  const prompt = read(promptPath).replace(/\r\n/g, '\n').trim();
+  if (out.split("'__DEFAULT_AGENT_PROMPT__'").length !== 2)
+    throw new Error('[assemble] expected exactly one agent prompt placeholder');
+  out = out.replace("'__DEFAULT_AGENT_PROMPT__'", () => JSON.stringify(prompt));
+
   // Hash the actual classic-script bytes after all other build substitutions.
   // ⚠ 换行规范化：HTML 解析阶段会把 \r\n / \r 统一成 \n（HTML 标准预处理），浏览器对
   // script 内容算 CSP hash 时用的是规范化后的 LF 字节。本机 Windows 上 autocrlf 会把

@@ -1,4 +1,4 @@
-const CACHE = 'shotflow-v10-32-csp-portable';
+const CACHE = 'shotflow-v11-0-prompt-editor';
 const ASSETS = [
   './shotflow.html',
   './shotflow-manifest.json',

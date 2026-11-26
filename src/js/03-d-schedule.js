@@ -461,35 +461,6 @@ function dayItems(p,date){
   out.forEach(it=>{ it._conflict=it._start<prevEnd; if(it._end>prevEnd) prevEnd=it._end; });
   return out;
 }
-/* 级联顺延：被点事项及其后所有事项后移，后一项不早于前一项结束
-   ⚠ v10 起 UI 不再调用本函数（拍摄日「整日顺延 1 小时」改为 sdPostpone 内 +60 后重排），
-     保留原实现仅供 tests/logic.test.mjs 抽取验证，勿删。 */
-function cascadeShift(p,date,id,delta){
-  const items=dayItems(p,date);
-  const idx=items.findIndex(x=>x.id===id); if(idx<0) return 0;
-  const base=items[idx]._start;
-  const plan=[]; let cursor=-1;
-  items.forEach(it=>{
-    const dur=it._t==='shot'?Math.max(5,+it.duration||SHOT_DEFAULT_MIN):Math.max(30,it._end-it._start);
-    if(it._start<base){ if(it._end>cursor) cursor=it._end; return; }
-    let ns=it._start+delta;
-    if(cursor>=0&&ns<cursor) ns=cursor;
-    plan.push({it,ns,dur});
-    cursor=ns+dur;
-  });
-  if(plan.some(x=>x.ns+x.dur>1440)) return -1;
-  let moved=0;
-  plan.forEach(({it,ns,dur})=>{
-    if(it._t==='shot'){
-      const s=p.shots.find(z=>z.id===it.id);
-      if(s&&s.slot){ s.slot=fmtMin(ns); moved++; }
-    } else {
-      const n=p.schedule.find(z=>z.id===it.id);
-      if(n&&n.start){ n.start=fmtMin(ns); n.end=fmtMin(ns+dur); moved++; }
-    }
-  });
-  return moved;
-}
 function timelineHtml(p,date){
   const items=dayItems(p,date);
   if(!items.length) return '<p class="muted">这一天还没有安排。添加流程环节，或在分镜表里给分镜定日期。</p>';

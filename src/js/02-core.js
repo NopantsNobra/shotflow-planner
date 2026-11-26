@@ -198,10 +198,6 @@ const FAV_TYPES_BY_TAB={mood:['mood'],shots:['shots'],schedule:['schedule'],
   stuff:['scenes','items'],budget:['budget'],notes:['notes','todos']};
 function favTypesForTab(tab){ return FAV_TYPES_BY_TAB[tab]||[]; }
 function isFav(it){ return !!(it&&it.fav===true); }
-function favCount(list){
-  if(!Array.isArray(list)) return 0;
-  return list.reduce((n,it)=>n+(isFav(it)?1:0),0);
-}
 function favSummary(type,it){
   if(!it) return '';
   if(type==='mood') return it.type==='image'?'图片':String(it.content==null?'':it.content);

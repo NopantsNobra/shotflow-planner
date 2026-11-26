@@ -2,11 +2,11 @@
 
 [简体中文](overview.md) · [README](README.en.md) · [Development roadmap (Chinese)](docs/portable-agent-roadmap.md)
 
-Current: v10.9.3. A local-first photography planning and field-execution workbench for independent photographers and small teams. The shot list is the central data model: existing materials generate schedules, client documents and shoot-day reminders without making creative decisions for the photographer. Self-contained HTML, zero runtime dependencies, static hosting and PWA support.
+Current: v11.0.0. A local-first photography planning and field-execution workbench for independent photographers and small teams. The shot list is the central data model: existing materials generate schedules, client documents and shoot-day reminders without making creative decisions for the photographer. Self-contained HTML, zero runtime dependencies, static hosting and PWA support.
 
 ## Design direction
 
-Local-first, portable by design, agent-ready. Browser storage is the local source of truth; versioned asset packages are the interchange boundary for devices and external agents; the normal importer is the shared validation and write boundary. `main` includes strict script CSP, multi-project/arbitrary-shot ZIP export, and shot-package import as a new or explicitly selected existing project. Legacy JSON import remains compatible. Independent external-agent blind testing and real mobile/PWA handoff remain pending. Built-in model integration remains paused. See the [asset-pack specification](docs/asset-pack-format.md) and [Agent guide](docs/agent-guide.md).
+Local-first, portable by design, agent-ready. Browser storage is the local source of truth; versioned asset packages are the interchange boundary for devices and external agents; the normal importer is the shared validation and write boundary. Settings now exposes a transparent, editable Agent prompt that stays in the current browser and never triggers model calls or project reads. `main` includes strict script CSP, multi-project/arbitrary-shot ZIP export, and shot-package import as a new or explicitly selected existing project. Independent external-agent blind testing and real mobile/PWA handoff remain pending. See the [asset-pack specification](docs/asset-pack-format.md) and [Agent guide](docs/agent-guide.md).
 
 ## Product flow
 
