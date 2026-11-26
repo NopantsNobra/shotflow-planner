@@ -12,7 +12,7 @@
 ## P1 · 数据安全与实机
 
 - **B2 并发**：已实现项目级三方事务合并、同项目冲突草稿保护及 BroadcastChannel 通知。需补旧版与新版标签页并存、清空/恢复并发交错的回归。
-- **B4 CSP**：已启用 object-src none、base-uri none、form-action none。严格 CSP 另开 security/strict-csp 分支，逐步迁移内联事件后再收紧 script-src；未验收前不合入 main。
+- **B4 CSP**：严格脚本 CSP 已合入 main：脚本由构建哈希授权，禁止 HTML 内联事件属性与动态求值；部署注入会同步重算哈希。内联样式仍使用 `unsafe-inline`。常规 Chrome / Firefox / Safari 实测已通过；iOS 主屏幕 PWA、Android Chrome 等实际移动端升级与后台恢复仍需独立验收。
 - **真实移动端**：iOS Safari / 主屏幕 PWA / Android Chrome 的触控、离线、升级、后台恢复、存储异常需实机验收；Playwright 不替代真机。
 
 ## P2 · 性能与维护
