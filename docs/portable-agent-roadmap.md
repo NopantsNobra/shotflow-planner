@@ -81,7 +81,7 @@
 ## 6. 执行台账
 
 - DONE in branch: DOC-1 产品方向、README/overview 与路线同步；PORT-1a 多项目/任意分镜选择与导出；PORT-2a ZIP v1、Schema、二进制图片和旧 JSON 兼容；PORT-1b/PORT-2b 指定项目追加、预览、冲突检查、分批暂存和原子提交。
-- DONE in CI: AGENT-1 文档、Schema、JSON 数据示例和 ZIP 样例已整理；两份公开 ZIP 示例均经生产导入器校验、图片呈现和刷新持久化；Chromium / Firefox / WebKit 全部通过。
+- DONE in CI: AGENT-1 文档、Schema、JSON 数据示例和 ZIP 样例已整理；两份公开 ZIP 示例均经生产导入器校验、图片呈现和刷新持久化；Chromium / Firefox / WebKit 全部通过。自动化门禁覆盖 100 张真实 PNG（约 33.9 MB）完整往返、导入取消/暂存清理、并发冲突与原子回滚、配额失败恢复和旧版包兼容；CI run `45747909035` 全部通过。
 - NEXT: AGENT-2 真实外部 Agent 盲测，覆盖含图片/场景的分镜包与完整项目包；之后完成 iOS Safari/PWA、Android Chrome、离线刷新和不同 origin 的实机交接。
-- RELEASE GATES: 自动化容量/中断/配额与旧 JSON 回归、外部 Agent 盲测及真实移动端交接。集成分支三引擎 E2E 已通过 CI；严格脚本 CSP 在 `main` 已完成 Chrome / Firefox / Safari 验收。
+- RELEASE GATES: 外部 Agent 盲测及真实移动端交接。100 张图片容量测试通过不代表已验证 300 张压测、128 MiB 上限、真实设备配额或后台恢复；严格脚本 CSP 在 `main` 已完成 Chrome / Firefox / Safari 验收。
 - 仅重大不可逆决策、权限或真实设备阻塞需要管理员介入。
