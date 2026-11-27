@@ -43,7 +43,11 @@ function verifyStrictCsp(file) {
     directives.set(name.toLowerCase(), values.join(' '));
   }
 
-  const hash = createHash('sha256').update(script, 'utf8').digest('base64');
+  // HTML 解析阶段会把 \r\n / \r 规范化为 \n，浏览器按规范化后的字节计算 script hash。
+  // 必须与 assemble.mjs 的 hash() 采用同一规范化，否则本机 autocrlf=true 的 CRLF checkout
+  // 会让校验器算出与产物/浏览器不一致的 hash（假阳性）。
+  const normalizedScript = script.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const hash = createHash('sha256').update(normalizedScript, 'utf8').digest('base64');
   const expectedScript = "'sha256-" + hash + "'";
   const required = {
     'default-src': "'none'",

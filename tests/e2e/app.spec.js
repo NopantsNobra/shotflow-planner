@@ -1017,7 +1017,11 @@ test('非收藏分镜精确导出并导入新项目，保留原始项目和图�
   await page.keyboard.press('Escape');
   await page.locator('#importFile').setInputFiles({name:'shots.stillmark.zip',mimeType:'application/zip',buffer:zipBytes});
   await expect(page.locator('#confirmModal')).toHaveClass(/show/);
+  // v11.0.1 起 shots 包带 targetHint，预览会预选源项目；本用例验证"导入为新项目"，显式选回"创建新的策划案"。
+  await page.locator('#archiveImportTarget').selectOption('');
   await page.locator('#confirmOk').click();
+  await expect(page.locator('#packResultModal')).toHaveClass(/show/);
+  await page.locator('[data-shell-action="close-pack-result"]').click();
   await expect(page.locator('.pcard',{hasText:'分镜选集'})).toBeVisible();
   expect(await page.evaluate(async()=>{
     const ps=await idb.getProjects(),original=ps.find(p=>p.id==='v108-test'),imported=ps.find(p=>p.name.includes('分镜选集'));
@@ -1035,6 +1039,10 @@ test('公开 Agent ZIP 示例经生产导入器校验图片并刷新持久化',a
   await expect(page.locator('#confirmDesc')).toContainText('1 个图片引用');
   await page.locator('#confirmOk').click();
   await expect(page.locator('.toast')).toContainText('导入成功');
+  // v11.0.1 起导入成功后弹出回执 modal，会遮挡后续项目卡片点击；先确认回执内容再关闭。
+  await expect(page.locator('#packResultModal')).toHaveClass(/show/);
+  await expect(page.locator('#packResultText')).toHaveValue(/窗边人像策划/);
+  await page.locator('[data-shell-action="close-pack-result"]').click();
   await page.locator('.pcard',{hasText:'窗边人像策划'}).click();
   await expect(page.locator('.shot')).toContainText('窗边侧光半身');
   await expect.poll(()=>page.locator('.shot img').first().evaluate(el=>el.naturalWidth)).toBeGreaterThan(0);
@@ -1045,6 +1053,8 @@ test('公开 Agent ZIP 示例经生产导入器校验图片并刷新持久化',a
   await expect(page.locator('#confirmModal')).toHaveClass(/show/);
   await expect(page.locator('#confirmDesc')).toContainText('城市漫步人像');
   await page.locator('#confirmOk').click();
+  await expect(page.locator('#packResultModal')).toHaveClass(/show/);
+  await page.locator('[data-shell-action="close-pack-result"]').click();
   await expect(page.locator('.pcard',{hasText:'城市漫步人像'})).toBeVisible();
   await page.reload();
   await expect(page.locator('.pcard',{hasText:'窗边人像策划'})).toBeVisible();

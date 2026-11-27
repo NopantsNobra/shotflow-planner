@@ -4,11 +4,14 @@ import { createHash } from 'node:crypto';
 import { dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const bundle=readFileSync(new URL('../../src/vendor/zip-native-2.25.0.min.js',import.meta.url),'utf8');
-const core=readFileSync(new URL('../../src/js/02-core.js',import.meta.url),'utf8');
-const schemas=readFileSync(new URL('../../src/js/02-schemas.js',import.meta.url),'utf8');
+// HTML 解析会把 \r\n / \r 规范化为 \n，浏览器按规范化后的字节算 CSP hash。
+// 本机 autocrlf=true 的 CRLF checkout 必须先归一，否则内联脚本被 CSP 阻断（页面停在 pending）。
+const readSrc=(p)=>readFileSync(new URL(p,import.meta.url),'utf8').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+const bundle=readSrc('../../src/vendor/zip-native-2.25.0.min.js');
+const core=readSrc('../../src/js/02-core.js');
+const schemas=readSrc('../../src/js/02-schemas.js');
 const contracts=schemas+'\n'+core.slice(core.indexOf('function validatePortableShape('),core.indexOf('function classifyTransferPackage('));
-const archiveWriter=readFileSync(new URL('../../src/js/04-b-archive.js',import.meta.url),'utf8');
+const archiveWriter=readSrc('../../src/js/04-b-archive.js');
 const externalFixture='UEsDBBQAAAAIAEGUeV1RpGy1IwAAACEAAAANAAAAbWFuaWZlc3QuanNvbqtWSssvyk0sUbJSKi7JzMnJTSzK1kssLk4t0S1ITM5WqgUAUEsDBBQAAAAAAEGUeV1Y+DV7BQAAAAUAAAAPAAAAaW1hZ2VzL3Rlc3QuYmluAAECA/9QSwECFAMUAAAACABBlHldUaRstSMAAAAhAAAADQAAAAAAAAAAAAAAgAEAAAAAbWFuaWZlc3QuanNvblBLAQIUAxQAAAAAAEGUeV1Y+DV7BQAAAAUAAAAPAAAAAAAAAAAAAACAAU4AAABpbWFnZXMvdGVzdC5iaW5QSwUGAAAAAAIAAgB4AAAAgAAAAAAA';
 
 async function probe(externalFixture){
@@ -104,7 +107,8 @@ async function probe(externalFixture){
   }catch{rejected=true;}
   return {generated,external,sha,chunks:sink.length,size:resultBlob.size,secureContext:isSecureContext,dedup,budgetRejected:rejected&&aborted,readerOK,readerRejects,resourceGuards:pixelRejected&&aliasRejected&&metadataRejected};
 }
-const script=bundle+'\n'+contracts+'\n'+archiveWriter+'\n('+probe.toString()+')('+JSON.stringify(externalFixture)+').then(result=>{document.getElementById("result").textContent=JSON.stringify(result);},error=>{document.getElementById("result").textContent=JSON.stringify({error:String(error),stack:error.stack});});';
+const rawScript=bundle+'\n'+contracts+'\n'+archiveWriter+'\n('+probe.toString()+')('+JSON.stringify(externalFixture)+').then(result=>{document.getElementById("result").textContent=JSON.stringify(result);},error=>{document.getElementById("result").textContent=JSON.stringify({error:String(error),stack:error.stack});});';
+const script=rawScript.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
 const hash=createHash('sha256').update(script).digest('base64');
 const policy="default-src 'none'; script-src 'sha256-"+hash+"'; script-src-attr 'none'; worker-src 'none'; connect-src 'none'; img-src data:; object-src 'none'; base-uri 'none'; form-action 'none'";
 const html='<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="'+policy+'"><link rel="icon" href="data:,"></head><body><pre id="result">pending</pre><script>'+script+'</script></body></html>';
