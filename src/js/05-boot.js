@@ -74,12 +74,15 @@ const shellActions=Object.freeze({
   'export-proposal':()=>exportProposalFile(),'print':()=>window.print(),
   'close-doc':()=>closeDoc(),'close-settings':()=>closeSettings(),'close-deploy':()=>closeDeployModal(),
   'close-agent-prompt':()=>closeAgentPromptEditor(),
+  'close-pack-result':()=>closePackResult(),'copy-pack-result':()=>copyPackResult(),'download-pack-result':()=>downloadPackResult(),
   'close-confirm':()=>closeConfirm(),'close-name':()=>closeNameModal(),'create-project':()=>confirmNewProject(),
   'close-favorites':()=>closeFavPicker(),
   'settings-backdrop':(e,el)=>{if(e.target===el)closeSettings();},
   'deploy-backdrop':(e,el)=>{if(e.target===el)closeDeployModal();},
   'agent-prompt-backdrop':(e,el)=>{if(e.target===el)closeAgentPromptEditor();},
+  'pack-result-backdrop':(e,el)=>{if(e.target===el)closePackResult();},
   'save-agent-prompt':()=>saveAgentPrompt(),'copy-agent-prompt':()=>copyAgentPrompt(),'reset-agent-prompt':()=>resetAgentPrompt(),
+  'prompt-fingerprint':()=>showAgentPromptFingerprint(),'export-agent-prompt':()=>exportAgentPrompt(),
   'favorites-backdrop':(e,el)=>{if(e.target===el)closeFavPicker();}
 });
 document.addEventListener('click',e=>{
@@ -152,6 +155,7 @@ const ACTIONS=Object.freeze({
   'open-settings':{fn:()=>openSettings(),argc:0,types:[]},
   'open-agent-prompt':{fn:()=>openAgentPromptEditor(),argc:0,types:[]},
   'pick-backup':{fn:(id)=>(['importFile','assetImportFile','settingsImportFile'].includes(id)&&document.getElementById(id)?.click()),argc:1,types:["s"]},
+  'pick-validate':{fn:()=>document.getElementById('validateFile')?.click(),argc:0,types:[]},
   'clear-all':{fn:()=>clearAll(),argc:0,types:[]},
   'new-project':{fn:()=>newProject(),argc:0,types:[]},
   'board-scope':{fn:(scope)=>setDelegatedBoardScope(scope),argc:1,types:["s"]},
@@ -287,6 +291,7 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{
   const el=e.target;
   if(el.matches?.('input[type="file"][data-change="import-backup"]')&&['importFile','assetImportFile','settingsImportFile'].includes(el.id))importJSON(e);
+  if(el.matches?.('input[type="file"][data-change="validate-pack"]')&&el.id==='validateFile')validateArchiveOnly(e);
 });
 
 function backProjectBoard(){view.mode='board';renderBoard();}

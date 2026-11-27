@@ -1,0 +1,52 @@
+{
+  "format": "stillmark.agent-capabilities",
+  "version": 1,
+  "appVersion": "11.0.1",
+  "swCache": "shotflow-v11-0-prompt-editor",
+  "formats": {
+    "stillmark.asset-pack": {
+      "containerVersion": 1,
+      "dataVersion": 1,
+      "kinds": [
+        "projects",
+        "shots"
+      ],
+      "schemaPaths": [
+        "schemas/asset-archive-manifest-v1.schema.json",
+        "schemas/asset-archive-data-v1.schema.json",
+        "schemas/project-pack-v1.schema.json"
+      ],
+      "guidePath": "docs/agent-guide.md",
+      "specPath": "docs/asset-pack-format.md",
+      "examplePaths": [
+        "examples/agent-shot-data-v1.json",
+        "examples/agent-shot-with-image-v1.stillmark.zip",
+        "examples/agent-project-data-v1.json",
+        "examples/agent-project-v1.stillmark.zip"
+      ],
+      "limits": {
+        "maxArchiveBytes": 134217728,
+        "maxManifestBytes": 4194304,
+        "maxDataBytes": 16777216,
+        "maxImageBytes": 16777216,
+        "maxUniqueFiles": 10000,
+        "maxImageRefs": 20000,
+        "maxExpandedBytes": 134217728,
+        "maxLogicalImageBytes": 134217728,
+        "maxMetadataReadBytes": 8388608,
+        "maxImagePixels": 40000000,
+        "maxImageDimension": 16384
+      }
+    }
+  },
+  "ui": {
+    "entry": "shotflow.html",
+    "importAccept": [
+      ".zip",
+      ".stillmark.zip"
+    ],
+    "previewAndConfirm": true,
+    "validateOnly": true,
+    "receipt": true
+  }
+}

@@ -51,10 +51,12 @@ function renderBoard(){
     +favoritesButton()
     +'<button class="btn btn-ghost btn-sm" '+doAttrs('open-settings')+'>⚙ 设置</button>'
     +'<button class="btn btn-ghost btn-sm" '+doAttrs('pick-backup',['importFile'])+'>导入</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('pick-validate')+'>仅校验包</button>'
     +'<button class="btn btn-danger btn-sm" '+doAttrs('clear-all')+'>清空</button>'
     +'<button class="btn btn-ghost btn-sm" '+doAttrs('toggle-board-pack-mode')+'>'+(view.boardPackMode?'退出打包':'打包项目')+'</button>'
     +'<button class="btn btn-primary" '+doAttrs('new-project')+'>新建策划案</button>'
-    +'<input type="file" id="importFile" accept=".json,.zip,.stillmark.zip" style="display:none" data-change="import-backup"></div></header>'
+    +'<input type="file" id="importFile" accept=".json,.zip,.stillmark.zip" style="display:none" data-change="import-backup">'
+    +'<input type="file" id="validateFile" accept=".zip,.stillmark.zip" style="display:none" data-change="validate-pack"></div></header>'
     +'<div class="backup-tip" id="backupTip"><span>数据较多，建议在「⚙ 设置」中定期导出备份留档。</span></div>'
     +(storageDegraded?'<div class="backup-tip show"><span>⚠ 存储不可用（IndexedDB 未能打开）：本次会话的数据不会被保存，请及时「导出备份」，并检查浏览器隐私模式 / 存储设置。</span></div>':'');
   const t=todayStr();

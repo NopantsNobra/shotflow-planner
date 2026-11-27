@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-sxrg7k5nZr39C0aEsDGnF9LtrtJtgRPSZoGyHvcey7U='; script-src-attr 'none'; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net https://api.web3forms.com; worker-src 'self'; manifest-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-dmQs4JYSqE3KP1vfy62SNomuF16T7eBiEZxFxDejQkc='; script-src-attr 'none'; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net https://api.web3forms.com; worker-src 'self'; manifest-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>瞬刻摄影工作台 · Stillmark｜灵感·分镜·提案·实拍</title>
 <meta name="theme-color" content="#9c6b30">
@@ -551,6 +551,8 @@ svg{display:inline-block;vertical-align:middle}
         <button class="btn btn-primary btn-sm" data-shell-action="save-agent-prompt">保存到本机</button>
         <button class="btn btn-ghost btn-sm" data-shell-action="copy-agent-prompt">复制当前内容</button>
         <button class="btn btn-ghost btn-sm" data-shell-action="reset-agent-prompt">恢复默认</button>
+        <button class="btn btn-ghost btn-sm" data-shell-action="prompt-fingerprint">查看指纹</button>
+        <button class="btn btn-ghost btn-sm" data-shell-action="export-agent-prompt">导出 .md</button>
         <span class="muted" id="agentPromptStatus" role="status" aria-live="polite"></span>
       </div>
       <p class="muted agent-prompt-privacy">个人修改只保存在当前浏览器的本机设置中，不会进入项目数据、备份或反馈。复制后由你自行决定是否交给某个 Agent。</p>
@@ -628,6 +630,24 @@ svg{display:inline-block;vertical-align:middle}
   </div>
 </div>
 
+<!-- 资产包校验结果 / 导入回执：纯文本输出，用户自行复制或保存。 -->
+<div class="modal-mask" id="packResultModal" data-shell-action="pack-result-backdrop">
+  <div class="modal doc-modal" style="max-width:720px">
+    <div class="doc-bar no-print">
+      <span class="doc-bar-title" id="packResultTitle">资产包校验结果</span>
+      <div class="row">
+        <button class="btn btn-ghost btn-sm" data-shell-action="copy-pack-result">复制 JSON</button>
+        <button class="btn btn-ghost btn-sm" data-shell-action="download-pack-result">保存 JSON</button>
+        <button class="btn btn-ghost btn-sm" data-shell-action="close-pack-result">关闭</button>
+      </div>
+    </div>
+    <div style="padding:14px">
+      <p class="src-note" id="packResultNote"></p>
+      <textarea id="packResultText" spellcheck="false" style="width:100%;min-height:260px;font-family:ui-monospace,monospace" aria-label="校验结果 JSON"></textarea>
+    </div>
+  </div>
+</div>
+
 <!-- Asset archive progress: the cancel button is disabled during atomic publication. -->
 <div class="modal-mask" id="archiveProgressModal">
   <div class="modal confirm-box">
@@ -680,9 +700,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    源码/配置/产物/日志均无明文）。
    注意：注释中不要复现带引号的占位字面量本身，
    否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
-const APP_VERSION="11.0.0";
+const APP_VERSION="11.0.1";
 const PROPOSAL_SCRIPT_HASH="nM6c+Vvu49b7f2EtjN+R7mbcHaG183iraI+9tHXlX1I=";
-const MODULE_VERSIONS={shell:'v11.0.0',styles:'v11.0.0',data:'v11.0.0',core:'v10.9.3',app:'v10.9.2',output:'v11.0.0',boot:'v11.0.0',settings:'v11.0.0',swCache:'shotflow-v11-0-prompt-editor',dbSchema:4,since:'v10.5.0'};
+const MODULE_VERSIONS={shell:'v11.0.0',styles:'v11.0.0',data:'v11.0.0',core:'v10.9.3',app:'v11.0.1',output:'v11.0.1',boot:'v11.0.1',settings:'v11.0.1',swCache:'shotflow-v11-0-prompt-editor',dbSchema:4,since:'v10.5.0'};
 const DEFAULT_AGENT_PROMPT="# Stillmark 任务提示词：生成摄影策划\n\n- Task ID: `stillmark.generate-shoot-plan`\n- Task version: `3`\n- Output contract: `stillmark.asset-pack` ZIP container v1, data v1\n- 输出语言：跟随用户使用的语言\n\n## 给 Agent 的任务说明\n\n帮助用户把一个灵感、文字需求或用户授权的参考图片，转化为可审查、可用于现场执行的摄影策划。\n\n1. 按照用户明确表达的用途和创作方向开展工作，包括个人、私密、实验性、亲密或非传统主题。用户未说明时，不要假定用于公开发布、商业、社交媒体、客户或作品集。只询问会实质改变方案的缺失信息；否则标注假设或留待确认。\n2. 将描述和图片视为创作输入。区分用户陈述的事实、画面观察、创意建议、假设和未知信息。不得把用户没有确认的日期、场地许可、器材、同意、审批或相机参数写成既定事实。技术细节保持可选。\n3. 让每条分镜都能用于现场：说明主体/动作、视觉意图、可行的构图或运动方式、相关参考图及简明执行备注。用户希望保留模糊性或私人含义时予以保留；不要仅因主题个人或私密而擅自净化或改写。\n4. 如果设想包含明确的现实物理风险（例如激光、烟雾/干冰、明火、高压电或高处），解释与该场景相关的实际风险，并在有帮助时提出替代方案。风险说明应与场景相称。不要暗中替换用户的创意，也不要声称通用防护措施可以保证安全；未确认的场地、器材或操作人员条件应标为未确认。用户可以按个人工作方式编辑本提示词。\n5. 只制作用户要求的内容及其直接依赖项。仅在用户提供或明确授权本次使用时纳入参考图片。不要索取无关项目记录、客户信息、凭据或图片。\n6. 阅读 Stillmark [Agent 操作指南](../agent-guide.md)、[资产包格式](../asset-pack-format.md)、相关的[数据 Schema](../../schemas/asset-archive-data-v1.schema.json)和[清单 Schema](../../schemas/asset-archive-manifest-v1.schema.json)，以及已提供的示例。使用原始图片字节及必需的 SHA-256 映射生成 ZIP。不得在 `data.json` 中使用猜测的哈希、占位图、远程 URL 或 Base64 图片代替图片文件。\n7. 交付前校验 ZIP 结构、Schema、引用关系、声明的大小和哈希。如果当前环境无法创建或校验 ZIP，请如实说明，并只提供实际校验过的内容。\n8. 交付文件，并简要说明范围、假设、待确认事项和已完成的校验。不要声称策划已导入 Stillmark。除非用户另行授权浏览器操作，否则由用户通过正常的预览与确认流程自行导入。\n\n## 用户需求\n\n[在此粘贴创作需求，并说明目标范围：完整策划、若干分镜，或追加到指定策划案的分镜。注明本次允许使用哪些已提供的参考图片。]";
 const LS_AGENT_PROMPT='wb_sf_agent_prompt_v1';
 const FB_KEY_A = 'uJrHd8a=U+X9Uh3EUtyyUhdF';
@@ -2259,7 +2279,10 @@ function assetArchiveManifestSchema(){
 function assetArchiveDataSchema(){
   return {$schema:'https://json-schema.org/draft/2020-12/schema',title:'Stillmark asset archive business data v1',
     type:'object',additionalProperties:false,required:['dataVersion','kind','entries'],
-    properties:{dataVersion:{const:1},kind:{enum:['projects','shots']},entries:portablePackSchema().properties.entries}};
+    properties:{dataVersion:{const:1},kind:{enum:['projects','shots']},entries:portablePackSchema().properties.entries,
+      packId:{type:'string',minLength:1,maxLength:200},
+      targetHint:{type:'object',additionalProperties:false,
+        properties:{id:{type:'string',maxLength:200},name:{type:'string',maxLength:120},client:{type:'string',maxLength:120}}}}};
 }
 /* ================= 看板 ================= */
 let boardQueryTimer=null;
@@ -2314,10 +2337,12 @@ function renderBoard(){
     +favoritesButton()
     +'<button class="btn btn-ghost btn-sm" '+doAttrs('open-settings')+'>⚙ 设置</button>'
     +'<button class="btn btn-ghost btn-sm" '+doAttrs('pick-backup',['importFile'])+'>导入</button>'
+    +'<button class="btn btn-ghost btn-sm" '+doAttrs('pick-validate')+'>仅校验包</button>'
     +'<button class="btn btn-danger btn-sm" '+doAttrs('clear-all')+'>清空</button>'
     +'<button class="btn btn-ghost btn-sm" '+doAttrs('toggle-board-pack-mode')+'>'+(view.boardPackMode?'退出打包':'打包项目')+'</button>'
     +'<button class="btn btn-primary" '+doAttrs('new-project')+'>新建策划案</button>'
-    +'<input type="file" id="importFile" accept=".json,.zip,.stillmark.zip" style="display:none" data-change="import-backup"></div></header>'
+    +'<input type="file" id="importFile" accept=".json,.zip,.stillmark.zip" style="display:none" data-change="import-backup">'
+    +'<input type="file" id="validateFile" accept=".zip,.stillmark.zip" style="display:none" data-change="validate-pack"></div></header>'
     +'<div class="backup-tip" id="backupTip"><span>数据较多，建议在「⚙ 设置」中定期导出备份留档。</span></div>'
     +(storageDegraded?'<div class="backup-tip show"><span>⚠ 存储不可用（IndexedDB 未能打开）：本次会话的数据不会被保存，请及时「导出备份」，并检查浏览器隐私模式 / 存储设置。</span></div>':'');
   const t=todayStr();
@@ -4735,7 +4760,19 @@ async function exportArchiveProjects(entries,scope,direct=false){
       catch(err){if(err.name==='AbortError'){toast('已取消保存');return;}throw err;}
     }
     op=startArchiveOperation('导出 ZIP 资产包');
-    const data={dataVersion:1,kind:scope,entries:JSON.parse(JSON.stringify(entries))};
+    const data={dataVersion:1,kind:scope,entries:JSON.parse(JSON.stringify(entries)),packId:crypto.randomUUID()};
+    /* 交给外部 Agent 的包默认脱敏；完整备份仍保留原数据。开关只在设置页，读取失败时按脱敏处理。 */
+    if(document.getElementById('packSanitize')?.checked!==false){
+      for(const p of data.entries){
+        for(const field of ['client','studio','location','lat','lng'])delete p[field];
+        for(const field of ['budget','notes','todos'])p[field]=[];
+        if(p.concept)delete p.concept.note;
+      }
+    }
+    if(scope==='shots'&&data.entries.length===1&&data.entries[0]&&!data.entries[0].assetPack){
+      const hintSource=data.entries[0];
+      data.targetHint={id:String(hintSource.id||''),name:String(hintSource.name||''),client:String(hintSource.client||'')};
+    }
     const poseKeys=new Map();
     const remap=key=>{
       if(!String(key||'').startsWith('shisei:'))return key;
@@ -4774,6 +4811,55 @@ async function exportArchiveProjects(entries,scope,direct=false){
 function archiveTargetLabel(p){
   return (p.name||'未命名项目')+(p.client?' · 客户 '+p.client:'')+(p.shootDate?' · '+p.shootDate:'')+' · ID '+String(p.id||'').slice(0,8);
 }
+const LS_ARCHIVE_PACKS='wb_sf_asset_packs_v1';
+function archivePackHistory(){try{const v=JSON.parse(localStorage.getItem(LS_ARCHIVE_PACKS)||'{}');return v&&typeof v==='object'?v:{};}catch{return {};}}
+function archivePackSeen(id){return id?archivePackHistory()[id]||null:null;}
+function markArchivePack(id,receipt){
+  if(!id)return;
+  try{
+    const h=archivePackHistory();h[id]={at:new Date().toISOString(),kind:receipt.kind,sha256:receipt.sha256};
+    const keys=Object.keys(h);if(keys.length>200)for(const k of keys.slice(0,keys.length-200))delete h[k];
+    localStorage.setItem(LS_ARCHIVE_PACKS,JSON.stringify(h));
+  }catch{}
+}
+/* 只读校验：打开并执行生产导入器的全部检查，但不预览确认、不写入任何数据。
+   输出与 scripts/validate-pack.mjs 同形态的 JSON，便于外部 Agent 复现问题。 */
+async function validateArchiveOnly(e){
+  const input=e.target,file=input.files&&input.files[0];input.value='';
+  if(!file)return;
+  let op=null,opened=null;
+  try{
+    op=startArchiveOperation('仅校验 ZIP 资产包');
+    opened=await openAssetArchive(file,archiveCodec(),{signal:op.controller.signal});
+    const digest=await crypto.subtle.digest('SHA-256',await file.arrayBuffer());
+    const sha256=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    const result={ok:true,errors:[],warnings:[],checks:{schema:true,sha256:true,images:true,limits:true,referenceClosure:true},
+      stats:opened.stats,containerVersion:opened.manifest.containerVersion,dataVersion:opened.data.dataVersion,
+      kind:opened.data.kind,sha256,bytes:file.size,note:'仅完成文件级校验，未导入、未写入工作台'};
+    await opened.close().catch(()=>{});opened=null;finishArchiveOperation(op);op=null;
+    showPackResult('资产包校验结果',result,'文件级校验通过。导入仍需在「导入」入口预览并由你确认。');
+  }catch(err){
+    showPackResult('资产包校验结果',{ok:false,errors:[{code:'VALIDATION',path:'$',message:String(err.message||err)}],warnings:[],checks:{}}, '校验未通过；源文件未被修改，修正后可重新校验。');
+  }finally{if(opened)await opened.close().catch(()=>{});if(op)finishArchiveOperation(op);}
+}
+let packResultValue=null;
+function showPackResult(title,value,note){
+  packResultValue=value;
+  const modal=document.getElementById('packResultModal');if(!modal)return;
+  document.getElementById('packResultTitle').textContent=title;
+  document.getElementById('packResultNote').textContent=note||'';
+  document.getElementById('packResultText').value=JSON.stringify(value,null,2);
+  modal.classList.add('show');
+}
+function closePackResult(){document.getElementById('packResultModal')?.classList.remove('show');}
+async function copyPackResult(){
+  const text=document.getElementById('packResultText')?.value||'';
+  try{await navigator.clipboard.writeText(text);toast('校验结果已复制');}catch{toast('当前浏览器不支持自动复制，请手动选择文本');}
+}
+function downloadPackResult(){
+  if(!packResultValue)return;
+  downloadBlob(new Blob([JSON.stringify(packResultValue,null,2)],{type:'application/json'}),'Stillmark_资产包结果_'+todayStr()+'.json');
+}
 async function previewArchiveImport(file){
   let op=null,opened=null;
   try{
@@ -4783,26 +4869,33 @@ async function previewArchiveImport(file){
     if(op.controller.signal.aborted)throw Error('已取消资产包导入');
     const names=opened.data.entries.slice(0,3).map(p=>p.name).join('、')+(opened.data.entries.length>3?' 等':'');
     const s=opened.stats,session=opened,controller=op.controller;
+    const hint=session.data.targetHint||{},packId=session.data.packId||'',seen=archivePackSeen(packId);
+    const fileBytes=file;
     finishArchiveOperation(op);op=null;opened=null;
     const summary=s.shots+' 条分镜、'+s.images+' 个图片引用（'+s.uniqueImages+' 张唯一图片），'+(s.archiveBytes/1048576).toFixed(2)+' MiB。确认后校验全部图片并写入。';
     const privacy=session.data.kind==='projects'
       ?'完整项目可能包含客户、拍摄地点、日程、预算、备注和执行状态；确认前请核对是否为授权内容。'
       :'分镜包只包含所选分镜及依赖；追加到现有项目时，不会覆盖其他项目资料或日程。';
+    const duplicate=seen?'⚠ 该资产包 ID 已于 '+seen.at+' 导入过；如确需重复写入，请在下方确认。':'';
+    const baseDesc='将新增 '+s.projects+' 个策划案：'+names+'；'+summary+' 保留现有数据与收藏。'+privacy+(duplicate?'\n'+duplicate:'');
     const cancel=()=>{controller.abort();session.close().catch(()=>{});};
-    askConfirm('导入 ZIP 资产包？','将新增 '+s.projects+' 个策划案：'+names+'；'+summary+' 保留现有数据与收藏。'+privacy,()=>{
+    askConfirm('导入 ZIP 资产包？',baseDesc,()=>{
       const target=document.getElementById('archiveImportTarget').value;
-      applyArchiveImport(session,controller,target);
+      applyArchiveImport(session,controller,target,fileBytes);
     },cancel);
     const picker=document.getElementById('archiveImportTarget'),row=document.getElementById('archiveImportTargetRow');
     if(session.data.kind==='shots'){
       const targets=loadP().filter(p=>!p.demo&&!p.assetPack);
       picker.replaceChildren(new Option('创建新的策划案',''));
       for(const p of targets)picker.add(new Option(archiveTargetLabel(p),p.id));
+      const suggested=(hint.id&&targets.find(p=>p.id===hint.id))||(hint.name&&targets.find(p=>p.name===hint.name&&(!hint.client||p.client===hint.client)));
+      if(suggested)picker.value=suggested.id;
       row.hidden=false;
       picker.onchange=()=>{
         const target=targets.find(p=>p.id===picker.value);
-        document.getElementById('confirmDesc').textContent=target?'向「'+archiveTargetLabel(target)+'」追加 '+summary+' 保留原项目资料、日程及既有分镜。'+privacy:'将新增 1 个策划案：'+names+'；'+summary+' 保留现有数据与收藏。'+privacy;
+        document.getElementById('confirmDesc').textContent=target?'包建议目标：'+archiveTargetLabel(target)+'。向「'+archiveTargetLabel(target)+'」追加 '+summary+' 保留原项目资料、日程及既有分镜。'+privacy+(duplicate?'\n'+duplicate:''):'将新增 1 个策划案：'+names+'；'+summary+' 保留现有数据与收藏。'+privacy+(duplicate?'\n'+duplicate:'');
       };
+      if(suggested)picker.onchange();
     }
   }catch(err){if(opened)await opened.close().catch(()=>{});toast('导入失败：'+String(err.message||err),6000);}
   finally{if(op)finishArchiveOperation(op);}
@@ -4833,7 +4926,7 @@ function adaptArchiveEntryV1ToProject(raw,options){
   for(const shot of project.shots||[])shot.refIds=(shot.refIds||[]).map(remap);
   return project;
 }
-async function applyArchiveImport(opened,controller,targetId=''){
+async function applyArchiveImport(opened,controller,targetId='',file=null){
   let op=null,locked=false,published=false,session=null;
   const app=document.getElementById('app');
   try{
@@ -4872,6 +4965,15 @@ async function applyArchiveImport(opened,controller,targetId=''){
     projectsCache=arr;pendingPersist=false;persistFailed=false;notifyProjectChange();
     if(document.getElementById('settingsModal').classList.contains('show'))closeSettings();
     view=freshView();renderBoard();toast(target?'导入成功，已向「'+target.name+'」追加 '+imported[0].shots.length+' 条分镜':'导入成功，新增 '+imported.length+' 个策划案');
+    let sha256='';
+    try{if(file?.arrayBuffer){const d=await crypto.subtle.digest('SHA-256',await file.arrayBuffer());sha256=[...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('');}}catch{}
+    const receipt={ok:true,format:'stillmark.import-receipt',version:1,at:new Date().toISOString(),
+      packId:opened.data.packId||null,sha256,kind:opened.data.kind,
+      target:target?{id:target.id,name:target.name}:null,
+      projects:imported.map(p=>({id:p.id,name:p.name,shots:(p.shots||[]).map(s=>s.id)})),
+      images:[...map.values()],note:'ID 为本次导入后的工作台内部标识，仅供后续精确引用'};
+    markArchivePack(receipt.packId,receipt);
+    showPackResult('导入回执',receipt,'导入已提交并落盘；可复制 JSON 供后续自动化引用。');
   }catch(err){toast('导入失败：'+String(err.message||err)+'，原项目未被覆盖',6000);}
   finally{
     await opened.close().catch(()=>{});
@@ -5715,12 +5817,15 @@ const shellActions=Object.freeze({
   'export-proposal':()=>exportProposalFile(),'print':()=>window.print(),
   'close-doc':()=>closeDoc(),'close-settings':()=>closeSettings(),'close-deploy':()=>closeDeployModal(),
   'close-agent-prompt':()=>closeAgentPromptEditor(),
+  'close-pack-result':()=>closePackResult(),'copy-pack-result':()=>copyPackResult(),'download-pack-result':()=>downloadPackResult(),
   'close-confirm':()=>closeConfirm(),'close-name':()=>closeNameModal(),'create-project':()=>confirmNewProject(),
   'close-favorites':()=>closeFavPicker(),
   'settings-backdrop':(e,el)=>{if(e.target===el)closeSettings();},
   'deploy-backdrop':(e,el)=>{if(e.target===el)closeDeployModal();},
   'agent-prompt-backdrop':(e,el)=>{if(e.target===el)closeAgentPromptEditor();},
+  'pack-result-backdrop':(e,el)=>{if(e.target===el)closePackResult();},
   'save-agent-prompt':()=>saveAgentPrompt(),'copy-agent-prompt':()=>copyAgentPrompt(),'reset-agent-prompt':()=>resetAgentPrompt(),
+  'prompt-fingerprint':()=>showAgentPromptFingerprint(),'export-agent-prompt':()=>exportAgentPrompt(),
   'favorites-backdrop':(e,el)=>{if(e.target===el)closeFavPicker();}
 });
 document.addEventListener('click',e=>{
@@ -5793,6 +5898,7 @@ const ACTIONS=Object.freeze({
   'open-settings':{fn:()=>openSettings(),argc:0,types:[]},
   'open-agent-prompt':{fn:()=>openAgentPromptEditor(),argc:0,types:[]},
   'pick-backup':{fn:(id)=>(['importFile','assetImportFile','settingsImportFile'].includes(id)&&document.getElementById(id)?.click()),argc:1,types:["s"]},
+  'pick-validate':{fn:()=>document.getElementById('validateFile')?.click(),argc:0,types:[]},
   'clear-all':{fn:()=>clearAll(),argc:0,types:[]},
   'new-project':{fn:()=>newProject(),argc:0,types:[]},
   'board-scope':{fn:(scope)=>setDelegatedBoardScope(scope),argc:1,types:["s"]},
@@ -5928,6 +6034,7 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{
   const el=e.target;
   if(el.matches?.('input[type="file"][data-change="import-backup"]')&&['importFile','assetImportFile','settingsImportFile'].includes(el.id))importJSON(e);
+  if(el.matches?.('input[type="file"][data-change="validate-pack"]')&&el.id==='validateFile')validateArchiveOnly(e);
 });
 
 function backProjectBoard(){view.mode='board';renderBoard();}
@@ -6088,6 +6195,23 @@ async function copyAgentPrompt(){
   try{await navigator.clipboard.writeText(field.value);updateAgentPromptStatus('当前编辑框中的提示词已复制。');}
   catch{updateAgentPromptStatus('浏览器未允许访问剪贴板；可在编辑框中全选并复制。');}
 }
+async function agentPromptDigest(text){
+  if(!globalThis.crypto?.subtle)return '';
+  const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
+  return [...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function showAgentPromptFingerprint(){
+  const field=document.getElementById('agentPromptText');if(!field)return;
+  const hex=await agentPromptDigest(field.value);
+  updateAgentPromptStatus(hex?'SHA-256 '+hex.slice(0,16)+'…（导出文件含完整指纹）':'当前环境不支持计算指纹（需安全上下文）');
+}
+async function exportAgentPrompt(){
+  const field=document.getElementById('agentPromptText');if(!field)return;
+  const text=field.value,hex=await agentPromptDigest(text);
+  const header='---\nformat: stillmark.agent-prompt\nversion: 1\nsha256: '+(hex||'unavailable')+'\n---\n\n';
+  downloadBlob(new Blob([header+text+'\n'],{type:'text/markdown'}),'Stillmark_Agent提示词_'+todayStr()+'.md');
+  updateAgentPromptStatus(hex?'已导出提示词，含 SHA-256 指纹。':'已导出提示词（当前环境未计算指纹）。');
+}
 
 /* ---------- 渲染（只写 #settingsBody，不触碰页面 DOM） ---------- */
 function renderSettings(){
@@ -6160,6 +6284,8 @@ function settingsDataHtml(){
     +'<button class="btn btn-ghost btn-sm" '+doAttrs('pick-backup',['settingsImportFile'])+'>导入备份</button>'
     +'</div>'
     +'<input type="file" id="settingsImportFile" accept=".json,.zip,.stillmark.zip" style="display:none" data-change="import-backup">'
+    +'<label class="row" style="margin-top:10px;align-items:center;gap:8px"><input type="checkbox" id="packSanitize" checked><span>交给外部 Agent 的资产包默认脱敏：去掉客户 / 工作室 / 地点坐标 / 预算 / 备注 / 待办</span></label>'
+    +'<p class="src-note" style="margin-top:8px">该开关只影响「打包项目」「导出收藏」生成的 ZIP，不影响本地项目与完整备份。取消勾选前请确认接收方已获授权。</p>'
     +'<p class="src-note" style="margin-top:10px">标签词表为项目级数据：在各策划案的「情绪板」页编辑（改词 / 删词入口在标签云上），不设全局词表。</p>'
     +'</div>';
 }

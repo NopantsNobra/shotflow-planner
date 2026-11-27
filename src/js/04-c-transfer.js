@@ -60,7 +60,19 @@ async function exportArchiveProjects(entries,scope,direct=false){
       catch(err){if(err.name==='AbortError'){toast('已取消保存');return;}throw err;}
     }
     op=startArchiveOperation('导出 ZIP 资产包');
-    const data={dataVersion:1,kind:scope,entries:JSON.parse(JSON.stringify(entries))};
+    const data={dataVersion:1,kind:scope,entries:JSON.parse(JSON.stringify(entries)),packId:crypto.randomUUID()};
+    /* 交给外部 Agent 的包默认脱敏；完整备份仍保留原数据。开关只在设置页，读取失败时按脱敏处理。 */
+    if(document.getElementById('packSanitize')?.checked!==false){
+      for(const p of data.entries){
+        for(const field of ['client','studio','location','lat','lng'])delete p[field];
+        for(const field of ['budget','notes','todos'])p[field]=[];
+        if(p.concept)delete p.concept.note;
+      }
+    }
+    if(scope==='shots'&&data.entries.length===1&&data.entries[0]&&!data.entries[0].assetPack){
+      const hintSource=data.entries[0];
+      data.targetHint={id:String(hintSource.id||''),name:String(hintSource.name||''),client:String(hintSource.client||'')};
+    }
     const poseKeys=new Map();
     const remap=key=>{
       if(!String(key||'').startsWith('shisei:'))return key;
@@ -99,6 +111,55 @@ async function exportArchiveProjects(entries,scope,direct=false){
 function archiveTargetLabel(p){
   return (p.name||'未命名项目')+(p.client?' · 客户 '+p.client:'')+(p.shootDate?' · '+p.shootDate:'')+' · ID '+String(p.id||'').slice(0,8);
 }
+const LS_ARCHIVE_PACKS='wb_sf_asset_packs_v1';
+function archivePackHistory(){try{const v=JSON.parse(localStorage.getItem(LS_ARCHIVE_PACKS)||'{}');return v&&typeof v==='object'?v:{};}catch{return {};}}
+function archivePackSeen(id){return id?archivePackHistory()[id]||null:null;}
+function markArchivePack(id,receipt){
+  if(!id)return;
+  try{
+    const h=archivePackHistory();h[id]={at:new Date().toISOString(),kind:receipt.kind,sha256:receipt.sha256};
+    const keys=Object.keys(h);if(keys.length>200)for(const k of keys.slice(0,keys.length-200))delete h[k];
+    localStorage.setItem(LS_ARCHIVE_PACKS,JSON.stringify(h));
+  }catch{}
+}
+/* 只读校验：打开并执行生产导入器的全部检查，但不预览确认、不写入任何数据。
+   输出与 scripts/validate-pack.mjs 同形态的 JSON，便于外部 Agent 复现问题。 */
+async function validateArchiveOnly(e){
+  const input=e.target,file=input.files&&input.files[0];input.value='';
+  if(!file)return;
+  let op=null,opened=null;
+  try{
+    op=startArchiveOperation('仅校验 ZIP 资产包');
+    opened=await openAssetArchive(file,archiveCodec(),{signal:op.controller.signal});
+    const digest=await crypto.subtle.digest('SHA-256',await file.arrayBuffer());
+    const sha256=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    const result={ok:true,errors:[],warnings:[],checks:{schema:true,sha256:true,images:true,limits:true,referenceClosure:true},
+      stats:opened.stats,containerVersion:opened.manifest.containerVersion,dataVersion:opened.data.dataVersion,
+      kind:opened.data.kind,sha256,bytes:file.size,note:'仅完成文件级校验，未导入、未写入工作台'};
+    await opened.close().catch(()=>{});opened=null;finishArchiveOperation(op);op=null;
+    showPackResult('资产包校验结果',result,'文件级校验通过。导入仍需在「导入」入口预览并由你确认。');
+  }catch(err){
+    showPackResult('资产包校验结果',{ok:false,errors:[{code:'VALIDATION',path:'$',message:String(err.message||err)}],warnings:[],checks:{}}, '校验未通过；源文件未被修改，修正后可重新校验。');
+  }finally{if(opened)await opened.close().catch(()=>{});if(op)finishArchiveOperation(op);}
+}
+let packResultValue=null;
+function showPackResult(title,value,note){
+  packResultValue=value;
+  const modal=document.getElementById('packResultModal');if(!modal)return;
+  document.getElementById('packResultTitle').textContent=title;
+  document.getElementById('packResultNote').textContent=note||'';
+  document.getElementById('packResultText').value=JSON.stringify(value,null,2);
+  modal.classList.add('show');
+}
+function closePackResult(){document.getElementById('packResultModal')?.classList.remove('show');}
+async function copyPackResult(){
+  const text=document.getElementById('packResultText')?.value||'';
+  try{await navigator.clipboard.writeText(text);toast('校验结果已复制');}catch{toast('当前浏览器不支持自动复制，请手动选择文本');}
+}
+function downloadPackResult(){
+  if(!packResultValue)return;
+  downloadBlob(new Blob([JSON.stringify(packResultValue,null,2)],{type:'application/json'}),'Stillmark_资产包结果_'+todayStr()+'.json');
+}
 async function previewArchiveImport(file){
   let op=null,opened=null;
   try{
@@ -108,26 +169,33 @@ async function previewArchiveImport(file){
     if(op.controller.signal.aborted)throw Error('已取消资产包导入');
     const names=opened.data.entries.slice(0,3).map(p=>p.name).join('、')+(opened.data.entries.length>3?' 等':'');
     const s=opened.stats,session=opened,controller=op.controller;
+    const hint=session.data.targetHint||{},packId=session.data.packId||'',seen=archivePackSeen(packId);
+    const fileBytes=file;
     finishArchiveOperation(op);op=null;opened=null;
     const summary=s.shots+' 条分镜、'+s.images+' 个图片引用（'+s.uniqueImages+' 张唯一图片），'+(s.archiveBytes/1048576).toFixed(2)+' MiB。确认后校验全部图片并写入。';
     const privacy=session.data.kind==='projects'
       ?'完整项目可能包含客户、拍摄地点、日程、预算、备注和执行状态；确认前请核对是否为授权内容。'
       :'分镜包只包含所选分镜及依赖；追加到现有项目时，不会覆盖其他项目资料或日程。';
+    const duplicate=seen?'⚠ 该资产包 ID 已于 '+seen.at+' 导入过；如确需重复写入，请在下方确认。':'';
+    const baseDesc='将新增 '+s.projects+' 个策划案：'+names+'；'+summary+' 保留现有数据与收藏。'+privacy+(duplicate?'\n'+duplicate:'');
     const cancel=()=>{controller.abort();session.close().catch(()=>{});};
-    askConfirm('导入 ZIP 资产包？','将新增 '+s.projects+' 个策划案：'+names+'；'+summary+' 保留现有数据与收藏。'+privacy,()=>{
+    askConfirm('导入 ZIP 资产包？',baseDesc,()=>{
       const target=document.getElementById('archiveImportTarget').value;
-      applyArchiveImport(session,controller,target);
+      applyArchiveImport(session,controller,target,fileBytes);
     },cancel);
     const picker=document.getElementById('archiveImportTarget'),row=document.getElementById('archiveImportTargetRow');
     if(session.data.kind==='shots'){
       const targets=loadP().filter(p=>!p.demo&&!p.assetPack);
       picker.replaceChildren(new Option('创建新的策划案',''));
       for(const p of targets)picker.add(new Option(archiveTargetLabel(p),p.id));
+      const suggested=(hint.id&&targets.find(p=>p.id===hint.id))||(hint.name&&targets.find(p=>p.name===hint.name&&(!hint.client||p.client===hint.client)));
+      if(suggested)picker.value=suggested.id;
       row.hidden=false;
       picker.onchange=()=>{
         const target=targets.find(p=>p.id===picker.value);
-        document.getElementById('confirmDesc').textContent=target?'向「'+archiveTargetLabel(target)+'」追加 '+summary+' 保留原项目资料、日程及既有分镜。'+privacy:'将新增 1 个策划案：'+names+'；'+summary+' 保留现有数据与收藏。'+privacy;
+        document.getElementById('confirmDesc').textContent=target?'包建议目标：'+archiveTargetLabel(target)+'。向「'+archiveTargetLabel(target)+'」追加 '+summary+' 保留原项目资料、日程及既有分镜。'+privacy+(duplicate?'\n'+duplicate:''):'将新增 1 个策划案：'+names+'；'+summary+' 保留现有数据与收藏。'+privacy+(duplicate?'\n'+duplicate:'');
       };
+      if(suggested)picker.onchange();
     }
   }catch(err){if(opened)await opened.close().catch(()=>{});toast('导入失败：'+String(err.message||err),6000);}
   finally{if(op)finishArchiveOperation(op);}
@@ -158,7 +226,7 @@ function adaptArchiveEntryV1ToProject(raw,options){
   for(const shot of project.shots||[])shot.refIds=(shot.refIds||[]).map(remap);
   return project;
 }
-async function applyArchiveImport(opened,controller,targetId=''){
+async function applyArchiveImport(opened,controller,targetId='',file=null){
   let op=null,locked=false,published=false,session=null;
   const app=document.getElementById('app');
   try{
@@ -197,6 +265,15 @@ async function applyArchiveImport(opened,controller,targetId=''){
     projectsCache=arr;pendingPersist=false;persistFailed=false;notifyProjectChange();
     if(document.getElementById('settingsModal').classList.contains('show'))closeSettings();
     view=freshView();renderBoard();toast(target?'导入成功，已向「'+target.name+'」追加 '+imported[0].shots.length+' 条分镜':'导入成功，新增 '+imported.length+' 个策划案');
+    let sha256='';
+    try{if(file?.arrayBuffer){const d=await crypto.subtle.digest('SHA-256',await file.arrayBuffer());sha256=[...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('');}}catch{}
+    const receipt={ok:true,format:'stillmark.import-receipt',version:1,at:new Date().toISOString(),
+      packId:opened.data.packId||null,sha256,kind:opened.data.kind,
+      target:target?{id:target.id,name:target.name}:null,
+      projects:imported.map(p=>({id:p.id,name:p.name,shots:(p.shots||[]).map(s=>s.id)})),
+      images:[...map.values()],note:'ID 为本次导入后的工作台内部标识，仅供后续精确引用'};
+    markArchivePack(receipt.packId,receipt);
+    showPackResult('导入回执',receipt,'导入已提交并落盘；可复制 JSON 供后续自动化引用。');
   }catch(err){toast('导入失败：'+String(err.message||err)+'，原项目未被覆盖',6000);}
   finally{
     await opened.close().catch(()=>{});

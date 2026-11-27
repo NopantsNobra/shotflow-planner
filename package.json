@@ -1,6 +1,6 @@
 {
   "name": "stillmark-shotflow-planner",
-  "version": "11.0.0",
+  "version": "11.0.1",
   "private": true,
   "type": "module",
   "description": "瞬刻摄影工作台 · Stillmark —— 本地优先摄影策划 PWA",
@@ -10,6 +10,9 @@
     "verify:version": "node scripts/verify-version.mjs",
     "schemas:export": "node scripts/export-schemas.mjs",
     "schemas:check": "node scripts/export-schemas.mjs --check",
+    "capabilities:export": "node scripts/export-capabilities.mjs",
+    "capabilities:check": "node scripts/export-capabilities.mjs --check",
+    "pack:validate": "node scripts/validate-pack.mjs",
     "lint": "node scripts/lint-runtime.mjs && eslint scripts tests playwright.config.js eslint.config.js",
     "format:check": "prettier --check \"scripts/*.mjs\" \"eslint.config.js\" \"playwright.config.js\"",
     "test": "npm run test:logic && npm run test:e2e",

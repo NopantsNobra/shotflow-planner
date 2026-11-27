@@ -8,7 +8,7 @@
    否则构建注入会命中注释而非代码（replace 只替换首个出现）===== */
 const APP_VERSION='__APP_VERSION__';
 const PROPOSAL_SCRIPT_HASH='__PROPOSAL_SCRIPT_HASH__';
-const MODULE_VERSIONS={shell:'v11.0.0',styles:'v11.0.0',data:'v11.0.0',core:'v10.9.3',app:'v10.9.2',output:'v11.0.0',boot:'v11.0.0',settings:'v11.0.0',swCache:'shotflow-v11-0-prompt-editor',dbSchema:4,since:'v10.5.0'};
+const MODULE_VERSIONS={shell:'v11.0.0',styles:'v11.0.0',data:'v11.0.0',core:'v10.9.3',app:'v11.0.1',output:'v11.0.1',boot:'v11.0.1',settings:'v11.0.1',swCache:'shotflow-v11-0-prompt-editor',dbSchema:4,since:'v10.5.0'};
 const DEFAULT_AGENT_PROMPT='__DEFAULT_AGENT_PROMPT__';
 const LS_AGENT_PROMPT='wb_sf_agent_prompt_v1';
 const FB_KEY_A = 'uJrHd8a=U+X9Uh3EUtyyUhdF';

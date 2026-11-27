@@ -634,6 +634,29 @@
       },
       "minItems": 1,
       "maxItems": 200
+    },
+    "packId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "targetHint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "client": {
+          "type": "string",
+          "maxLength": 120
+        }
+      }
     }
   }
 }

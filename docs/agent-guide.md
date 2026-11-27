@@ -1,5 +1,7 @@
 # Stillmark — 外部 Agent 操作指南
 
+[English version](agent-guide.en.md) · [ZIP 规范英文版](asset-pack-format.en.md) · [英文任务提示词](agent-tasks/generate-shoot-plan-v3.en.md) · [英文盲测流程](agent-blind-test.en.md)
+
 适用格式：`stillmark.asset-pack` ZIP 容器 v1、业务数据 v1。ZIP 导入导出已合入 `main`。较早的静态部署或 Service Worker 缓存可能尚未更新；使用前请在看板确认「导入」可以选择 `.stillmark.zip`。应用主版本号可能不会随该能力单独变化，不要只凭版本号判断 ZIP 是否可用。
 
 ## 快速开始
@@ -9,6 +11,10 @@
 3. 创建 ZIP，根目录只放 `manifest.json`、`data.json` 和清单声明的 `images/<sha256>.<ext>` 文件。`data.json` 中图片用逻辑 key 引用，清单把 key 映射到图片路径和摘要。不要把图片转成 Base64 塞入 JSON。
 4. 交付 `.stillmark.zip` 文件。若获准操作用户浏览器，在看板选择「导入」，选中 ZIP，先核对预览中的项目、分镜和图片数量，再按用户指定范围确认。追加分镜时必须由用户明确指定目标项目。
 5. 导入后核对项目/分镜、场景和图片，并刷新页面确认保存。无法操作浏览器时，只报告“资产包已生成，可手动导入”，不要声称已经写入工作台。
+
+部署根提供机器可读的 [`capabilities.json`](../capabilities.json)：它给出容器/数据版本、两种 `kind`、公开 Schema 与示例路径、当前处理上限、UI 导入入口，以及本版是否提供「仅校验」和导入回执。**先读它，不要根据应用版本号猜测能力。**
+
+`data.json` 可选携带 `packId`（你为本次交付生成的稳定 ID）与 `targetHint`（`shots` 包建议追加到的项目 id/名称/客户）。`targetHint` 只是建议，应用仍会展示预览并要求用户确认；`packId` 用于提示重复导入，不能绕过用户决定。导入成功后应用会给出可复制的 JSON 回执，含导入后项目/分镜的内部 ID、包摘要与时间。
 
 需要一个可直接交给外部 Agent 的任务方向时，请使用[摄影策划生成任务 v3](agent-tasks/generate-shoot-plan-v3.md)；v1/v2 保留为历史版本。设置页提供此任务提示词的可编辑副本，工作台不自动发送。任务说明明确创作目标、可用输入、输出契约、事实与假设边界及适度的现实风险信息；它不会授予 Agent 访问本地项目、上传素材或直接写入的权限。任务提示词和数据 Schema 分别版本化，Schema 与导入器验证结构和数据。独立外部 Agent 的[盲测流程](agent-blind-test.md)与[可复制测试指令](agent-blind-test-prompt.md)均可查阅。
 
@@ -47,6 +53,18 @@ ZIP 中的图片路径按原始图片字节的 SHA-256 命名。若多个逻辑 
 桌面可下载 `shotflow.html` 后直接打开；也可将 `shotflow-app/` 部署到 HTTPS 静态站点。开发仓库中可运行 `python -m http.server 8765 --directory shotflow-app`，然后打开 `http://localhost:8765/shotflow.html`。直接通过 `file://` 打开时没有 Service Worker/PWA；浏览器对本地存储和 Web Crypto 的限制可能影响导入，遇到能力错误请改用 localhost 或 HTTPS，不要放宽安全策略。
 
 ZIP 入口位于看板「导入」。选择 `.stillmark.zip` 后，预览会显示项目、分镜、图片引用和体积；只有 `kind: "shots"` 提供目标选择，默认新建项目。选择既有项目并确认后，只追加所选分镜及其直接引用的场景和图片，保留目标项目其他信息、日程和已有分镜。完整项目包默认新增项目。旧版 JSON 导入仍用于兼容旧文件；不要把 ZIP 改名为 JSON，也不要用全库备份进行日常交接。
+
+## 脱敏导出
+
+设置页「数据与备份」中的「交给外部 Agent 的资产包默认脱敏」默认开启：打包时移除客户、工作室、地点与坐标、预算、备注和待办，只保留创作与执行所需结构。完整备份不受影响。取消勾选意味着接收方已获授权查看这些信息。
+
+## 生成数据时的时间语义
+
+- `shots[].slot` 只是持久化的排程结果。应用首次进入拍摄日或用户点「重新排程」时会由排程引擎重新派生它；不要把它当作必须被原样显示的最终时刻。需要保留用户指定时刻的日程节点应设 `schedule[].timeLocked:true`，并在备注写明待确认。
+- `shots[].duration` 缺省时按 10 分钟处理，合法范围 5–1440 分钟。不要把超过一天的时长写进包里。
+- `shootDates` 是真源，`shootDate` 恒等于首日；跨午夜由应用按拍摄地时区处理。时区用 IANA 名称（如 `Asia/Shanghai`）写入 `timeZone`，不要写 UTC 偏移数字。
+- 每条分镜最多 3 个 `refIds`；`sceneId` 必须指向包内 `scenes[].id` 或留空。日程节点与分镜的引用闭包必须自洽。
+- 只写用户确认过或明确标为待确认的日期、地点许可、器材与审批；把推断写进 `note` 而不是伪装成事实。
 
 ## 当前导入器限制
 

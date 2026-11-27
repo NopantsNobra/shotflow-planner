@@ -48,5 +48,8 @@ function assetArchiveManifestSchema(){
 function assetArchiveDataSchema(){
   return {$schema:'https://json-schema.org/draft/2020-12/schema',title:'Stillmark asset archive business data v1',
     type:'object',additionalProperties:false,required:['dataVersion','kind','entries'],
-    properties:{dataVersion:{const:1},kind:{enum:['projects','shots']},entries:portablePackSchema().properties.entries}};
+    properties:{dataVersion:{const:1},kind:{enum:['projects','shots']},entries:portablePackSchema().properties.entries,
+      packId:{type:'string',minLength:1,maxLength:200},
+      targetHint:{type:'object',additionalProperties:false,
+        properties:{id:{type:'string',maxLength:200},name:{type:'string',maxLength:120},client:{type:'string',maxLength:120}}}}};
 }

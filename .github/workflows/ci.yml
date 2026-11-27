@@ -26,6 +26,8 @@ jobs:
         run: npm run verify:version
       - name: 交换格式 Schema 一致性
         run: npm run schemas:check
+      - name: Agent 能力声明一致性
+        run: npm run capabilities:check
       - name: ESLint
         run: npm run lint
       - name: Prettier 格式检查

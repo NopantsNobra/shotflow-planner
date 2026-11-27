@@ -107,6 +107,23 @@ async function copyAgentPrompt(){
   try{await navigator.clipboard.writeText(field.value);updateAgentPromptStatus('当前编辑框中的提示词已复制。');}
   catch{updateAgentPromptStatus('浏览器未允许访问剪贴板；可在编辑框中全选并复制。');}
 }
+async function agentPromptDigest(text){
+  if(!globalThis.crypto?.subtle)return '';
+  const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
+  return [...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function showAgentPromptFingerprint(){
+  const field=document.getElementById('agentPromptText');if(!field)return;
+  const hex=await agentPromptDigest(field.value);
+  updateAgentPromptStatus(hex?'SHA-256 '+hex.slice(0,16)+'…（导出文件含完整指纹）':'当前环境不支持计算指纹（需安全上下文）');
+}
+async function exportAgentPrompt(){
+  const field=document.getElementById('agentPromptText');if(!field)return;
+  const text=field.value,hex=await agentPromptDigest(text);
+  const header='---\nformat: stillmark.agent-prompt\nversion: 1\nsha256: '+(hex||'unavailable')+'\n---\n\n';
+  downloadBlob(new Blob([header+text+'\n'],{type:'text/markdown'}),'Stillmark_Agent提示词_'+todayStr()+'.md');
+  updateAgentPromptStatus(hex?'已导出提示词，含 SHA-256 指纹。':'已导出提示词（当前环境未计算指纹）。');
+}
 
 /* ---------- 渲染（只写 #settingsBody，不触碰页面 DOM） ---------- */
 function renderSettings(){
@@ -179,6 +196,8 @@ function settingsDataHtml(){
     +'<button class="btn btn-ghost btn-sm" '+doAttrs('pick-backup',['settingsImportFile'])+'>导入备份</button>'
     +'</div>'
     +'<input type="file" id="settingsImportFile" accept=".json,.zip,.stillmark.zip" style="display:none" data-change="import-backup">'
+    +'<label class="row" style="margin-top:10px;align-items:center;gap:8px"><input type="checkbox" id="packSanitize" checked><span>交给外部 Agent 的资产包默认脱敏：去掉客户 / 工作室 / 地点坐标 / 预算 / 备注 / 待办</span></label>'
+    +'<p class="src-note" style="margin-top:8px">该开关只影响「打包项目」「导出收藏」生成的 ZIP，不影响本地项目与完整备份。取消勾选前请确认接收方已获授权。</p>'
     +'<p class="src-note" style="margin-top:10px">标签词表为项目级数据：在各策划案的「情绪板」页编辑（改词 / 删词入口在标签云上），不设全局词表。</p>'
     +'</div>';
 }

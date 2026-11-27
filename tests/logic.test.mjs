@@ -928,6 +928,16 @@ check('ZIP 清单拒绝非法路径、重复键、摘要冲突、类型错配和
     &&badData({dataVersion:1,kind:'shots',entries:[{name:'A',shots:[{name:'S',refIds:['first']}]}]})
     &&badData({dataVersion:1,kind:'projects',entries:[{name:'A',shots:[{name:'S',refIds:['missing']}]}]});
 })()`,ctx));
+check('ZIP 数据 v1 接受 packId / targetHint 并拒绝未知顶层字段',vm.runInContext(`(()=>{
+  const digest='a'.repeat(64),image={key:'first',path:'images/'+digest+'.png',bytes:100,sha256:digest,mime:'image/png'};
+  const manifest={format:'stillmark.asset-pack',containerVersion:1,dataVersion:1,kind:'shots',exportedAt:'2026-11-26T00:00:00Z',
+    data:{path:'data.json',bytes:1000,sha256:'b'.repeat(64)},images:[image]};
+  const ok={dataVersion:1,kind:'shots',packId:'pack-1',targetHint:{id:'p1',name:'窗边肖像',client:'客户A'},
+    entries:[{name:'A',shots:[{name:'S',refIds:['first']}]}]};
+  try{validateArchiveData(ok,manifest);}catch{return false;}
+  const unknown={...ok,unexpected:true};
+  try{validateArchiveData(unknown,manifest);return false;}catch{return true;}
+})()`,ctx));
 vm.runInContext(fn('adaptArchiveEntryV1ToProject'),ctx);
 ctx.__archiveInput={name:'外部策划',client:'不应并入的客户信息',shots:[{id:'shot-1',name:'窗边肖像',sceneId:'scene-1',refIds:['image-1'],done:true}],
   scenes:[{id:'scene-1',name:'窗边'},{id:'unused-scene',name:'无关场景'}],refs:[{id:'ref-1',key:'image-1',name:'参考图'},{id:'unused-ref',key:'unused-image'}],notes:[{id:'private',content:'不应并入'}]};

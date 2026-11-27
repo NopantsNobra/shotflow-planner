@@ -75,6 +75,8 @@
         <button class="btn btn-primary btn-sm" data-shell-action="save-agent-prompt">保存到本机</button>
         <button class="btn btn-ghost btn-sm" data-shell-action="copy-agent-prompt">复制当前内容</button>
         <button class="btn btn-ghost btn-sm" data-shell-action="reset-agent-prompt">恢复默认</button>
+        <button class="btn btn-ghost btn-sm" data-shell-action="prompt-fingerprint">查看指纹</button>
+        <button class="btn btn-ghost btn-sm" data-shell-action="export-agent-prompt">导出 .md</button>
         <span class="muted" id="agentPromptStatus" role="status" aria-live="polite"></span>
       </div>
       <p class="muted agent-prompt-privacy">个人修改只保存在当前浏览器的本机设置中，不会进入项目数据、备份或反馈。复制后由你自行决定是否交给某个 Agent。</p>
@@ -149,6 +151,24 @@
       <div class="row"><button class="btn btn-ghost btn-sm" data-shell-action="close-favorites">关闭</button></div>
     </div>
     <div class="settings-body" id="favPickerBody"></div>
+  </div>
+</div>
+
+<!-- 资产包校验结果 / 导入回执：纯文本输出，用户自行复制或保存。 -->
+<div class="modal-mask" id="packResultModal" data-shell-action="pack-result-backdrop">
+  <div class="modal doc-modal" style="max-width:720px">
+    <div class="doc-bar no-print">
+      <span class="doc-bar-title" id="packResultTitle">资产包校验结果</span>
+      <div class="row">
+        <button class="btn btn-ghost btn-sm" data-shell-action="copy-pack-result">复制 JSON</button>
+        <button class="btn btn-ghost btn-sm" data-shell-action="download-pack-result">保存 JSON</button>
+        <button class="btn btn-ghost btn-sm" data-shell-action="close-pack-result">关闭</button>
+      </div>
+    </div>
+    <div style="padding:14px">
+      <p class="src-note" id="packResultNote"></p>
+      <textarea id="packResultText" spellcheck="false" style="width:100%;min-height:260px;font-family:ui-monospace,monospace" aria-label="校验结果 JSON"></textarea>
+    </div>
   </div>
 </div>
 

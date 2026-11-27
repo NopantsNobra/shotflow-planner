@@ -4,6 +4,19 @@
 
 所有日期为 2026 年。
 
+## [v11.0.1] - 2026-11-27
+
+外部 Agent 对接补齐（P1–P3）；应用核心行为与 SW 缓存不变（`shotflow-v11-0-prompt-editor`）。
+
+- **能力声明**：新增由 `assetArchiveLimits()`、版本、Schema 清单生成的 `capabilities.json`，由 `capabilities:check` 防漂移，随 `shotflow-app/` 一起发布；CI 构建任务新增该门禁。
+- **包契约扩展**：资产包数据 v1 新增可选 `packId` 与 `targetHint`。导入预览按提示预选目标但仍由用户确认；已导入 `packId` 会提示重复，不绕过用户决定。Schema 与公开文件同步更新，逻辑测试覆盖字段接受与未知字段拒绝。
+- **只读校验**：看板新增「仅校验包」入口，执行生产导入器的全部文件级检查但不写入，输出可复制 JSON；新增 `npm run pack:validate -- <已解压目录>` CLI 诊断。
+- **导入回执**：导入成功后给出可复制 JSON 回执（包 ID、摘要、项目/分镜新 ID、图片 key、时间），便于后续精确引用。
+- **文档与提示词**：Agent 指南补充时间语义与脱敏说明；新增英文版指南、ZIP 规范、任务 v3 与盲测流程；提示词编辑器新增 SHA-256 指纹查看与带指纹的 `.md` 导出。
+- **默认脱敏**：设置页新增开关，导出给 Agent 的资产包默认移除客户、工作室、地点与坐标、预算、备注、待办；完整备份不受影响。
+
+验证：逻辑测试 146 项、`verify:build`（含 CSP 哈希）、`verify:version`、`schemas:check`、`capabilities:check`、`test:deploy`、perf、`sync:check`、lint、format:check 全绿；示例包 CLI 校验通过。
+
 ## [v11.0.0] - 2026-11-26
 
 - 设置页新增独立 Agent 提示词审查与编辑器：查看完整默认提示词、自由修改、保存到本机、复制当前内容或恢复默认；未保存内容关闭时会提醒。
